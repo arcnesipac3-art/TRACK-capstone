@@ -1,0 +1,207 @@
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { AuthProvider, useAuth } from './AuthContext'
+import api, { ApiError } from '../services/api'
+
+// Mock the whole API module so no network is touched.
+vi.mock('../services/api', () => {
+  class ApiError extends Error {
+    constructor(message, status, details = null) {
+      super(message)
+      this.name = 'ApiError'
+      this.status = status
+      this.details = details
+    }
+  }
+  return {
+    default: {
+      ensureCsrf: vi.fn().mockResolvedValue(undefined),
+      me: vi.fn(),
+      login: vi.fn(),
+      logout: vi.fn().mockResolvedValue({}),
+    },
+    api: {
+      ensureCsrf: vi.fn().mockResolvedValue(undefined),
+      me: vi.fn(),
+      login: vi.fn(),
+      logout: vi.fn().mockResolvedValue({}),
+    },
+    ApiError,
+    API_BASE: '/api',
+  }
+})
+
+/** Renders a probe that surfaces the live auth context. */
+function Probe() {
+  const auth = useAuth()
+  return (
+    <div>
+      <p data-testid="status">{auth.status}</p>
+      <p data-testid="authenticated">{String(auth.isAuthenticated)}</p>
+      <p data-testid="loading">{String(auth.isLoading)}</p>
+      <p data-testid="role">{auth.user?.role ?? 'none'}</p>
+      <p data-testid="fullname">{auth.user?.fullName ?? ''}</p>
+      <button
+        type="button"
+        onClick={() => auth.login('admin', 'secret')}
+      >
+        sign in
+      </button>
+      <button type="button" onClick={() => auth.logout()}>
+        sign out
+      </button>
+    </div>
+  )
+}
+
+function renderAuth() {
+  return render(
+    <AuthProvider>
+      <Probe />
+    </AuthProvider>
+  )
+}
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
+
+describe('AuthProvider', () => {
+  it('starts in the loading state before the session is restored', () => {
+    api.me.mockReturnValue(new Promise(() => {})) // never resolves
+    renderAuth()
+    expect(screen.getByTestId('loading').textContent).toBe('true')
+    expect(screen.getByTestId('status').textContent).toBe('loading')
+  })
+
+  it('restores an existing session from /auth/me/', async () => {
+    api.me.mockResolvedValue({
+      id: 1,
+      username: 'ada',
+      first_name: 'Ada',
+      last_name: 'Admin',
+      role: 'admin',
+    })
+    renderAuth()
+    await waitFor(() =>
+      expect(screen.getByTestId('status').textContent).toBe('authenticated')
+    )
+    expect(screen.getByTestId('authenticated').textContent).toBe('true')
+    expect(screen.getByTestId('role').textContent).toBe('admin')
+    expect(screen.getByTestId('fullname').textContent).toBe('Ada Admin')
+    expect(api.ensureCsrf).toHaveBeenCalled()
+    expect(api.me).toHaveBeenCalled()
+  })
+
+  it('treats a 401/403 from /auth/me/ as a clean anonymous state', async () => {
+    api.me.mockRejectedValue(new ApiError('Not authenticated', 401))
+    renderAuth()
+    await waitFor(() =>
+      expect(screen.getByTestId('status').textContent).toBe('anonymous')
+    )
+    expect(screen.getByTestId('authenticated').textContent).toBe('false')
+  })
+
+  it('records a bootstrap error for a network failure instead of pretending to be signed out silently', async () => {
+    api.me.mockRejectedValue(new ApiError('Cannot reach the TRACK server.', 0))
+    renderAuth()
+    await waitFor(() =>
+      expect(screen.getByTestId('status').textContent).toBe('anonymous')
+    )
+    // The status still resolves so the app is usable, not stuck loading.
+    expect(screen.getByTestId('loading').textContent).toBe('false')
+  })
+
+  it('login() stores the returned profile and marks the session authenticated', async () => {
+    const user = userEvent.setup()
+    api.me.mockRejectedValue(new ApiError('no session', 401))
+    api.login.mockResolvedValue({
+      user: {
+        id: 7,
+        username: 'teresa',
+        first_name: 'Teresa',
+        last_name: 'Reyes',
+        role: 'teacher',
+      },
+    })
+    renderAuth()
+    await waitFor(() =>
+      expect(screen.getByTestId('status').textContent).toBe('anonymous')
+    )
+
+    await user.click(screen.getByText('sign in'))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('status').textContent).toBe('authenticated')
+    )
+    expect(api.login).toHaveBeenCalledWith('admin', 'secret')
+    expect(screen.getByTestId('role').textContent).toBe('teacher')
+    expect(screen.getByTestId('fullname').textContent).toBe('Teresa Reyes')
+  })
+
+  it('normalises legacy role names from the backend', async () => {
+    api.me.mockResolvedValue({ id: 1, username: 'x', role: 'administrator' })
+    renderAuth()
+    await waitFor(() =>
+      expect(screen.getByTestId('role').textContent).toBe('admin')
+    )
+  })
+
+  it('maps an unrecognised role to null so it can never pass a role gate', async () => {
+    api.me.mockResolvedValue({ id: 1, username: 'x', role: 'hacker' })
+    renderAuth()
+    await waitFor(() =>
+      expect(screen.getByTestId('status').textContent).toBe('authenticated')
+    )
+    expect(screen.getByTestId('role').textContent).toBe('none')
+  })
+
+  it('logout() clears local state even if the server call fails', async () => {
+    const user = userEvent.setup()
+    api.me.mockResolvedValue({ id: 1, username: 'ada', role: 'admin' })
+    api.logout.mockRejectedValue(new ApiError('network down', 0))
+    renderAuth()
+    await waitFor(() =>
+      expect(screen.getByTestId('authenticated').textContent).toBe('true')
+    )
+
+    await user.click(screen.getByText('sign out'))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('authenticated').textContent).toBe('false')
+    )
+    expect(screen.getByTestId('status').textContent).toBe('anonymous')
+  })
+
+  it('never exposes a password or token in the context value', async () => {
+    api.me.mockResolvedValue({ id: 1, username: 'ada', role: 'admin' })
+
+    // Probe that renders the context's own keys and profile shape into the
+    // DOM — no outer-variable assignment during render.
+    function KeysProbe() {
+      const auth = useAuth()
+      return (
+        <>
+          <p data-testid="keys">{Object.keys(auth).sort().join(',')}</p>
+          <p data-testid="profile">{JSON.stringify(auth.user)}</p>
+        </>
+      )
+    }
+
+    render(
+      <AuthProvider>
+        <KeysProbe />
+      </AuthProvider>
+    )
+
+    await waitFor(() =>
+      expect(screen.getByTestId('profile').textContent).not.toBe('')
+    )
+    const keys = screen.getByTestId('keys').textContent.split(',')
+    expect(keys).not.toContain('password')
+    expect(keys).not.toContain('token')
+    // The profile itself carries no credential fields.
+    expect(screen.getByTestId('profile').textContent).not.toMatch(/password/i)
+  })
+})
