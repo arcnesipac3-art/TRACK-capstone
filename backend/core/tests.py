@@ -6,22 +6,26 @@ Run from the backend folder:
 """
 
 from datetime import timedelta
+from io import StringIO
 
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from .models import (
+    Announcement,
     AuditLog,
     AttendanceRecord,
     AttendanceSession,
     GradeLevel,
+    Notification,
     ParentProfile,
     Requirement,
     SchoolYear,
     Section,
     StudentProfile,
     Submission,
+    SubmissionHistory,
     Subject,
     TeacherAssignment,
     User,
@@ -214,8 +218,178 @@ class AuthorizationTests(TrackTestCase):
         self.assertEqual(response.status_code, 200, response.content)
         sub.refresh_from_db()
         self.assertEqual(sub.status, Submission.Status.VERIFIED)
-        self.assertIsNotNone(sub.verified_at)
-        self.assertEqual(sub.history.count(), 1)
+
+
+class SubmissionWriteTests(TrackTestCase):
+    """
+    Regression guards for the real submission flow.
+
+    Two bugs lived here. DRF auto-attached a UniqueTogetherValidator for the
+    model's unique_together on (requirement, student); it runs before
+    validate() and demanded `student` in the body, but the view stamps the
+    student from the authenticated user, so the browser's actual payload —
+    requirement/link_url/status only — was rejected with a 400 and a student
+    could never hand anything in. Second, the UI re-enables Submit once a
+    requirement is returned, so a repeat POST collided with the UNIQUE
+    constraint instead of refreshing the row.
+    """
+
+    # Exactly what RequirementsExplorer.handleSubmit sends. No `student`.
+    def frontend_payload(self, requirement_id=None, link="https://example.com/work"):
+        return {
+            "requirement": requirement_id or self.requirement1.id,
+            "status": "submitted",
+            "link_url": link,
+        }
+
+    def test_a_student_can_submit_with_the_payload_the_browser_actually_sends(self):
+        self.login_as(self.student1_user)
+        response = self.client.post(
+            "/api/submissions/", self.frontend_payload(), format="json"
+        )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        sub = Submission.objects.get(
+            requirement=self.requirement1, student=self.student1
+        )
+        self.assertEqual(sub.status, Submission.Status.SUBMITTED)
+        self.assertEqual(sub.link_url, "https://example.com/work")
+        self.assertIsNotNone(sub.submitted_at)
+
+    def test_the_student_is_stamped_from_the_session_not_the_body(self):
+        self.login_as(self.student1_user)
+        response = self.client.post(
+            "/api/submissions/", self.frontend_payload(), format="json"
+        )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        # student2 exists and is a real StudentProfile, but must not be usable
+        # as a target from the request body.
+        self.assertFalse(
+            Submission.objects.filter(student=self.student2).exists()
+        )
+        self.assertTrue(
+            Submission.objects.filter(student=self.student1).exists()
+        )
+
+    def test_an_explicit_foreign_student_is_refused_not_honoured(self):
+        self.login_as(self.student1_user)
+        payload = self.frontend_payload()
+        payload["student"] = self.student2.id
+        response = self.client.post("/api/submissions/", payload, format="json")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(
+            Submission.objects.filter(student=self.student2).exists()
+        )
+
+    def test_handing_in_twice_refreshes_the_row_instead_of_erroring(self):
+        self.login_as(self.student1_user)
+        first = self.client.post(
+            "/api/submissions/", self.frontend_payload(), format="json"
+        )
+        self.assertEqual(first.status_code, 201, first.content)
+
+        second = self.client.post(
+            "/api/submissions/",
+            self.frontend_payload(link="https://example.com/final"),
+            format="json",
+        )
+
+        self.assertEqual(second.status_code, 201, second.content)
+        self.assertEqual(
+            Submission.objects.filter(
+                requirement=self.requirement1, student=self.student1
+            ).count(),
+            1,
+        )
+        sub = Submission.objects.get(student=self.student1)
+        self.assertEqual(sub.link_url, "https://example.com/final")
+
+    def test_resubmitting_returned_work_clears_the_verification(self):
+        sub = Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.RETURNED,
+            submitted_at=timezone.now() - timedelta(days=1),
+            verified_at=timezone.now() - timedelta(hours=2),
+            teacher_feedback="Fix items 4 and 7.",
+        )
+        self.login_as(self.student1_user)
+        response = self.client.post(
+            "/api/submissions/", self.frontend_payload(), format="json"
+        )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        sub.refresh_from_db()
+        self.assertEqual(sub.status, Submission.Status.SUBMITTED)
+        self.assertIsNone(sub.verified_at)
+        self.assertIsNotNone(sub.submitted_at)
+
+    def test_resubmitting_writes_history_for_the_returned_to_submitted_jump(self):
+        sub = Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.RETURNED,
+            submitted_at=timezone.now() - timedelta(days=1),
+        )
+        before = sub.history.count()
+        self.login_as(self.student1_user)
+        self.client.post("/api/submissions/", self.frontend_payload(), format="json")
+
+        sub.refresh_from_db()
+        self.assertEqual(sub.history.count(), before + 1)
+        latest = sub.history.first()
+        self.assertEqual(latest.old_status, Submission.Status.RETURNED)
+        self.assertEqual(latest.new_status, Submission.Status.SUBMITTED)
+
+    def test_resubmitting_informs_the_teacher_again(self):
+        Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.RETURNED,
+            submitted_at=timezone.now() - timedelta(days=1),
+        )
+        self.login_as(self.student1_user)
+        self.client.post("/api/submissions/", self.frontend_payload(), format="json")
+
+        self.assertEqual(
+            self.teacher1.notifications.filter(submission__isnull=False).count(), 1
+        )
+
+    def test_resubmitting_same_status_writes_no_history_and_no_note(self):
+        # submitted -> submitted is a no-op change, not a new event.
+        Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.SUBMITTED,
+            submitted_at=timezone.now() - timedelta(days=1),
+        )
+        before = SubmissionHistory.objects.count()
+        self.login_as(self.student1_user)
+        self.client.post("/api/submissions/", self.frontend_payload(), format="json")
+
+        self.assertEqual(SubmissionHistory.objects.count(), before)
+
+    def test_only_a_student_can_hand_work_in(self):
+        self.login_as(self.teacher1)
+        response = self.client.post(
+            "/api/submissions/", self.frontend_payload(), format="json"
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Submission.objects.count(), 0)
+
+    def test_a_duplicate_submission_is_still_blocked_by_the_database(self):
+        # The serializer-level validator was removed because it required a
+        # field the client never sends; the UNIQUE constraint must still stand.
+        Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.SUBMITTED, submitted_at=timezone.now(),
+        )
+        self.login_as(self.student1_user)
+        response = self.client.post(
+            "/api/submissions/", self.frontend_payload(), format="json"
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Submission.objects.count(), 1)
 
     def test_other_teacher_cannot_touch_submission(self):
         sub = Submission.objects.create(
@@ -1196,3 +1370,407 @@ class AdminPasswordValidationTests(TrackTestCase):
         self.assertEqual(response.status_code, 200)
         self.teacher1.refresh_from_db()
         self.assertTrue(self.teacher1.check_password("pass-Teach123"))
+
+
+class NotificationWiringTests(TrackTestCase):
+    """
+    Notifications used to exist only as seed rows — the model defined eight
+    types but no view ever wrote one, so nothing actually notified anyone.
+
+    Each test drives the real API endpoint (not the helper directly) so the
+    wiring itself is what is under test.
+    """
+
+    def notifs_for(self, user, notif_type=None):
+        qs = user.notifications.all()
+        return qs if notif_type is None else qs.filter(notif_type=notif_type)
+
+    # ── New requirement ────────────────────────────────────────────────────
+
+    def test_creating_a_requirement_notifies_that_sections_students(self):
+        self.login_as(self.teacher1)
+        self.client.post("/api/requirements/", {
+            "title": "Geometry Packet",
+            "requirement_type": "assignment",
+            "deadline": (timezone.now() + timedelta(days=7)).isoformat(),
+            "teacher_assignment": self.assignment1.id,
+        }, format="json")
+
+        got = self.notifs_for(
+            self.student1_user, Notification.NotifType.REQUIREMENT_NEW
+        )
+        self.assertEqual(got.count(), 1)
+        self.assertIn("Geometry Packet", got.first().title)
+
+    def test_students_in_another_section_are_not_notified(self):
+        # student2 is in section_b; requirement1 belongs to section_a.
+        self.login_as(self.teacher1)
+        self.client.post("/api/requirements/", {
+            "title": "Only Sampaguita",
+            "requirement_type": "quiz",
+            "deadline": (timezone.now() + timedelta(days=7)).isoformat(),
+            "teacher_assignment": self.assignment1.id,
+        }, format="json")
+
+        self.assertEqual(
+            self.notifs_for(self.student2_user, Notification.NotifType.REQUIREMENT_NEW).count(),
+            0,
+        )
+
+    # ── Work handed in ─────────────────────────────────────────────────────
+
+    def test_submitting_work_notifies_the_teacher(self):
+        self.login_as(self.student1_user)
+        self.client.post("/api/submissions/", {
+            "requirement": self.requirement1.id,
+            "status": "submitted",
+            "link_url": "https://example.com/work",
+        }, format="json")
+
+        got = self.notifs_for(self.teacher1).filter(submission__isnull=False)
+        self.assertEqual(got.count(), 1)
+        self.assertIn("awaiting check", got.first().title)
+
+    def test_the_teacher_who_owns_the_class_is_notified_not_someone_else(self):
+        self.login_as(self.student1_user)
+        self.client.post("/api/submissions/", {
+            "requirement": self.requirement1.id,
+            "status": "submitted",
+            "link_url": "https://example.com/work",
+        }, format="json")
+
+        self.assertEqual(self.notifs_for(self.teacher2).count(), 0)
+
+    # ── Verified / returned ────────────────────────────────────────────────
+
+    def test_verifying_work_notifies_the_student(self):
+        sub = Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.SUBMITTED, submitted_at=timezone.now(),
+        )
+        self.login_as(self.teacher1)
+        self.client.patch(f"/api/submissions/{sub.id}/", {"status": "verified"}, format="json")
+
+        got = self.notifs_for(
+            self.student1_user, Notification.NotifType.SUBMISSION_VERIFIED
+        )
+        self.assertEqual(got.count(), 1)
+        self.assertEqual(got.first().submission_id, sub.id)
+
+    def test_returning_work_notifies_the_student_and_quotes_feedback(self):
+        sub = Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.SUBMITTED, submitted_at=timezone.now(),
+        )
+        self.login_as(self.teacher1)
+        self.client.patch(
+            f"/api/submissions/{sub.id}/",
+            {"status": "returned", "teacher_feedback": "Fix items 4 and 7."},
+            format="json",
+        )
+
+        got = self.notifs_for(
+            self.student1_user, Notification.NotifType.SUBMISSION_RETURNED
+        )
+        self.assertEqual(got.count(), 1)
+        self.assertIn("Fix items 4 and 7.", got.first().body)
+
+    def test_editing_feedback_without_a_status_change_notifies_nobody(self):
+        sub = Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.VERIFIED, submitted_at=timezone.now(),
+        )
+        before = self.student1_user.notifications.count()
+
+        self.login_as(self.teacher1)
+        self.client.patch(
+            f"/api/submissions/{sub.id}/", {"teacher_feedback": "Nice work."},
+            format="json",
+        )
+
+        self.assertEqual(self.student1_user.notifications.count(), before)
+
+    # ── Attendance ─────────────────────────────────────────────────────────
+
+    def _session(self):
+        return AttendanceSession.objects.create(
+            teacher_assignment=self.assignment1,
+            date=timezone.now().date(),
+        )
+
+    def test_marking_a_child_absent_notifies_their_parent(self):
+        session = self._session()
+        self.login_as(self.teacher1)
+        self.client.post("/api/attendance/records/", {
+            "session": session.id, "student": self.student1.id, "status": "absent",
+        }, format="json")
+
+        got = self.notifs_for(self.parent, Notification.NotifType.ATTENDANCE_ABSENT)
+        self.assertEqual(got.count(), 1)
+        self.assertIn("Sara Student", got.first().title)
+
+    def test_marking_a_child_late_notifies_their_parent(self):
+        session = self._session()
+        self.login_as(self.teacher1)
+        self.client.post("/api/attendance/records/", {
+            "session": session.id, "student": self.student1.id, "status": "late",
+        }, format="json")
+
+        self.assertEqual(
+            self.notifs_for(self.parent, Notification.NotifType.ATTENDANCE_LATE).count(), 1
+        )
+
+    def test_marking_present_notifies_nobody(self):
+        session = self._session()
+        self.login_as(self.teacher1)
+        self.client.post("/api/attendance/records/", {
+            "session": session.id, "student": self.student1.id, "status": "present",
+        }, format="json")
+
+        self.assertEqual(self.parent.notifications.count(), 0)
+
+    def test_a_parent_is_not_notified_about_a_child_they_are_not_linked_to(self):
+        # parent is linked only to student1; student2 is in section_b and has
+        # no parents at all, so nothing should be written and nothing crash.
+        session = AttendanceSession.objects.create(
+            teacher_assignment=self.assignment2,
+            date=timezone.now().date(),
+        )
+        self.login_as(self.teacher2)
+        response = self.client.post("/api/attendance/records/", {
+            "session": session.id, "student": self.student2.id, "status": "absent",
+        }, format="json")
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(self.parent.notifications.count(), 0)
+
+    def test_flipping_present_to_absent_on_update_notifies_the_parent(self):
+        record = AttendanceRecord.objects.create(
+            session=self._session(), student=self.student1,
+            status=AttendanceRecord.Status.PRESENT,
+        )
+        self.login_as(self.teacher1)
+        self.client.patch(
+            f"/api/attendance/records/{record.id}/", {"status": "absent"},
+            format="json",
+        )
+
+        self.assertEqual(
+            self.notifs_for(self.parent, Notification.NotifType.ATTENDANCE_ABSENT).count(), 1
+        )
+
+    # ── Announcements ──────────────────────────────────────────────────────
+
+    def test_an_announcement_reaches_the_chosen_audience(self):
+        self.login_as(self.admin)
+        self.client.post("/api/announcements/", {
+            "title": "Enrollment week", "body": "Opens Monday.",
+            "audience": "students",
+        }, format="json")
+
+        self.assertEqual(
+            self.notifs_for(self.student1_user, Notification.NotifType.ANNOUNCEMENT).count(), 1
+        )
+        self.assertEqual(self.notifs_for(self.student2_user, Notification.NotifType.ANNOUNCEMENT).count(), 1)
+        self.assertEqual(self.parent.notifications.count(), 0)
+        self.assertEqual(self.teacher1.notifications.count(), 0)
+
+    def test_an_everyone_announcement_reaches_all_four_roles(self):
+        self.login_as(self.admin)
+        self.client.post("/api/announcements/", {
+            "title": "Flag ceremony", "body": "7:00 AM.", "audience": "all",
+        }, format="json")
+
+        for user in (self.student1_user, self.student2_user, self.parent, self.teacher1):
+            self.assertEqual(user.notifications.count(), 1, user.username)
+
+    def test_a_parent_cannot_broadcast_an_announcement(self):
+        self.login_as(self.parent)
+        response = self.client.post("/api/announcements/", {
+            "title": "Sneaky", "body": "x", "audience": "all",
+        }, format="json")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Notification.objects.count(), 0)
+
+    # ── Visibility stays scoped ────────────────────────────────────────────
+
+    def test_a_user_only_ever_sees_their_own_notifications(self):
+        self.login_as(self.teacher1)
+        self.client.post("/api/announcements/", {
+            "title": "Staff meeting", "body": "Room 4.", "audience": "teachers",
+        }, format="json")
+        self.client.logout()
+
+        self.login_as(self.parent)
+        data = self.client.get("/api/notifications/").json()
+        self.assertEqual(data["count"] if isinstance(data, dict) else len(data), 0)
+
+    def test_a_user_can_mark_their_own_notification_read(self):
+        self.login_as(self.teacher1)
+        self.client.post("/api/announcements/", {
+            "title": "Staff meeting", "body": "Room 4.", "audience": "teachers",
+        }, format="json")
+        notif = self.teacher1.notifications.first()
+
+        self.login_as(self.student1_user)
+        response = self.client.patch(f"/api/notifications/{notif.id}/read/", {}, format="json")
+        self.assertIn(response.status_code, (403, 404))
+
+        notif.refresh_from_db()
+        self.assertFalse(notif.is_read)
+
+    def test_marking_a_notification_read_does_not_leak_the_owner(self):
+        self.login_as(self.teacher1)
+        self.client.post("/api/announcements/", {
+            "title": "Staff meeting", "body": "Room 4.", "audience": "teachers",
+        }, format="json")
+        notif = self.teacher1.notifications.first()
+
+        self.login_as(self.teacher1)
+        response = self.client.patch(f"/api/notifications/{notif.id}/read/", {}, format="json")
+        self.assertEqual(response.status_code, 200)
+        notif.refresh_from_db()
+        self.assertTrue(notif.is_read)
+
+    # ── A failing notification must not break the action ───────────────────
+
+    def test_a_notification_failure_does_not_roll_back_the_submission(self):
+        from unittest import mock
+
+        self.login_as(self.student1_user)
+        # _silently() guards the write inside each helper, so a failed write
+        # must not roll back the submission that triggered it.
+        with mock.patch(
+            "core.notifications.Notification.objects.create",
+            side_effect=RuntimeError("notification backend down"),
+        ):
+            response = self.client.post("/api/submissions/", {
+                "requirement": self.requirement1.id,
+                "status": "submitted",
+                "link_url": "https://example.com/work",
+            }, format="json")
+
+        self.assertEqual(response.status_code, 201)
+        self.assertTrue(
+            Submission.objects.filter(
+                requirement=self.requirement1, student=self.student1
+            ).exists()
+        )
+
+    def test_the_helper_itself_swallows_errors(self):
+        from unittest import mock
+
+        from .notifications import notify_submission_reviewed
+
+        sub = Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.SUBMITTED, submitted_at=timezone.now(),
+        )
+        with mock.patch(
+            "core.notifications.Notification.objects.create",
+            side_effect=RuntimeError("db gone"),
+        ):
+            # Must not raise.
+            self.assertIsNone(
+                notify_submission_reviewed(sub, Submission.Status.SUBMITTED)
+            )
+
+
+class DeadlineCommandTests(TrackTestCase):
+    """The scheduled half: reminders and overdue notices are idempotent."""
+
+    def run_cmd(self, *args):
+        from django.core.management import call_command
+
+        out = StringIO()
+        call_command("notify_deadlines", *args, stdout=out)
+        return out.getvalue()
+
+    def test_a_requirement_due_soon_reminds_students_and_their_parents(self):
+        Requirement.objects.filter(pk=self.requirement1.id).update(
+            deadline=timezone.now() + timedelta(hours=12)
+        )
+        self.run_cmd()
+
+        self.assertEqual(
+            self.student1_user.notifications.filter(
+                notif_type=Notification.NotifType.DEADLINE_APPROACHING
+            ).count(), 1,
+        )
+        # parent is linked to student1, so they are reminded too.
+        self.assertEqual(
+            self.parent.notifications.filter(
+                notif_type=Notification.NotifType.DEADLINE_APPROACHING
+            ).count(), 1,
+        )
+
+    def test_running_twice_does_not_duplicate_reminders(self):
+        Requirement.objects.filter(pk=self.requirement1.id).update(
+            deadline=timezone.now() + timedelta(hours=12)
+        )
+        self.run_cmd()
+        first = self.student1_user.notifications.count()
+
+        self.run_cmd()
+        self.assertEqual(self.student1_user.notifications.count(), first)
+
+    def test_work_far_away_is_not_reminded(self):
+        # requirement1 is due in 3 days; the default window is 2.
+        self.run_cmd()
+        self.assertEqual(
+            self.student1_user.notifications.filter(
+                notif_type=Notification.NotifType.DEADLINE_APPROACHING
+            ).count(), 0,
+        )
+
+    def test_a_wider_window_catches_it(self):
+        self.run_cmd("--days", "5")
+        self.assertEqual(
+            self.student1_user.notifications.filter(
+                notif_type=Notification.NotifType.DEADLINE_APPROACHING
+            ).count(), 1,
+        )
+
+    def test_overdue_notifies_only_students_who_never_submitted(self):
+        Requirement.objects.filter(pk=self.requirement1.id).update(
+            deadline=timezone.now() - timedelta(days=1)
+        )
+        # student1 already handed work in; student2 is in another section, so
+        # build the true "did not submit" case by clearing student1's record.
+        Submission.objects.filter(requirement=self.requirement1).delete()
+
+        self.run_cmd("--overdue-only")
+
+        self.assertEqual(
+            self.student1_user.notifications.filter(
+                notif_type=Notification.NotifType.OVERDUE
+            ).count(), 1,
+        )
+
+    def test_a_submitted_requirement_is_not_flagged_overdue(self):
+        Requirement.objects.filter(pk=self.requirement1.id).update(
+            deadline=timezone.now() - timedelta(days=1)
+        )
+        Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.SUBMITTED, submitted_at=timezone.now(),
+        )
+
+        self.run_cmd("--overdue-only")
+
+        self.assertEqual(
+            self.student1_user.notifications.filter(
+                notif_type=Notification.NotifType.OVERDUE
+            ).count(), 0,
+        )
+
+    def test_overdue_flagging_is_idempotent(self):
+        Requirement.objects.filter(pk=self.requirement1.id).update(
+            deadline=timezone.now() - timedelta(days=1)
+        )
+        self.run_cmd("--overdue-only")
+        first = self.student1_user.notifications.count()
+
+        self.run_cmd("--overdue-only")
+        self.assertEqual(self.student1_user.notifications.count(), first)

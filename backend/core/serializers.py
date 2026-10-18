@@ -517,6 +517,13 @@ class SubmissionSerializer(serializers.ModelSerializer):
     history = SubmissionHistorySerializer(many=True, read_only=True)
     requirement_title = serializers.CharField(source="requirement.title", read_only=True)
     student_name = serializers.SerializerMethodField()
+    # Optional on write: SubmissionListCreateView.perform_create always stamps
+    # the authenticated student's own profile, so clients are not expected to
+    # send it. Leaving it required made the real submission flow (which posts
+    # only requirement/link_url/status) fail with a 400.
+    student = serializers.PrimaryKeyRelatedField(
+        queryset=StudentProfile.objects.all(), required=False
+    )
 
     class Meta:
         model = Submission
@@ -528,6 +535,16 @@ class SubmissionSerializer(serializers.ModelSerializer):
             "created_at", "updated_at", "history",
         ]
         read_only_fields = ["created_at", "updated_at", "verified_at", "history"]
+        # DRF auto-attaches a UniqueTogetherValidator for the model's
+        # unique_together on (requirement, student). That validator runs before
+        # validate() and demands `student` in the request body, but
+        # SubmissionListCreateView.perform_create stamps the student from the
+        # authenticated user — clients never send it. Left attached, it rejected
+        # every submission with {"student": ["This field is required."]}.
+        # The uniqueness rule itself is still enforced: the database UNIQUE
+        # constraint stands, and perform_create reuses the existing row so a
+        # resubmission updates rather than duplicating.
+        validators = []
 
     def get_student_name(self, obj):
         return obj.student.user.get_full_name()

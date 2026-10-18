@@ -34,6 +34,13 @@ from .models import (
     TeacherAssignment,
     User,
 )
+from .notifications import (
+    notify_announcement,
+    notify_attendance_marked,
+    notify_new_requirement,
+    notify_submission_received,
+    notify_submission_reviewed,
+)
 from .permissions import IsAdmin, IsAdminOrReadOnly, IsAdminOrTeacher, IsTeacher
 from .serializers import (
     AdminUserSerializer,
@@ -503,7 +510,9 @@ class RequirementListCreateView(generics.ListCreateAPIView):
             if assignment is None or assignment.teacher_id != user.pk:
                 from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied("You can only create requirements for your own classes.")
-        serializer.save()
+        requirement = serializer.save()
+        # Tell every student in the target section that work was posted.
+        notify_new_requirement(requirement)
 
 
 class RequirementDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -606,13 +615,54 @@ class SubmissionListCreateView(generics.ListCreateAPIView):
         status_value = serializer.validated_data.get(
             "status", Submission.Status.SUBMITTED
         )
+        submitted_at = (
+            timezone.now()
+            if status_value == Submission.Status.SUBMITTED
+            else None
+        )
+
+        # One row per (requirement, student) — enforced by the database. A
+        # student may hand work in more than once (the UI re-enables "Submit"
+        # once a requirement is returned or overdue), so a second POST must
+        # refresh the existing row rather than collide with the UNIQUE
+        # constraint and surface as a 500.
+        existing = Submission.objects.filter(
+            requirement=serializer.validated_data["requirement"],
+            student=profile,
+        ).first()
+
+        if existing is not None:
+            old_status = existing.status
+            existing.link_url = serializer.validated_data.get(
+                "link_url", existing.link_url
+            )
+            existing.file_upload = serializer.validated_data.get(
+                "file_upload", existing.file_upload
+            )
+            existing.status = status_value
+            existing.submitted_at = submitted_at
+            # A resubmission is no longer verified — the new work has to be
+            # checked again.
+            existing.verified_at = None
+            existing.save()
+            if existing.status != old_status:
+                SubmissionHistory.objects.create(
+                    submission=existing,
+                    changed_by=user,
+                    old_status=old_status,
+                    new_status=existing.status,
+                    note="Work resubmitted by student.",
+                )
+                notify_submission_received(existing)
+            # DRF builds the response from serializer.data. Leaving instance
+            # unset made it fall back to serializing the input dict, and
+            # get_student_name then read .student off a dict and 500'd.
+            serializer.instance = existing
+            return
+
         submission = serializer.save(
             student=profile,
-            submitted_at=(
-                timezone.now()
-                if status_value == Submission.Status.SUBMITTED
-                else None
-            ),
+            submitted_at=submitted_at,
         )
         SubmissionHistory.objects.create(
             submission=submission,
@@ -621,6 +671,8 @@ class SubmissionListCreateView(generics.ListCreateAPIView):
             new_status=submission.status,
             note="Work submitted by student.",
         )
+        # Tell the teacher that something is waiting to be checked.
+        notify_submission_received(submission)
 
 
 class SubmissionDetailView(generics.RetrieveUpdateAPIView):
@@ -660,6 +712,8 @@ class SubmissionDetailView(generics.RetrieveUpdateAPIView):
                 new_status=submission.status,
                 note=f"Status changed to {submission.get_status_display()}.",
             )
+            # Tell the student their work was verified or returned.
+            notify_submission_reviewed(submission, old_status)
 
 
 # ---------------------------------------------------------------------------
@@ -778,7 +832,9 @@ class AttendanceRecordListCreateView(generics.ListCreateAPIView):
                 raise PermissionDenied(
                     "That student is not enrolled in this class."
                 )
-        serializer.save(recorded_by=user)
+        record = serializer.save(recorded_by=user)
+        # Absent/late marks alert the student's linked parents.
+        notify_attendance_marked(record)
 
 
 class AttendanceRecordDetailView(generics.RetrieveUpdateAPIView):
@@ -794,7 +850,10 @@ class AttendanceRecordDetailView(generics.RetrieveUpdateAPIView):
         return AttendanceRecord.objects.filter(session__in=sessions)
 
     def perform_update(self, serializer):
-        serializer.save(modified_by=self.request.user)
+        record = serializer.save(modified_by=self.request.user)
+        # A mark changed to absent/late must alert parents, not just the
+        # initial creation.
+        notify_attendance_marked(record)
 
 
 # ---------------------------------------------------------------------------
@@ -858,7 +917,9 @@ class AnnouncementListCreateView(generics.ListCreateAPIView):
         if not (self.request.user.is_admin or self.request.user.is_teacher):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("Only teachers and admins can post announcements.")
-        serializer.save(author=self.request.user)
+        announcement = serializer.save(author=self.request.user)
+        # Fan out to everyone in the target audience.
+        notify_announcement(announcement)
 
 
 class AnnouncementDetailView(generics.RetrieveUpdateDestroyAPIView):

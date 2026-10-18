@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import ChildSelector from '../components/ChildSelector'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
@@ -15,7 +15,7 @@ import {
   formatDate,
   formatRelative,
 } from '../utils/format'
-import { attendanceSummary } from '../utils/stats'
+import { attendanceSummary, countBy } from '../utils/stats'
 
 const STATUSES = ['present', 'absent', 'late', 'excused']
 
@@ -124,7 +124,7 @@ function RecordsView({ params, enabled = true }) {
 /* Teacher: sessions + record sheet                                    */
 /* ------------------------------------------------------------------ */
 
-function NewSessionForm({ onCreated }) {
+function NewSessionForm({ onCreated, existingSessions = [] }) {
   const assignments = useFetch('/teacher-assignments/', { list: true })
   const [open, setOpen] = useState(false)
   const [assignment, setAssignment] = useState('')
@@ -133,11 +133,26 @@ function NewSessionForm({ onCreated }) {
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
 
+  // Check for duplicate sessions
+  const isDuplicate = useCallback(() => {
+    if (!assignment || !date) return false
+    return existingSessions.some(
+      (s) => s.teacher_assignment === Number(assignment) && s.date === date
+    )
+  }, [assignment, date, existingSessions])
+
   async function submit(event) {
     event.preventDefault()
     setError(null)
-    if (!assignment) return setError('Choose the class for this session.')
-    if (!date) return setError('Pick a date for the session.')
+    
+    // Validation
+    if (!assignment) return setError('Please select a class and subject.')
+    if (!date) return setError('Please select a date for this session.')
+    
+    // Duplicate check
+    if (isDuplicate()) {
+      return setError('A session for this class on this date already exists.')
+    }
 
     setBusy(true)
     try {
@@ -147,10 +162,17 @@ function NewSessionForm({ onCreated }) {
         notes: notes.trim(),
       })
       setOpen(false)
+      setAssignment('')
+      setDate('')
       setNotes('')
       onCreated(created)
     } catch (err) {
-      setError(err.message)
+      // Handle backend duplicate constraint error
+      if (err.message.includes('unique') || err.message.includes('duplicate')) {
+        setError('A session for this class on this date already exists.')
+      } else {
+        setError(err.message)
+      }
     } finally {
       setBusy(false)
     }
@@ -163,6 +185,7 @@ function NewSessionForm({ onCreated }) {
         className="btn btn-primary btn-sm"
         onClick={() => setOpen(true)}
         disabled={assignments.loading}
+        aria-label="Create new attendance session"
       >
         <Icon name="plus" size={15} />
         New attendance session
@@ -170,17 +193,24 @@ function NewSessionForm({ onCreated }) {
     )
   }
 
+  const duplicate = isDuplicate()
+
   return (
     <form className="card card-pad stack stack-sm" onSubmit={submit} aria-label="New attendance session">
-      <div className="row row-wrap">
-        <div className="field grow">
-          <label htmlFor="session-class">Class and subject</label>
+      <h3 style={{ fontSize: '1.1rem', margin: 0 }}>New attendance session</h3>
+      
+      <div className="row row-wrap" style={{ gap: '12px' }}>
+        <div className="field grow" style={{ minWidth: '250px' }}>
+          <label htmlFor="session-class">
+            Class and subject <span style={{ color: 'var(--red-600)' }}>*</span>
+          </label>
           <select
             id="session-class"
             className="select"
             value={assignment}
             onChange={(event) => setAssignment(event.target.value)}
             disabled={busy}
+            required
           >
             <option value="">Select a class…</option>
             {(assignments.data || []).map((option) => (
@@ -191,7 +221,9 @@ function NewSessionForm({ onCreated }) {
           </select>
         </div>
         <div className="field">
-          <label htmlFor="session-date">Date</label>
+          <label htmlFor="session-date">
+            Date <span style={{ color: 'var(--red-600)' }}>*</span>
+          </label>
           <input
             id="session-date"
             className="input"
@@ -199,14 +231,25 @@ function NewSessionForm({ onCreated }) {
             value={date}
             onChange={(event) => setDate(event.target.value)}
             disabled={busy}
+            required
+            max={new Date().toISOString().split('T')[0]}
           />
         </div>
       </div>
+
+      {duplicate && (
+        <div className="alert alert-warning" role="alert">
+          <Icon name="info" size={15} />
+          <span>A session for this class on this date already exists.</span>
+        </div>
+      )}
+
       <div className="field">
         <label htmlFor="session-notes">Notes (optional)</label>
         <input
           id="session-notes"
           className="input"
+          placeholder="e.g., Make-up class, Special schedule"
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
           disabled={busy}
@@ -220,11 +263,11 @@ function NewSessionForm({ onCreated }) {
         </div>
       )}
 
-      <div className="row row-end">
+      <div className="row row-end" style={{ gap: '8px' }}>
         <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen(false)} disabled={busy}>
           Cancel
         </button>
-        <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
+        <button type="submit" className="btn btn-primary btn-sm" disabled={busy || duplicate}>
           {busy && <span className="spinner spinner-sm" aria-hidden="true" />}
           {busy ? 'Creating…' : 'Create session'}
         </button>
@@ -235,7 +278,9 @@ function NewSessionForm({ onCreated }) {
 
 function RecordSheet({ session, students, assignments, onChanged }) {
   const [busyStudent, setBusyStudent] = useState(null)
+  const [busyBulk, setBusyBulk] = useState(false)
   const [error, setError] = useState(null)
+  const [successMessage, setSuccessMessage] = useState(null)
 
   const assignment = assignments.find((a) => a.id === session.teacher_assignment)
   const classStudents = assignment
@@ -243,8 +288,23 @@ function RecordSheet({ session, students, assignments, onChanged }) {
     : []
   const existing = new Map((session.records || []).map((r) => [r.student, r]))
 
+  // Calculate status counts
+  const statusCounts = useMemo(() => {
+    const counts = { present: 0, absent: 0, late: 0, excused: 0, unmarked: 0 }
+    classStudents.forEach((student) => {
+      const record = existing.get(student.id)
+      if (record) {
+        counts[record.status] = (counts[record.status] || 0) + 1
+      } else {
+        counts.unmarked += 1
+      }
+    })
+    return counts
+  }, [classStudents, existing])
+
   async function setStatus(student, status) {
     setError(null)
+    setSuccessMessage(null)
     setBusyStudent(student.id)
     try {
       const record = existing.get(student.id)
@@ -258,10 +318,52 @@ function RecordSheet({ session, students, assignments, onChanged }) {
         })
       }
       onChanged()
+      setSuccessMessage('Attendance saved')
+      setTimeout(() => setSuccessMessage(null), 2000)
     } catch (err) {
       setError(err.message)
     } finally {
       setBusyStudent(null)
+    }
+  }
+
+  async function markAllPresent() {
+    if (!window.confirm(
+      `Mark all ${classStudents.length} students as present? You can change individual statuses after.`
+    )) {
+      return
+    }
+
+    setError(null)
+    setSuccessMessage(null)
+    setBusyBulk(true)
+    
+    try {
+      // Mark all students present
+      const promises = classStudents.map(async (student) => {
+        const record = existing.get(student.id)
+        if (record) {
+          // Only update if not already present
+          if (record.status !== 'present') {
+            await api.patch(`/attendance/records/${record.id}/`, { status: 'present' })
+          }
+        } else {
+          await api.post('/attendance/records/', {
+            session: session.id,
+            student: student.id,
+            status: 'present',
+          })
+        }
+      })
+      
+      await Promise.all(promises)
+      onChanged()
+      setSuccessMessage('All students marked present')
+      setTimeout(() => setSuccessMessage(null), 3000)
+    } catch (err) {
+      setError(`Failed to mark all present: ${err.message}`)
+    } finally {
+      setBusyBulk(false)
     }
   }
 
@@ -281,8 +383,52 @@ function RecordSheet({ session, students, assignments, onChanged }) {
     )
   }
 
+  const hasUnsavedChanges = statusCounts.unmarked > 0
+
   return (
     <div className="stack stack-sm">
+      {/* Status summary and bulk actions */}
+      <div 
+        style={{
+          padding: '16px',
+          background: 'var(--blue-50)',
+          border: '1px solid var(--blue-200)',
+          borderRadius: 'var(--radius-sm)',
+        }}
+      >
+        <div className="row row-between row-wrap" style={{ gap: '16px', alignItems: 'center' }}>
+          <div className="row row-wrap" style={{ gap: '16px', fontSize: '0.9rem' }}>
+            <span><strong>{classStudents.length}</strong> students</span>
+            <span className="badge badge-green">{statusCounts.present} Present</span>
+            {statusCounts.absent > 0 && <span className="badge badge-red">{statusCounts.absent} Absent</span>}
+            {statusCounts.late > 0 && <span className="badge badge-amber">{statusCounts.late} Late</span>}
+            {statusCounts.excused > 0 && <span className="badge badge-blue">{statusCounts.excused} Excused</span>}
+            {statusCounts.unmarked > 0 && (
+              <span className="badge" style={{ background: 'var(--gray-200)', color: 'var(--gray-700)' }}>
+                {statusCounts.unmarked} Unmarked
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            className="btn btn-sm btn-secondary"
+            onClick={markAllPresent}
+            disabled={busyBulk || busyStudent !== null}
+            aria-label="Mark all students present"
+          >
+            {busyBulk && <span className="spinner spinner-sm" aria-hidden="true" />}
+            {busyBulk ? 'Marking all…' : 'Mark all present'}
+          </button>
+        </div>
+      </div>
+
+      {successMessage && (
+        <div className="alert alert-success" role="status">
+          <Icon name="check" size={15} />
+          <span>{successMessage}</span>
+        </div>
+      )}
+
       {error && (
         <div className="alert alert-error" role="alert">
           <Icon name="info" size={15} />
@@ -290,41 +436,61 @@ function RecordSheet({ session, students, assignments, onChanged }) {
         </div>
       )}
 
-      {classStudents.map((student) => {
-        const record = existing.get(student.id)
-        const current = record?.status
-        return (
-          <div
-            className="row row-between row-wrap"
-            key={student.id}
-            style={{
-              padding: '10px 12px',
-              border: '1px solid var(--border)',
-              borderRadius: 'var(--radius-sm)',
-              background: 'var(--surface-alt)',
-            }}
-          >
-            <div className="grow" style={{ minWidth: 160 }}>
-              <strong style={{ fontSize: '0.93rem' }}>{student.user?.full_name}</strong>
-              <div className="subtle">{student.user?.username}</div>
+      {/* Student list */}
+      <div className="stack stack-xs">
+        {classStudents.map((student) => {
+          const record = existing.get(student.id)
+          const current = record?.status
+          const isBusy = busyStudent === student.id || busyBulk
+          return (
+            <div
+              className="row row-between row-wrap"
+              key={student.id}
+              style={{
+                padding: '12px 14px',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--surface-alt)',
+                gap: '12px',
+              }}
+            >
+              <div className="grow" style={{ minWidth: 160 }}>
+                <strong style={{ fontSize: '0.93rem' }}>{student.user?.full_name}</strong>
+                <div className="subtle" style={{ fontSize: '0.85rem' }}>
+                  {student.lrn && `LRN: ${student.lrn}`}
+                  {student.lrn && student.user?.username && ' · '}
+                  {student.user?.username}
+                </div>
+              </div>
+              <div className="row row-wrap" style={{ gap: '6px' }} role="group" aria-label={`Attendance for ${student.user?.full_name}`}>
+                {STATUSES.map((status) => (
+                  <button
+                    key={status}
+                    type="button"
+                    className={`btn btn-sm ${current === status ? 'btn-primary' : 'btn-ghost'}`}
+                    aria-pressed={current === status}
+                    onClick={() => setStatus(student, status)}
+                    disabled={isBusy}
+                    title={`Mark as ${status}`}
+                  >
+                    {attendanceStatus(status).label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="row row-wrap" role="group" aria-label={`Attendance for ${student.user?.full_name}`}>
-              {STATUSES.map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  className={`btn btn-sm ${current === status ? 'btn-primary' : 'btn-ghost'}`}
-                  aria-pressed={current === status}
-                  onClick={() => setStatus(student, status)}
-                  disabled={busyStudent === student.id}
-                >
-                  {attendanceStatus(status).label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
+
+      {hasUnsavedChanges && (
+        <div className="alert" style={{ background: 'var(--amber-50)', border: '1px solid var(--amber-300)' }} role="status">
+          <Icon name="info" size={15} />
+          <span>
+            <strong>{statusCounts.unmarked} student{statusCounts.unmarked === 1 ? '' : 's'}</strong> not yet marked.
+            Select a status for each student to complete attendance.
+          </span>
+        </div>
+      )}
     </div>
   )
 }
@@ -332,11 +498,29 @@ function RecordSheet({ session, students, assignments, onChanged }) {
 function TeacherAttendance() {
   const [nonce, setNonce] = useState(0)
   const [selectedId, setSelectedId] = useState(null)
+  const [filterClass, setFilterClass] = useState('')
+  const [filterDate, setFilterDate] = useState('')
   const sessions = useFetch('/attendance/sessions/', { list: true, deps: [nonce] })
   const assignments = useFetch('/teacher-assignments/', { list: true })
   const students = useFetch('/students/', { list: true })
 
-  const list = useMemo(() => sessions.data || [], [sessions.data])
+  const list = useMemo(() => {
+    let filtered = sessions.data || []
+    
+    // Filter by class/subject
+    if (filterClass) {
+      const classId = Number(filterClass)
+      filtered = filtered.filter((s) => s.teacher_assignment === classId)
+    }
+    
+    // Filter by date
+    if (filterDate) {
+      filtered = filtered.filter((s) => s.date === filterDate)
+    }
+    
+    return filtered
+  }, [sessions.data, filterClass, filterDate])
+
   const selected =
     list.find((session) => session.id === selectedId) || null
 
@@ -344,9 +528,17 @@ function TeacherAttendance() {
     setNonce((n) => n + 1)
   }
 
+  // Clear selection if filtered out
+  useMemo(() => {
+    if (selectedId && !list.find((s) => s.id === selectedId)) {
+      setSelectedId(null)
+    }
+  }, [list, selectedId])
+
   return (
     <div className="stack stack-md">
       <NewSessionForm
+        existingSessions={sessions.data || []}
         onCreated={(created) => {
           refresh()
           if (created?.id) setSelectedId(created.id)
@@ -355,8 +547,62 @@ function TeacherAttendance() {
 
       <section className="card">
         <header className="card-header">
-          <h2>Sessions</h2>
-          <span className="subtle">{list.length} recorded</span>
+          <div className="row row-between row-wrap" style={{ gap: '12px', alignItems: 'center', width: '100%' }}>
+            <div>
+              <h2 style={{ margin: 0 }}>Sessions</h2>
+              <span className="subtle">{list.length} of {(sessions.data || []).length} session{(sessions.data || []).length === 1 ? '' : 's'}</span>
+            </div>
+            
+            <div className="row row-wrap" style={{ gap: '8px' }}>
+              <div className="field" style={{ margin: 0, minWidth: '180px' }}>
+                <label htmlFor="filter-class" className="sr-only">Filter by class</label>
+                <select
+                  id="filter-class"
+                  className="select select-sm"
+                  value={filterClass}
+                  onChange={(e) => setFilterClass(e.target.value)}
+                  disabled={sessions.loading}
+                  aria-label="Filter by class"
+                >
+                  <option value="">All classes</option>
+                  {(assignments.data || []).map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.subject_name} — {a.section_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="field" style={{ margin: 0 }}>
+                <label htmlFor="filter-date" className="sr-only">Filter by date</label>
+                <input
+                  id="filter-date"
+                  className="input input-sm"
+                  type="date"
+                  value={filterDate}
+                  onChange={(e) => setFilterDate(e.target.value)}
+                  disabled={sessions.loading}
+                  aria-label="Filter by date"
+                  style={{ minWidth: '140px' }}
+                />
+              </div>
+              
+              {(filterClass || filterDate) && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    setFilterClass('')
+                    setFilterDate('')
+                  }}
+                  title="Clear filters"
+                  aria-label="Clear filters"
+                >
+                  <Icon name="x" size={15} />
+                </button>
+              )}
+            </div>
+          </div>
         </header>
 
         {sessions.loading && !sessions.data && (
@@ -375,12 +621,22 @@ function TeacherAttendance() {
           </div>
         )}
 
-        {!sessions.loading && !sessions.error && list.length === 0 && (
+        {!sessions.loading && !sessions.error && (sessions.data || []).length === 0 && (
           <div className="card-body">
             <EmptyState
               icon="calendar"
               title="No attendance sessions yet"
               message="Create your first session above to start recording attendance."
+            />
+          </div>
+        )}
+
+        {!sessions.loading && !sessions.error && list.length === 0 && (sessions.data || []).length > 0 && (
+          <div className="card-body">
+            <EmptyState
+              icon="search"
+              title="No sessions match your filters"
+              message="Try adjusting the class or date filter."
             />
           </div>
         )}
@@ -394,41 +650,49 @@ function TeacherAttendance() {
                   <th>Class</th>
                   <th>Subject</th>
                   <th>Records</th>
-                  <th></th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {list.slice(0, 40).map((session) => (
-                  <tr
-                    key={session.id}
-                    style={
-                      selectedId === session.id
-                        ? { background: 'var(--blue-50)' }
-                        : undefined
-                    }
-                  >
-                    <td data-label="Date">{formatDate(session.date)}</td>
-                    <td data-label="Class" className="cell-main">
-                      {session.section_name || '—'}
-                    </td>
-                    <td data-label="Subject">{session.subject_name || '—'}</td>
-                    <td data-label="Records">
-                      {(session.records || []).length}
-                    </td>
-                    <td data-label="">
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-secondary"
-                        onClick={() =>
-                          setSelectedId(selectedId === session.id ? null : session.id)
-                        }
-                        aria-expanded={selectedId === session.id}
-                      >
-                        {selectedId === session.id ? 'Close' : 'Take attendance'}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {list.slice(0, 40).map((session) => {
+                  const recordCount = (session.records || []).length
+                  const isOpen = selectedId === session.id
+                  return (
+                    <tr
+                      key={session.id}
+                      style={
+                        isOpen
+                          ? { background: 'var(--blue-50)' }
+                          : undefined
+                      }
+                    >
+                      <td data-label="Date">
+                        <strong>{formatDate(session.date)}</strong>
+                      </td>
+                      <td data-label="Class" className="cell-main">
+                        {session.section_name || '—'}
+                      </td>
+                      <td data-label="Subject">{session.subject_name || '—'}</td>
+                      <td data-label="Records">
+                        <span className={recordCount > 0 ? 'badge badge-blue' : 'subtle'}>
+                          {recordCount} student{recordCount === 1 ? '' : 's'}
+                        </span>
+                      </td>
+                      <td data-label="Actions" style={{ textAlign: 'right' }}>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          onClick={() =>
+                            setSelectedId(isOpen ? null : session.id)
+                          }
+                          aria-expanded={isOpen}
+                        >
+                          {isOpen ? 'Close' : 'Take attendance'}
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -440,7 +704,7 @@ function TeacherAttendance() {
           title={`Take attendance · ${selected.subject_name || ''} · ${formatDate(selected.date)}`}
           action={
             <span className="subtle">
-              {(selected.records || []).length} recorded ·{' '}
+              {(selected.records || []).length} student{(selected.records || []).length === 1 ? '' : 's'} recorded ·{' '}
               {formatRelative(selected.created_at)}
             </span>
           }
