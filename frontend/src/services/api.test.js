@@ -2,15 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { API_BASE } from './api'
 
 /**
- * The API client memoises the CSRF probe in module-level state, so tests that
- * care about fetch call counts must get a genuinely fresh module. `api.js` has
- * no side effects on import, so a re-import is cheap and safe.
+ * The API client stores the token in sessionStorage (module-level key).
+ * Reset modules between tests so token state never leaks.
  */
 async function freshApi() {
   vi.resetModules()
   const mod = await import('./api')
-  // Return ApiError from the *same* module instance so `toBeInstanceOf`
-  // checks pass — a reset module defines a new class identity.
   return { api: mod.api, ApiError: mod.ApiError }
 }
 
@@ -26,7 +23,8 @@ function jsonResponse(body, { status = 200, ok } = {}) {
 beforeEach(() => {
   vi.restoreAllMocks()
   global.fetch = vi.fn()
-  document.cookie = 'csrftoken=test-csrf-token'
+  // Clear sessionStorage between tests
+  sessionStorage.clear()
 })
 
 describe('buildUrl / API_BASE', () => {
@@ -70,30 +68,39 @@ describe('buildUrl / API_BASE', () => {
   })
 })
 
-describe('CSRF handling', () => {
-  it('sends X-CSRFToken on unsafe methods', async () => {
+describe('Token auth', () => {
+  it('sends Authorization header when a token is stored', async () => {
     const { api } = await freshApi()
+    // Simulate a stored token
+    sessionStorage.setItem('track.auth.token', 'my-test-token')
     global.fetch.mockResolvedValue(jsonResponse({}))
-    await api.post('/users/', { username: 'x' })
-    // The last call is the POST itself; earlier ones are the CSRF probe.
-    const [, init] = global.fetch.mock.calls.at(-1)
-    expect(init.headers['X-CSRFToken']).toBe('test-csrf-token')
-    expect(init.headers['Content-Type']).toBe('application/json')
+    await api.get('/users/')
+    const [, init] = global.fetch.mock.calls[0]
+    expect(init.headers['Authorization']).toBe('Token my-test-token')
   })
 
-  it('does not send X-CSRFToken on GET', async () => {
+  it('does not send Authorization header when no token is stored', async () => {
     const { api } = await freshApi()
     global.fetch.mockResolvedValue(jsonResponse({}))
     await api.get('/users/')
     const [, init] = global.fetch.mock.calls[0]
-    expect(init.headers['X-CSRFToken']).toBeUndefined()
+    expect(init.headers['Authorization']).toBeUndefined()
   })
 
-  it('always includes the session cookie', async () => {
+  it('does not use credentials:include (no cookies needed)', async () => {
     const { api } = await freshApi()
     global.fetch.mockResolvedValue(jsonResponse({}))
     await api.get('/users/')
-    expect(global.fetch.mock.calls[0][1].credentials).toBe('include')
+    const [, init] = global.fetch.mock.calls[0]
+    expect(init.credentials).toBeUndefined()
+  })
+
+  it('sends Content-Type on POST', async () => {
+    const { api } = await freshApi()
+    global.fetch.mockResolvedValue(jsonResponse({}))
+    await api.post('/users/', { username: 'x' })
+    const [, init] = global.fetch.mock.calls[0]
+    expect(init.headers['Content-Type']).toBe('application/json')
   })
 })
 
@@ -167,7 +174,7 @@ describe('responses', () => {
     const { api } = await freshApi()
     global.fetch.mockResolvedValue(jsonResponse({}))
     await api.patch('/users/1/', { is_active: false })
-    const [, init] = global.fetch.mock.calls.at(-1)
+    const [, init] = global.fetch.mock.calls[0]
     expect(init.body).toBe(JSON.stringify({ is_active: false }))
     expect(init.method).toBe('PATCH')
   })
@@ -203,7 +210,6 @@ describe('list (DRF pagination)', () => {
 
   it('caps pagination at 10 pages instead of looping forever', async () => {
     const { api } = await freshApi()
-    // Every page claims there is another one.
     global.fetch.mockImplementation(async (url) =>
       jsonResponse({
         results: [{ id: url }],
@@ -217,17 +223,28 @@ describe('list (DRF pagination)', () => {
 })
 
 describe('auth helpers', () => {
-  it('login posts credentials to the auth endpoint', async () => {
+  it('login posts credentials to the token endpoint', async () => {
     const { api } = await freshApi()
-    global.fetch.mockResolvedValue(jsonResponse({ user: { id: 1 } }))
+    global.fetch.mockResolvedValue(
+      jsonResponse({ token: 'abc123', user: { id: 1 } })
+    )
     await api.login('admin', 'secret')
-    const [url, init] = global.fetch.mock.calls.at(-1)
-    expect(url).toBe(`${API_BASE}/auth/login/`)
+    const [url, init] = global.fetch.mock.calls[0]
+    expect(url).toBe(`${API_BASE}/auth/token/`)
     expect(init.method).toBe('POST')
     expect(JSON.parse(init.body)).toEqual({
       username: 'admin',
       password: 'secret',
     })
+  })
+
+  it('login stores the returned token in sessionStorage', async () => {
+    const { api } = await freshApi()
+    global.fetch.mockResolvedValue(
+      jsonResponse({ token: 'abc123', user: { id: 1 } })
+    )
+    await api.login('admin', 'secret')
+    expect(sessionStorage.getItem('track.auth.token')).toBe('abc123')
   })
 
   it('me() issues a GET to /auth/me/', async () => {
@@ -237,13 +254,13 @@ describe('auth helpers', () => {
     expect(global.fetch.mock.calls[0][0]).toBe(`${API_BASE}/auth/me/`)
   })
 
-  it('ensureCsrf only hits the server once', async () => {
+  it('ensureCsrf is a no-op and resolves immediately', async () => {
     const { api } = await freshApi()
     global.fetch.mockResolvedValue(jsonResponse({}))
     await api.ensureCsrf()
     await api.ensureCsrf()
     await api.post('/x/', {})
-    // Two calls total: the CSRF probe plus the POST.
-    expect(global.fetch).toHaveBeenCalledTimes(2)
+    // Only the POST — no CSRF probe call
+    expect(global.fetch).toHaveBeenCalledTimes(1)
   })
 })

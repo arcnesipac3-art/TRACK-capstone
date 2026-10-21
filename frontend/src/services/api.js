@@ -1,15 +1,21 @@
 /**
  * TRACK — centralized API client.
  *
- * - All requests go through this module so base URLs are never scattered.
- * - Session cookie based authentication (`credentials: 'include'`).
- * - CSRF: the Django `csrftoken` cookie is echoed back in the `X-CSRFToken`
- *   header for every unsafe method. The cookie is guaranteed by `ensureCsrf()`.
- * - No tokens or passwords are ever written to browser storage.
+ * Production (split-origin: Vercel frontend + Render backend):
+ *   Uses DRF Token authentication — `Authorization: Token <key>` header.
+ *   Token is stored in sessionStorage (cleared when the tab closes).
+ *   No cookies, no CSRF needed — works cross-origin without any browser
+ *   restrictions.
+ *
+ * Development (same-origin via Vite proxy):
+ *   Same token flow — the Vite proxy forwards /api/* to Django, so the
+ *   token header passes through unchanged.
  */
 
 const RAW_BASE = import.meta.env.VITE_API_BASE_URL || '/api'
 export const API_BASE = RAW_BASE.replace(/\/+$/, '')
+
+const TOKEN_KEY = 'track.auth.token'
 
 export class ApiError extends Error {
   constructor(message, status, details = null) {
@@ -20,12 +26,33 @@ export class ApiError extends Error {
   }
 }
 
-function readCookie(name) {
-  const match = document.cookie.match(
-    new RegExp('(?:^|; )' + name + '=([^;]*)')
-  )
-  return match ? decodeURIComponent(match[1]) : null
+/* ------------------------------------------------------------------ */
+/* Token storage (sessionStorage — cleared on tab close)               */
+/* ------------------------------------------------------------------ */
+
+function getStoredToken() {
+  try {
+    return sessionStorage.getItem(TOKEN_KEY)
+  } catch {
+    return null
+  }
 }
+
+function setStoredToken(token) {
+  try {
+    sessionStorage.setItem(TOKEN_KEY, token)
+  } catch {}
+}
+
+function clearStoredToken() {
+  try {
+    sessionStorage.removeItem(TOKEN_KEY)
+  } catch {}
+}
+
+/* ------------------------------------------------------------------ */
+/* Request plumbing                                                     */
+/* ------------------------------------------------------------------ */
 
 function buildUrl(path, params) {
   const url = /^https?:\/\//i.test(path) ? path : `${API_BASE}${path}`
@@ -60,21 +87,17 @@ function messageFrom(body, fallback) {
 }
 
 async function request(path, { method = 'GET', body, params, signal } = {}) {
-  const unsafe = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)
   const headers = { Accept: 'application/json' }
-
   if (body !== undefined) headers['Content-Type'] = 'application/json'
-  if (unsafe) {
-    const token = readCookie('csrftoken')
-    if (token) headers['X-CSRFToken'] = token
-  }
+
+  const token = getStoredToken()
+  if (token) headers['Authorization'] = `Token ${token}`
 
   let response
   try {
     response = await fetch(buildUrl(path, params), {
       method,
       headers,
-      credentials: 'include',
       signal,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     })
@@ -126,53 +149,37 @@ async function list(path, { params, signal } = {}) {
   return results
 }
 
-/** Makes sure the CSRF cookie exists before the first unsafe request. */
-let csrfPromise = null
-function ensureCsrf() {
-  if (!csrfPromise) {
-    csrfPromise = fetch(`${API_BASE}/auth/csrf/`, {
-      credentials: 'include',
-      headers: { Accept: 'application/json' },
-    })
-      .then(() => undefined)
-      .catch(() => undefined)
-  }
-  return csrfPromise
-}
-
 export const api = {
   get: (path, opts) => request(path, { ...opts, method: 'GET' }),
   list,
-  post: async (path, body, opts) => {
-    await ensureCsrf()
-    return request(path, { ...opts, method: 'POST', body })
-  },
-  patch: async (path, body, opts) => {
-    await ensureCsrf()
-    return request(path, { ...opts, method: 'PATCH', body })
-  },
-  put: async (path, body, opts) => {
-    await ensureCsrf()
-    return request(path, { ...opts, method: 'PUT', body })
-  },
-  delete: async (path, opts) => {
-    await ensureCsrf()
-    return request(path, { ...opts, method: 'DELETE' })
-  },
-  ensureCsrf,
+  post: (path, body, opts) => request(path, { ...opts, method: 'POST', body }),
+  patch: (path, body, opts) => request(path, { ...opts, method: 'PATCH', body }),
+  put: (path, body, opts) => request(path, { ...opts, method: 'PUT', body }),
+  delete: (path, opts) => request(path, { ...opts, method: 'DELETE' }),
+
+  // kept for backward-compat — no-op now (no CSRF needed with token auth)
+  ensureCsrf: () => Promise.resolve(),
 
   /* Auth helpers */
   login: async (username, password) => {
-    await ensureCsrf()
-    return request('/auth/login/', {
+    // Use the token endpoint (same one the mobile app uses)
+    const data = await request('/auth/token/', {
       method: 'POST',
       body: { username, password },
     })
+    setStoredToken(data.token)
+    return data
   },
+
   logout: async () => {
-    await ensureCsrf()
-    return request('/auth/logout/', { method: 'POST', body: {} })
+    try {
+      await request('/auth/token/logout/', { method: 'POST', body: {} })
+    } catch {
+      // Even if the server call fails, clear the local token
+    }
+    clearStoredToken()
   },
+
   me: () => request('/auth/me/'),
 }
 

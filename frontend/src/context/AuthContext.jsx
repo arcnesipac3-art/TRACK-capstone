@@ -57,7 +57,6 @@ export function AuthProvider({ children }) {
 
   const loadSession = useCallback(async (opts = {}) => {
     try {
-      await api.ensureCsrf()
       const me = await api.me()
       setUser(normalizeUser(me))
       setStatus('authenticated')
@@ -87,8 +86,8 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(
     async (username, password) => {
-      const result = await api.login(username, password)
-      const profile = normalizeUser(result.user)
+      const data = await api.login(username, password)
+      const profile = normalizeUser(data.user)
       setUser(profile)
       setStatus('authenticated')
       setBootstrapError(null)

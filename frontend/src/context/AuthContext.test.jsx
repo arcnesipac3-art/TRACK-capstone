@@ -90,7 +90,6 @@ describe('AuthProvider', () => {
     expect(screen.getByTestId('authenticated').textContent).toBe('true')
     expect(screen.getByTestId('role').textContent).toBe('admin')
     expect(screen.getByTestId('fullname').textContent).toBe('Ada Admin')
-    expect(api.ensureCsrf).toHaveBeenCalled()
     expect(api.me).toHaveBeenCalled()
   })
 
