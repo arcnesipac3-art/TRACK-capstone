@@ -7,6 +7,10 @@ from .models import (
     AttendanceSession,
     AuditLog,
     ClassSchedule,
+    FeeAssessment,
+    FeeCategory,
+    FeePayment,
+    FeePaymentHistory,
     GradeLevel,
     Notification,
     ParentProfile,
@@ -142,3 +146,37 @@ class AuditLogAdmin(admin.ModelAdmin):
     readonly_fields = ("timestamp",)
     list_filter = ("action",)
     search_fields = ("actor__username", "action", "description")
+
+
+@admin.register(FeeCategory)
+class FeeCategoryAdmin(admin.ModelAdmin):
+    list_display = ("name", "code", "fee_type", "is_active", "created_at")
+    list_filter = ("fee_type", "is_active")
+    search_fields = ("name", "code")
+    list_editable = ("is_active",)
+
+
+@admin.register(FeeAssessment)
+class FeeAssessmentAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "category", "school_year", "grade_level", "section", "amount", "due_date", "status")
+    list_filter = ("status", "school_year", "grade_level", "category__fee_type")
+    search_fields = ("category__name", "student__user__last_name", "student__lrn")
+    readonly_fields = ("created_at", "updated_at", "created_by")
+    list_editable = ("status",)
+
+
+@admin.register(FeePayment)
+class FeePaymentAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "assessment", "student", "amount", "payment_date", "payment_method", "status", "receipt_number")
+    list_filter = ("status", "payment_method", "assessment__school_year", "assessment__category")
+    search_fields = ("student__user__last_name", "student__lrn", "reference_number", "receipt_number")
+    readonly_fields = ("receipt_number", "created_at", "updated_at", "recorded_by", "voided_by", "voided_at")
+    list_editable = ("status",)
+
+
+@admin.register(FeePaymentHistory)
+class FeePaymentHistoryAdmin(admin.ModelAdmin):
+    list_display = ("payment", "old_status", "new_status", "changed_by", "timestamp")
+    readonly_fields = ("timestamp",)
+    list_filter = ("new_status",)
+    search_fields = ("payment__student__user__last_name", "note")

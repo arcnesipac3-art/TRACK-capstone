@@ -5,6 +5,7 @@ TRACK — DRF Serializers
 import os
 
 from django.contrib.auth import authenticate
+from django.core.exceptions import ValidationError
 # Aliased: DRF calls `validate_<field>` hooks by name, so a hook called
 # `validate_password` would otherwise shadow this import and read as recursion.
 from django.contrib.auth.password_validation import validate_password as check_password
@@ -12,9 +13,14 @@ from rest_framework import serializers
 
 from .models import (
     Announcement,
+    AuditLog,
     AttendanceRecord,
     AttendanceSession,
     ClassSchedule,
+    FeeAssessment,
+    FeeCategory,
+    FeePayment,
+    FeePaymentHistory,
     GradeLevel,
     Notification,
     ParentProfile,
@@ -859,3 +865,221 @@ class AnnouncementSerializer(serializers.ModelSerializer):
                     "You can only post announcements to a section you teach."
                 )
         return value
+
+
+# ---------------------------------------------------------------------------
+# Fee Management
+# ---------------------------------------------------------------------------
+
+class FeeCategorySerializer(serializers.ModelSerializer):
+    assessment_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = FeeCategory
+        fields = [
+            "id", "name", "code", "fee_type", "description",
+            "is_active", "assessment_count", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate_code(self, value):
+        value = value.upper().strip()
+        if self.instance and self.instance.code == value:
+            return value
+        if FeeCategory.objects.filter(code__iexact=value).exists():
+            raise serializers.ValidationError("A fee category with this code already exists.")
+        return value
+
+
+class FeeAssessmentSerializer(serializers.ModelSerializer):
+    category_name = serializers.CharField(source="category.name", read_only=True)
+    category_code = serializers.CharField(source="category.code", read_only=True)
+    category_fee_type = serializers.CharField(source="category.fee_type", read_only=True)
+    school_year_label = serializers.CharField(source="school_year.label", read_only=True)
+    grade_level_name = serializers.CharField(source="grade_level.name", read_only=True)
+    section_name = serializers.SerializerMethodField()
+    student_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+    total_assessed = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    total_collected = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    outstanding_balance = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    student_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = FeeAssessment
+        fields = [
+            "id", "category", "category_name", "category_code", "category_fee_type",
+            "school_year", "school_year_label", "grade_level", "grade_level_name",
+            "section", "section_name", "student", "student_name",
+            "amount", "due_date", "status", "description",
+            "created_by", "created_by_name", "created_at", "updated_at",
+            "total_assessed", "total_collected", "outstanding_balance", "student_count",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at", "created_by"]
+
+    def get_section_name(self, obj):
+        return str(obj.section) if obj.section else None
+
+    def get_student_name(self, obj):
+        return obj.student.user.get_full_name() if obj.student else None
+
+    def get_created_by_name(self, obj):
+        return obj.created_by.get_full_name() if obj.created_by else None
+
+    def get_extra_kwargs(self):
+        extra = super().get_extra_kwargs()
+        if self.instance is not None:
+            extra["category"] = {"read_only": True}
+            extra["school_year"] = {"read_only": True}
+        return extra
+
+    def validate(self, attrs):
+        # Run model's clean method
+        instance = FeeAssessment(**attrs)
+        if self.instance:
+            instance.pk = self.instance.pk
+        try:
+            instance.clean()
+        except ValidationError as e:
+            raise serializers.ValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
+        return attrs
+
+
+class FeePaymentSerializer(serializers.ModelSerializer):
+    assessment_category = serializers.CharField(source="assessment.category.name", read_only=True)
+    assessment_amount = serializers.DecimalField(source="assessment.amount", max_digits=12, decimal_places=2, read_only=True)
+    student_name = serializers.SerializerMethodField()
+    student_lrn = serializers.CharField(source="student.lrn", read_only=True)
+    section_name = serializers.SerializerMethodField()
+    recorded_by_name = serializers.SerializerMethodField()
+    voided_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FeePayment
+        fields = [
+            "id", "assessment", "assessment_category", "assessment_amount",
+            "student", "student_name", "student_lrn", "section_name",
+            "amount", "payment_date", "payment_method", "reference_number",
+            "receipt_number", "status", "notes",
+            "recorded_by", "recorded_by_name",
+            "voided_by", "voided_by_name", "voided_at", "void_reason",
+            "created_at", "updated_at",
+        ]
+        read_only_fields = [
+            "id", "receipt_number", "recorded_by", "recorded_by_name",
+            "voided_by", "voided_by_name", "voided_at", "created_at", "updated_at",
+        ]
+
+    def get_student_name(self, obj):
+        return obj.student.user.get_full_name()
+
+    def get_section_name(self, obj):
+        return str(obj.student.section) if obj.student.section else None
+
+    def get_recorded_by_name(self, obj):
+        return obj.recorded_by.get_full_name() if obj.recorded_by else None
+
+    def get_voided_by_name(self, obj):
+        return obj.voided_by.get_full_name() if obj.voided_by else None
+
+    def get_extra_kwargs(self):
+        extra = super().get_extra_kwargs()
+        if self.instance is not None:
+            extra["assessment"] = {"read_only": True}
+            extra["student"] = {"read_only": True}
+        return extra
+
+    def validate(self, attrs):
+        # Run model's clean method
+        instance = FeePayment(**attrs)
+        if self.instance:
+            instance.pk = self.instance.pk
+        try:
+            instance.clean()
+        except ValidationError as e:
+            raise serializers.ValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
+        return attrs
+
+
+class FeePaymentHistorySerializer(serializers.ModelSerializer):
+    changed_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FeePaymentHistory
+        fields = [
+            "id", "old_status", "new_status", "old_amount", "new_amount",
+            "changed_by", "changed_by_name", "note", "timestamp",
+        ]
+
+    def get_changed_by_name(self, obj):
+        return obj.changed_by.get_full_name() if obj.changed_by else None
+
+
+class FeeAssessmentDetailSerializer(FeeAssessmentSerializer):
+    """Detailed serializer with payments for a single assessment."""
+    payments = FeePaymentSerializer(many=True, read_only=True)
+
+    class Meta(FeeAssessmentSerializer.Meta):
+        fields = FeeAssessmentSerializer.Meta.fields + ["payments"]
+
+
+class StudentFeeSummarySerializer(serializers.ModelSerializer):
+    """Serializer for student fee summary (for student/parent view)."""
+    user = serializers.SerializerMethodField()
+    section_name = serializers.SerializerMethodField()
+    assessments = serializers.SerializerMethodField()
+    total_assessed = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    total_paid = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    total_outstanding = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+
+    class Meta:
+        model = StudentProfile
+        fields = [
+            "id", "user", "lrn", "section", "section_name",
+            "assessments", "total_assessed", "total_paid", "total_outstanding",
+        ]
+
+    def get_user(self, obj):
+        return {
+            "id": obj.user.id,
+            "username": obj.user.username,
+            "first_name": obj.user.first_name,
+            "middle_name": obj.user.middle_name,
+            "last_name": obj.user.last_name,
+            "full_name": obj.user.get_full_name(),
+        }
+
+    def get_section_name(self, obj):
+        return str(obj.section) if obj.section else None
+
+    def get_assessments(self, obj):
+        # This will be populated by the view with filtered assessments
+        return getattr(obj, 'fee_assessments_data', [])
+
+
+class FeeCollectionReportSerializer(serializers.Serializer):
+    """Serializer for fee collection reports."""
+    school_year = serializers.CharField()
+    category = serializers.CharField()
+    total_assessed = serializers.DecimalField(max_digits=14, decimal_places=2)
+    total_collected = serializers.DecimalField(max_digits=14, decimal_places=2)
+    total_outstanding = serializers.DecimalField(max_digits=14, decimal_places=2)
+    collection_rate = serializers.DecimalField(max_digits=5, decimal_places=2)
+    student_count = serializers.IntegerField()
+    paid_count = serializers.IntegerField()
+    partial_count = serializers.IntegerField()
+    unpaid_count = serializers.IntegerField()
+
+
+class FeeOutstandingReportSerializer(serializers.Serializer):
+    """Serializer for outstanding balance reports."""
+    student_id = serializers.IntegerField()
+    student_name = serializers.CharField()
+    lrn = serializers.CharField()
+    section = serializers.CharField()
+    category = serializers.CharField()
+    assessed = serializers.DecimalField(max_digits=12, decimal_places=2)
+    paid = serializers.DecimalField(max_digits=12, decimal_places=2)
+    outstanding = serializers.DecimalField(max_digits=12, decimal_places=2)
+    due_date = serializers.DateField()
+    payment_status = serializers.CharField()

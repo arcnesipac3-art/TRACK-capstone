@@ -68,6 +68,19 @@ urlpatterns = [
     path("announcements/", views.AnnouncementListCreateView.as_view(), name="announcement_list"),
     path("announcements/<int:pk>/", views.AnnouncementDetailView.as_view(), name="announcement_detail"),
 
+    # ── Fee Management ──────────────────────────────────────────────────────
+    path("fee-categories/", views.FeeCategoryListCreateView.as_view(), name="fee_category_list"),
+    path("fee-categories/<int:pk>/", views.FeeCategoryDetailView.as_view(), name="fee_category_detail"),
+    path("fee-assessments/", views.FeeAssessmentListCreateView.as_view(), name="fee_assessment_list"),
+    path("fee-assessments/<int:pk>/", views.FeeAssessmentDetailView.as_view(), name="fee_assessment_detail"),
+    path("fee-payments/", views.FeePaymentListCreateView.as_view(), name="fee_payment_list"),
+    path("fee-payments/<int:pk>/", views.FeePaymentDetailView.as_view(), name="fee_payment_detail"),
+    path("fee-payments/<int:payment_id>/history/", views.FeePaymentHistoryView.as_view(), name="fee_payment_history"),
+    path("fee-summary/", views.StudentFeeSummaryView.as_view(), name="student_fee_summary"),
+    path("fee-reports/collection/", views.fee_collection_report, name="fee_collection_report"),
+    path("fee-reports/outstanding/", views.fee_outstanding_report, name="fee_outstanding_report"),
+    path("fee-dashboard/", views.fee_dashboard_summary, name="fee_dashboard_summary"),
+
     # ── Dashboard ────────────────────────────────────────────────────────────
     path("dashboard/", views.dashboard_summary, name="dashboard_summary"),
 ]

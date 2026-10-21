@@ -85,15 +85,10 @@ function AppLayout() {
     return (
       <Tabs screenOptions={tabScreenOptions}>
         <Tabs.Screen name="student/dashboard" options={{ title: 'Dashboard', tabBarIcon: tabIcon('grid-outline') }} />
-        <Tabs.Screen
-          name="student/requirements"
-          options={{ title: 'Requirements', tabBarIcon: tabIcon('document-text-outline') }}
-        />
-        <Tabs.Screen
-          name="student/submissions"
-          options={{ title: 'Submissions', tabBarIcon: tabIcon('cloud-upload-outline') }}
-        />
+        <Tabs.Screen name="student/requirements" options={{ title: 'Requirements', tabBarIcon: tabIcon('document-text-outline') }} />
+        <Tabs.Screen name="student/submissions" options={{ title: 'Submissions', tabBarIcon: tabIcon('cloud-upload-outline') }} />
         <Tabs.Screen name="student/attendance" options={{ title: 'Attendance', tabBarIcon: tabIcon('calendar-outline') }} />
+        <Tabs.Screen name="student/fees" options={{ title: 'Fees', tabBarIcon: tabIcon('cash-outline') }} />
         <Tabs.Screen name="student/notifications" options={{ title: 'Notices', tabBarIcon: tabIcon('megaphone-outline') }} />
       </Tabs>
     );
@@ -110,6 +105,7 @@ function AppLayout() {
           options={{ title: 'Requirements', tabBarIcon: tabIcon('document-text-outline') }}
         />
         <Tabs.Screen name="parent/attendance" options={{ title: 'Attendance', tabBarIcon: tabIcon('calendar-outline') }} />
+        <Tabs.Screen name="parent/fees" options={{ title: 'Fees', tabBarIcon: tabIcon('cash-outline') }} />
         <Tabs.Screen name="parent/notifications" options={{ title: 'Notices', tabBarIcon: tabIcon('megaphone-outline') }} />
       </Tabs>
     );
@@ -135,6 +131,7 @@ function AppLayout() {
         <Tabs.Screen name="admin/dashboard" options={{ title: 'Dashboard', tabBarIcon: tabIcon('grid-outline') }} />
         <Tabs.Screen name="admin/directory" options={{ title: 'Directory', tabBarIcon: tabIcon('people-outline') }} />
         <Tabs.Screen name="admin/attendance" options={{ title: 'Classes', tabBarIcon: tabIcon('school-outline') }} />
+        <Tabs.Screen name="admin/fees" options={{ title: 'Fees', tabBarIcon: tabIcon('cash-outline') }} />
         <Tabs.Screen
           name="admin/requirements"
           options={{ title: 'Requirements', tabBarIcon: tabIcon('document-text-outline') }}

@@ -3,6 +3,7 @@ TRACK — API Views
 """
 
 from django.contrib.auth import login, logout
+from django.db import transaction
 from django.db.models import Count, ProtectedError, Q
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
@@ -25,6 +26,10 @@ from .models import (
     AttendanceRecord,
     AttendanceSession,
     ClassSchedule,
+    FeeAssessment,
+    FeeCategory,
+    FeePayment,
+    FeePaymentHistory,
     GradeLevel,
     Notification,
     ParentProfile,
@@ -53,6 +58,13 @@ from .serializers import (
     AttendanceSessionSerializer,
     ChangePasswordSerializer,
     ClassScheduleSerializer,
+    FeeAssessmentSerializer,
+    FeeAssessmentDetailSerializer,
+    FeeCategorySerializer,
+    FeeCollectionReportSerializer,
+    FeeOutstandingReportSerializer,
+    FeePaymentSerializer,
+    FeePaymentHistorySerializer,
     GradeLevelSerializer,
     LoginSerializer,
     NotificationSerializer,
@@ -60,6 +72,7 @@ from .serializers import (
     ResetPasswordSerializer,
     SchoolYearSerializer,
     SectionSerializer,
+    StudentFeeSummarySerializer,
     StudentProfileSerializer,
     SubjectSerializer,
     SubmissionSerializer,
@@ -1652,3 +1665,664 @@ def dashboard_summary(request):
         })
 
     return Response({"error": "Unknown role."}, status=400)
+
+
+# ---------------------------------------------------------------------------
+# Fee Management
+# ---------------------------------------------------------------------------
+
+class FeePagination(PageNumberPagination):
+    page_size = 25
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+class FeeCategoryListCreateView(generics.ListCreateAPIView):
+    """Admin: list and create fee categories."""
+    permission_classes = [IsAdminOrReadOnly]
+    queryset = FeeCategory.objects.all().annotate(
+        assessment_count=Count('assessments')
+    ).order_by('name')
+    serializer_class = FeeCategorySerializer
+    pagination_class = FeePagination
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        search = self.request.query_params.get('search')
+        fee_type = self.request.query_params.get('fee_type')
+        is_active = self.request.query_params.get('is_active')
+        if search:
+            qs = qs.filter(Q(name__icontains=search) | Q(code__icontains=search))
+        if fee_type:
+            qs = qs.filter(fee_type=fee_type)
+        if is_active is not None:
+            qs = qs.filter(is_active=is_active.lower() == 'true')
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+
+class FeeCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Admin: retrieve, update, or delete a fee category."""
+    permission_classes = [IsAdmin]
+    queryset = FeeCategory.objects.all()
+    serializer_class = FeeCategorySerializer
+
+    def perform_destroy(self, instance):
+        # Prevent deletion if assessments exist
+        if instance.assessments.exists():
+            raise ValidationError({"detail": (
+                f"'{instance}' has {instance.assessments.count()} assessment(s). "
+                "Archive or delete them first."
+            )})
+        instance.delete()
+
+
+class FeeAssessmentListCreateView(generics.ListCreateAPIView):
+    """Admin: list and create fee assessments."""
+    permission_classes = [IsAdminOrReadOnly]
+    serializer_class = FeeAssessmentSerializer
+    pagination_class = FeePagination
+
+    def get_queryset(self):
+        qs = FeeAssessment.objects.select_related(
+            "category", "school_year", "grade_level", "section", "student__user", "created_by"
+        ).order_by('-school_year__start_date', 'category__name')
+        school_year = self.request.query_params.get("school_year")
+        grade_level = self.request.query_params.get("grade_level")
+        section = self.request.query_params.get("section")
+        category = self.request.query_params.get("category")
+        status = self.request.query_params.get("status")
+        search = self.request.query_params.get("search")
+        if school_year:
+            qs = qs.filter(school_year_id=school_year)
+        if grade_level:
+            qs = qs.filter(grade_level_id=grade_level)
+        if section:
+            qs = qs.filter(section_id=section)
+        if category:
+            qs = qs.filter(category_id=category)
+        if status:
+            qs = qs.filter(status=status)
+        if search:
+            qs = qs.filter(
+                Q(category__name__icontains=search) |
+                Q(category__code__icontains=search) |
+                Q(student__user__first_name__icontains=search) |
+                Q(student__user__last_name__icontains=search) |
+                Q(student__lrn__icontains=search)
+            )
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+        AuditLog.objects.create(
+            actor=self.request.user,
+            action="fee_assessment.created",
+            target_model="FeeAssessment",
+            target_id=str(serializer.instance.pk),
+            description=f"Created fee assessment: {serializer.instance}",
+            ip_address=_client_ip(self.request),
+        )
+
+
+class FeeAssessmentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Admin: retrieve, update, or archive a fee assessment."""
+    permission_classes = [IsAdmin]
+    queryset = FeeAssessment.objects.select_related(
+        "category", "school_year", "grade_level", "section", "student__user", "created_by"
+    )
+    serializer_class = FeeAssessmentDetailSerializer
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        AuditLog.objects.create(
+            actor=self.request.user,
+            action="fee_assessment.updated",
+            target_model="FeeAssessment",
+            target_id=str(instance.pk),
+            description=f"Updated fee assessment: {instance}",
+            ip_address=_client_ip(self.request),
+        )
+
+    def perform_destroy(self, instance):
+        # Archive instead of delete to preserve history
+        if instance.status == FeeAssessment.Status.ARCHIVED:
+            raise ValidationError({"detail": "This assessment is already archived."})
+        instance.status = FeeAssessment.Status.ARCHIVED
+        instance.save(update_fields=["status", "updated_at"])
+        AuditLog.objects.create(
+            actor=self.request.user,
+            action="fee_assessment.archived",
+            target_model="FeeAssessment",
+            target_id=str(instance.pk),
+            description=f"Archived fee assessment: {instance}",
+            ip_address=_client_ip(self.request),
+        )
+
+
+class FeePaymentListCreateView(generics.ListCreateAPIView):
+    """Admin/staff: list and record fee payments."""
+    permission_classes = [IsAdminOrTeacher]
+    serializer_class = FeePaymentSerializer
+    pagination_class = FeePagination
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = FeePayment.objects.select_related(
+            "assessment__category", "assessment__school_year",
+            "student__user", "student__section__grade_level",
+            "recorded_by", "voided_by"
+        ).order_by('-payment_date', '-created_at')
+        assessment = self.request.query_params.get("assessment")
+        student = self.request.query_params.get("student")
+        status = self.request.query_params.get("status")
+        payment_method = self.request.query_params.get("payment_method")
+        school_year = self.request.query_params.get("school_year")
+        grade_level = self.request.query_params.get("grade_level")
+        section = self.request.query_params.get("section")
+        category = self.request.query_params.get("category")
+        search = self.request.query_params.get("search")
+        date_from = self.request.query_params.get("date_from")
+        date_to = self.request.query_params.get("date_to")
+
+        if assessment:
+            qs = qs.filter(assessment_id=assessment)
+        if student:
+            qs = qs.filter(student_id=student)
+        if status:
+            qs = qs.filter(status=status)
+        if payment_method:
+            qs = qs.filter(payment_method=payment_method)
+        if school_year:
+            qs = qs.filter(assessment__school_year_id=school_year)
+        if grade_level:
+            qs = qs.filter(student__section__grade_level_id=grade_level)
+        if section:
+            qs = qs.filter(student__section_id=section)
+        if category:
+            qs = qs.filter(assessment__category_id=category)
+        if date_from:
+            qs = qs.filter(payment_date__gte=date_from)
+        if date_to:
+            qs = qs.filter(payment_date__lte=date_to)
+        if search:
+            qs = qs.filter(
+                Q(student__user__first_name__icontains=search) |
+                Q(student__user__last_name__icontains=search) |
+                Q(student__lrn__icontains=search) |
+                Q(reference_number__icontains=search) |
+                Q(receipt_number__icontains=search)
+            )
+
+        # Teachers can only see payments for their sections
+        if user.is_teacher:
+            teacher_sections = TeacherAssignment.objects.filter(
+                teacher=user
+            ).values_list("section_id", flat=True)
+            qs = qs.filter(student__section_id__in=teacher_sections)
+
+        return qs
+
+    def perform_create(self, serializer):
+        with transaction.atomic():
+            # Generate receipt number
+            receipt_number = self._generate_receipt_number()
+            payment = serializer.save(
+                recorded_by=self.request.user,
+                receipt_number=receipt_number,
+            )
+            # Create history entry
+            FeePaymentHistory.objects.create(
+                payment=payment,
+                changed_by=self.request.user,
+                old_status="",
+                new_status=payment.status,
+                old_amount=None,
+                new_amount=payment.amount,
+                note="Payment recorded.",
+            )
+            AuditLog.objects.create(
+                actor=self.request.user,
+                action="fee_payment.recorded",
+                target_model="FeePayment",
+                target_id=str(payment.pk),
+                description=f"Recorded payment: {payment}",
+                ip_address=_client_ip(self.request),
+            )
+        return payment
+
+    def _generate_receipt_number(self):
+        """Generate a unique receipt number."""
+        from django.utils import timezone
+        import random
+        date_str = timezone.now().strftime("%Y%m%d")
+        while True:
+            suffix = ''.join(random.choices('0123456789', k=6))
+            receipt = f"RCPT-{date_str}-{suffix}"
+            if not FeePayment.objects.filter(receipt_number=receipt).exists():
+                return receipt
+
+
+class FeePaymentDetailView(generics.RetrieveUpdateAPIView):
+    """Admin: retrieve or update a fee payment (void/refund)."""
+    permission_classes = [IsAdmin]
+    queryset = FeePayment.objects.select_related(
+        "assessment__category", "assessment__school_year",
+        "student__user", "student__section__grade_level",
+        "recorded_by", "voided_by"
+    )
+    serializer_class = FeePaymentSerializer
+
+    def perform_update(self, serializer):
+        old_status = serializer.instance.status
+        old_amount = serializer.instance.amount
+        payment = serializer.save()
+        
+        # If status changed, create history entry
+        if old_status != payment.status or old_amount != payment.amount:
+            FeePaymentHistory.objects.create(
+                payment=payment,
+                changed_by=self.request.user,
+                old_status=old_status,
+                new_status=payment.status,
+                old_amount=old_amount,
+                new_amount=payment.amount,
+                note=f"Status changed from {old_status} to {payment.status}.",
+            )
+            AuditLog.objects.create(
+                actor=self.request.user,
+                action=f"fee_payment.{payment.status}",
+                target_model="FeePayment",
+                target_id=str(payment.pk),
+                description=f"Payment {payment.status}: {payment}",
+                ip_address=_client_ip(self.request),
+            )
+
+
+class FeePaymentHistoryView(generics.ListAPIView):
+    """View payment history for a specific payment."""
+    permission_classes = [IsAdminOrTeacher]
+    serializer_class = FeePaymentHistorySerializer
+
+    def get_queryset(self):
+        payment_id = self.kwargs["payment_id"]
+        return FeePaymentHistory.objects.filter(
+            payment_id=payment_id
+        ).select_related("changed_by")
+
+
+class StudentFeeSummaryView(generics.ListAPIView):
+    """Student/Parent: view fee summary for student(s)."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = StudentFeeSummarySerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        school_year = self.request.query_params.get("school_year")
+        status = self.request.query_params.get("status")
+        category = self.request.query_params.get("category")
+
+        if user.is_student:
+            try:
+                profile = user.student_profile
+            except StudentProfile.DoesNotExist:
+                return StudentProfile.objects.none()
+            qs = StudentProfile.objects.filter(pk=profile.pk)
+        elif user.is_parent:
+            try:
+                children = user.parent_profile.children.all()
+                child_id = self.request.query_params.get("child")
+                if child_id:
+                    children = children.filter(pk=child_id)
+                    if not children.exists():
+                        return StudentProfile.objects.none()
+                qs = StudentProfile.objects.filter(pk__in=children.values_list("pk", flat=True))
+            except ParentProfile.DoesNotExist:
+                return StudentProfile.objects.none()
+        else:
+            return StudentProfile.objects.none()
+
+        # Annotate with fee data
+        qs = qs.select_related("user", "section__grade_level", "section__school_year")
+        return qs
+
+    def list(self, request, *args, **kwargs):
+        qs = self.get_queryset().select_related("section__grade_level", "section__school_year")
+        school_year = request.query_params.get("school_year")
+        status = request.query_params.get("status")
+        category = request.query_params.get("category")
+
+        for profile in qs:
+            # Get assessments for this student
+            assessment_filter = Q(student=profile)
+            if profile.section:
+                assessment_filter |= Q(section=profile.section)
+                assessment_filter |= Q(grade_level=profile.section.grade_level, school_year=profile.section.school_year)
+                assessment_filter |= Q(school_year=profile.section.school_year, grade_level__isnull=True, section__isnull=True, student__isnull=True)
+            
+            assessments = FeeAssessment.objects.filter(assessment_filter).distinct() if profile.section else FeeAssessment.objects.filter(student=profile)
+
+            if school_year:
+                assessments = assessments.filter(school_year_id=school_year)
+            if status:
+                assessments = assessments.filter(status=status)
+            if category:
+                assessments = assessments.filter(category_id=category)
+            assessments = assessments.filter(status=FeeAssessment.Status.PUBLISHED)
+
+            # Get payments for this student
+            payments = FeePayment.objects.filter(
+                student=profile, status=FeePayment.Status.COMPLETED
+            ).select_related("assessment__category")
+
+            # Build assessment data with payment info
+            assessment_data = []
+            total_assessed = 0
+            total_paid = 0
+
+            for assessment in assessments:
+                # Get payment for this assessment
+                payment = payments.filter(assessment=assessment).first()
+                paid_amount = payment.amount if payment else 0
+                outstanding = assessment.amount - paid_amount
+                
+                payment_status = "unpaid"
+                if paid_amount >= assessment.amount:
+                    payment_status = "paid"
+                elif paid_amount > 0:
+                    payment_status = "partial"
+
+                assessment_data.append({
+                    "id": assessment.id,
+                    "category": assessment.category.name,
+                    "category_code": assessment.category.code,
+                    "category_fee_type": assessment.category.fee_type,
+                    "amount": float(assessment.amount),
+                    "due_date": assessment.due_date,
+                    "description": assessment.description,
+                    "paid_amount": float(paid_amount),
+                    "outstanding": float(outstanding),
+                    "payment_status": payment_status,
+                    "payment_date": payment.payment_date if payment else None,
+                    "receipt_number": payment.receipt_number if payment else None,
+                })
+                total_assessed += assessment.amount
+                total_paid += paid_amount
+
+            profile.fee_assessments_data = assessment_data
+            profile.total_assessed = total_assessed
+            profile.total_paid = total_paid
+            profile.total_outstanding = total_assessed - total_paid
+
+        serializer = self.get_serializer(qs, many=True)
+        return Response(serializer.data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAdmin])
+def fee_collection_report(request):
+    """Admin: Fee collection summary report."""
+    from django.db.models import Sum, Count, Q
+    from decimal import Decimal
+
+    school_year_id = request.query_params.get("school_year")
+    grade_level_id = request.query_params.get("grade_level")
+    section_id = request.query_params.get("section")
+    category_id = request.query_params.get("category")
+
+    assessments = FeeAssessment.objects.filter(status=FeeAssessment.Status.PUBLISHED)
+    if school_year_id:
+        assessments = assessments.filter(school_year_id=school_year_id)
+    if grade_level_id:
+        assessments = assessments.filter(grade_level_id=grade_level_id)
+    if section_id:
+        assessments = assessments.filter(section_id=section_id)
+    if category_id:
+        assessments = assessments.filter(category_id=category_id)
+
+    # Group by category
+    categories = FeeCategory.objects.filter(is_active=True)
+    report_data = []
+
+    for cat in categories:
+        cat_assessments = assessments.filter(category=cat)
+        if not cat_assessments.exists():
+            continue
+
+        # Get all students covered by these assessments
+        student_ids = set()
+        for assessment in cat_assessments:
+            student_ids.update(assessment.get_applicable_students().values_list("id", flat=True))
+
+        if not student_ids:
+            continue
+
+        students = StudentProfile.objects.filter(id__in=student_ids)
+        total_assessed = sum(a.amount for a in cat_assessments for _ in range(assessment.get_applicable_students().count()))
+        
+        # More efficient calculation
+        total_assessed = 0
+        for assessment in cat_assessments:
+            total_assessed += assessment.amount * assessment.get_applicable_students().count()
+
+        payments = FeePayment.objects.filter(
+            assessment__in=cat_assessments,
+            student__in=students,
+            status=FeePayment.Status.COMPLETED
+        )
+        total_collected = payments.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+        total_outstanding = total_assessed - total_collected
+        collection_rate = round(100 * total_collected / total_assessed, 2) if total_assessed > 0 else 0
+
+        # Count payment statuses
+        paid_count = 0
+        partial_count = 0
+        unpaid_count = 0
+        for student in students.select_related("section__grade_level", "section__school_year"):
+            student_payments = payments.filter(student=student)
+            
+            assessment_filter = Q(student=student)
+            if student.section:
+                assessment_filter |= Q(section=student.section)
+                assessment_filter |= Q(grade_level=student.section.grade_level, school_year=student.section.school_year)
+                assessment_filter |= Q(school_year=student.section.school_year, grade_level__isnull=True, section__isnull=True, student__isnull=True)
+            
+            student_assessments = cat_assessments.filter(assessment_filter).distinct() if student.section else cat_assessments.filter(student=student)
+            
+            student_assessed = sum(a.amount for a in student_assessments)
+            student_paid = student_payments.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+            
+            if student_assessed == 0:
+                continue
+            elif student_paid >= student_assessed:
+                paid_count += 1
+            elif student_paid > 0:
+                partial_count += 1
+            else:
+                unpaid_count += 1
+
+        report_data.append({
+            "school_year": cat_assessments.first().school_year.label if cat_assessments.exists() else "",
+            "category": cat.name,
+            "total_assessed": total_assessed,
+            "total_collected": total_collected,
+            "total_outstanding": total_outstanding,
+            "collection_rate": collection_rate,
+            "student_count": len(student_ids),
+            "paid_count": paid_count,
+            "partial_count": partial_count,
+            "unpaid_count": unpaid_count,
+        })
+
+    serializer = FeeCollectionReportSerializer(report_data, many=True)
+    return Response(serializer.data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAdmin])
+def fee_outstanding_report(request):
+    """Admin: Outstanding balance report."""
+    from django.db.models import Sum, Q
+    from decimal import Decimal
+
+    school_year_id = request.query_params.get("school_year")
+    grade_level_id = request.query_params.get("grade_level")
+    section_id = request.query_params.get("section")
+    category_id = request.query_params.get("category")
+    status_filter = request.query_params.get("payment_status")  # paid, partial, unpaid
+
+    assessments = FeeAssessment.objects.filter(status=FeeAssessment.Status.PUBLISHED)
+    if school_year_id:
+        assessments = assessments.filter(school_year_id=school_year_id)
+    if grade_level_id:
+        assessments = assessments.filter(grade_level_id=grade_level_id)
+    if section_id:
+        assessments = assessments.filter(section_id=section_id)
+    if category_id:
+        assessments = assessments.filter(category_id=category_id)
+
+    report_data = []
+    for assessment in assessments.select_related("category", "school_year", "grade_level", "section"):
+        students = assessment.get_applicable_students()
+        payments = FeePayment.objects.filter(
+            assessment=assessment,
+            student__in=students,
+            status=FeePayment.Status.COMPLETED
+        ).select_related("student__user", "student__section")
+
+        for student in students.select_related("user", "section__grade_level"):
+            student_payments = payments.filter(student=student)
+            paid = student_payments.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+            assessed = assessment.amount
+            outstanding = assessed - paid
+            
+            payment_status = "unpaid"
+            if paid >= assessed:
+                payment_status = "paid"
+            elif paid > 0:
+                payment_status = "partial"
+
+            if status_filter and payment_status != status_filter:
+                continue
+
+            report_data.append({
+                "student_id": student.id,
+                "student_name": student.user.get_full_name(),
+                "lrn": student.lrn or "",
+                "section": str(student.section) if student.section else "N/A",
+                "category": assessment.category.name,
+                "assessed": float(assessed),
+                "paid": float(paid),
+                "outstanding": float(outstanding),
+                "due_date": assessment.due_date,
+                "payment_status": payment_status,
+            })
+
+    serializer = FeeOutstandingReportSerializer(report_data, many=True)
+    return Response(serializer.data)
+
+
+@api_view(["GET"])
+@permission_classes([IsAdmin])
+def fee_dashboard_summary(request):
+    """Admin: Fee management dashboard summary."""
+    from django.db.models import Sum, Count, Q
+    from decimal import Decimal
+
+    now = timezone.now()
+    active_sy = SchoolYear.objects.filter(is_active=True).first()
+
+    # Total assessed (published assessments only)
+    published_assessments = FeeAssessment.objects.filter(status=FeeAssessment.Status.PUBLISHED)
+    if active_sy:
+        published_assessments = published_assessments.filter(school_year=active_sy)
+
+    total_assessed = 0
+    for assessment in published_assessments:
+        total_assessed += assessment.amount * assessment.get_applicable_students().count()
+
+    # Total collected
+    collected_payments = FeePayment.objects.filter(
+        assessment__in=published_assessments,
+        status=FeePayment.Status.COMPLETED
+    )
+    total_collected = collected_payments.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+
+    # Outstanding
+    total_outstanding = total_assessed - total_collected
+
+    # Students with balances
+    student_ids = set()
+    for assessment in published_assessments:
+        student_ids.update(assessment.get_applicable_students().values_list("id", flat=True))
+
+    students_with_balance = 0
+    for student_id in student_ids:
+        student = StudentProfile.objects.select_related("section__grade_level", "section__school_year").get(pk=student_id)
+        student_payments = collected_payments.filter(student=student)
+        
+        # Build query for student's applicable assessments
+        assessment_filter = Q(student=student)
+        if student.section:
+            assessment_filter |= Q(section=student.section)
+            assessment_filter |= Q(grade_level=student.section.grade_level, school_year=student.section.school_year)
+            assessment_filter |= Q(school_year=student.section.school_year, grade_level__isnull=True, section__isnull=True, student__isnull=True)
+        
+        student_assessments = published_assessments.filter(assessment_filter).distinct() if student.section else published_assessments.filter(student=student)
+        
+        student_assessed = sum(a.amount for a in student_assessments)
+        student_paid = student_payments.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+        if student_paid < student_assessed:
+            students_with_balance += 1
+
+    # By category
+    category_breakdown = []
+    for cat in FeeCategory.objects.filter(is_active=True):
+        cat_assessments = published_assessments.filter(category=cat)
+        if not cat_assessments.exists():
+            continue
+        cat_assessed = 0
+        for a in cat_assessments:
+            cat_assessed += a.amount * a.get_applicable_students().count()
+        cat_collected = FeePayment.objects.filter(
+            assessment__in=cat_assessments, status=FeePayment.Status.COMPLETED
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+        category_breakdown.append({
+            "category": cat.name,
+            "code": cat.code,
+            "assessed": float(cat_assessed),
+            "collected": float(cat_collected),
+            "outstanding": float(cat_assessed - cat_collected),
+        })
+
+    # Recent payments
+    recent_payments = FeePayment.objects.filter(
+        status=FeePayment.Status.COMPLETED
+    ).select_related(
+        "assessment__category", "student__user", "recorded_by"
+    ).order_by('-payment_date', '-created_at')[:10]
+
+    recent_data = [
+        {
+            "id": p.id,
+            "student": p.student.user.get_full_name(),
+            "category": p.assessment.category.name,
+            "amount": float(p.amount),
+            "payment_date": p.payment_date,
+            "payment_method": p.payment_method,
+            "receipt_number": p.receipt_number,
+        }
+        for p in recent_payments
+    ]
+
+    return Response({
+        "total_assessed": float(total_assessed),
+        "total_collected": float(total_collected),
+        "total_outstanding": float(total_outstanding),
+        "students_with_balance": students_with_balance,
+        "total_students_assessed": len(student_ids),
+        "category_breakdown": category_breakdown,
+        "recent_payments": recent_data,
+    })

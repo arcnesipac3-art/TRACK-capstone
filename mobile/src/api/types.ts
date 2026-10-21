@@ -346,3 +346,173 @@ export type Announcement = {
   author: number | null;
   author_name: string | null;
 };
+
+/* ------------------------------------------------------------------ */
+/* Fee Management                                                      */
+/* ------------------------------------------------------------------ */
+
+export type FeeCategory = {
+  id: number;
+  name: string;
+  code: string;
+  fee_type: 'compulsory' | 'voluntary';
+  description: string;
+  is_active: boolean;
+  assessment_count: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FeeAssessment = {
+  id: number;
+  category: number;
+  category_name: string;
+  category_code: string;
+  category_fee_type: 'compulsory' | 'voluntary';
+  school_year: number;
+  school_year_label: string;
+  grade_level: number | null;
+  grade_level_name: string | null;
+  section: number | null;
+  section_name: string | null;
+  student: number | null;
+  student_name: string | null;
+  amount: number;
+  due_date: string;
+  status: 'draft' | 'published' | 'archived';
+  description: string;
+  created_by: number | null;
+  created_by_name: string | null;
+  created_at: string;
+  updated_at: string;
+  total_assessed: number;
+  total_collected: number;
+  outstanding_balance: number;
+  student_count: number;
+};
+
+export type FeeAssessmentDetail = FeeAssessment & {
+  payments: FeePayment[];
+};
+
+export type FeePayment = {
+  id: number;
+  assessment: number;
+  assessment_category: string;
+  assessment_amount: number;
+  student: number;
+  student_name: string;
+  student_lrn: string | null;
+  section_name: string | null;
+  amount: number;
+  payment_date: string;
+  payment_method: 'cash' | 'check' | 'bank_transfer' | 'online' | 'other';
+  reference_number: string;
+  receipt_number: string;
+  status: 'pending' | 'completed' | 'voided' | 'refunded';
+  notes: string;
+  recorded_by: number | null;
+  recorded_by_name: string | null;
+  voided_by: number | null;
+  voided_by_name: string | null;
+  voided_at: string | null;
+  void_reason: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FeePaymentHistory = {
+  id: number;
+  old_status: string;
+  new_status: string;
+  old_amount: number | null;
+  new_amount: number | null;
+  changed_by: number | null;
+  changed_by_name: string | null;
+  note: string;
+  timestamp: string;
+};
+
+export type StudentFeeAssessment = {
+  id: number;
+  category: string;
+  category_code: string;
+  category_fee_type: 'compulsory' | 'voluntary';
+  amount: number;
+  due_date: string;
+  description: string;
+  paid_amount: number;
+  outstanding: number;
+  payment_status: 'paid' | 'partial' | 'unpaid';
+  payment_date: string | null;
+  receipt_number: string | null;
+};
+
+export type StudentFeeSummary = {
+  id: number;
+  user: {
+    id: number;
+    username: string;
+    first_name: string;
+    middle_name: string | null;
+    last_name: string;
+    full_name: string;
+  };
+  lrn: string | null;
+  section: number | null;
+  section_name: string | null;
+  assessments: StudentFeeAssessment[];
+  total_assessed: number;
+  total_paid: number;
+  total_outstanding: number;
+};
+
+export type FeeDashboardSummary = {
+  total_assessed: number;
+  total_collected: number;
+  total_outstanding: number;
+  students_with_balance: number;
+  total_students_assessed: number;
+  category_breakdown: {
+    category: string;
+    code: string;
+    assessed: number;
+    collected: number;
+    outstanding: number;
+  }[];
+  recent_payments: {
+    id: number;
+    student: string;
+    category: string;
+    amount: number;
+    payment_date: string;
+    payment_method: string;
+    receipt_number: string;
+  }[];
+};
+
+export type FeeCollectionReport = {
+  school_year: string;
+  category: string;
+  total_assessed: number;
+  total_collected: number;
+  total_outstanding: number;
+  collection_rate: number;
+  student_count: number;
+  paid_count: number;
+  partial_count: number;
+  unpaid_count: number;
+};
+
+export type FeeOutstandingReport = {
+  student_id: number;
+  student_name: string;
+  lrn: string;
+  section: string;
+  category: string;
+  assessed: number;
+  paid: number;
+  outstanding: number;
+  due_date: string;
+  payment_status: 'paid' | 'partial' | 'unpaid';
+};

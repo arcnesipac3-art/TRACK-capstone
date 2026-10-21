@@ -573,6 +573,279 @@ class Announcement(models.Model):
 
 
 # ---------------------------------------------------------------------------
+# Fee Management
+# ---------------------------------------------------------------------------
+
+class FeeCategory(models.Model):
+    """
+    A category of school fees — e.g. Tuition, PTA, Laboratory, Computer, etc.
+    Supports both compulsory and voluntary fees.
+    """
+
+    class FeeType(models.TextChoices):
+        COMPULSORY = "compulsory", "Compulsory"
+        VOLUNTARY = "voluntary", "Voluntary"
+
+    name = models.CharField(max_length=100, unique=True)
+    code = models.CharField(max_length=20, unique=True)  # e.g. "TUITION", "PTA", "LAB"
+    fee_type = models.CharField(
+        max_length=20, choices=FeeType.choices, default=FeeType.COMPULSORY
+    )
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Fee Category"
+        verbose_name_plural = "Fee Categories"
+
+    def __str__(self):
+        return f"{self.name} ({self.get_fee_type_display()})"
+
+
+class FeeAssessment(models.Model):
+    """
+    A fee assessment for a specific school year, grade level, section, or student.
+    Supports bulk assessments by school year/grade/section and individual assessments.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        PUBLISHED = "published", "Published"
+        ARCHIVED = "archived", "Archived"
+
+    category = models.ForeignKey(
+        FeeCategory, on_delete=models.PROTECT, related_name="assessments"
+    )
+    school_year = models.ForeignKey(
+        SchoolYear, on_delete=models.CASCADE, related_name="fee_assessments"
+    )
+    grade_level = models.ForeignKey(
+        GradeLevel,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="fee_assessments",
+        help_text="If set, applies to all sections in this grade level. If null, applies to specific sections or students.",
+    )
+    section = models.ForeignKey(
+        Section,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="fee_assessments",
+        help_text="If set with grade_level, applies only to this section. If grade_level is null, applies only to this section.",
+    )
+    student = models.ForeignKey(
+        StudentProfile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="fee_assessments",
+        help_text="If set, applies only to this specific student (individual assessment).",
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    due_date = models.DateField()
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.DRAFT
+    )
+    description = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_fee_assessments",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-school_year__start_date", "category__name"]
+        verbose_name = "Fee Assessment"
+        verbose_name_plural = "Fee Assessments"
+
+    def __str__(self):
+        scope = []
+        if self.grade_level:
+            scope.append(str(self.grade_level))
+        if self.section:
+            scope.append(str(self.section))
+        if self.student:
+            scope.append(f"Student: {self.student.user.get_full_name()}")
+        scope_str = " / ".join(scope) if scope else "School-wide"
+        return f"{self.category.name} — {self.amount} — {scope_str} ({self.school_year})"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        # Validate scope: at least one of grade_level, section, or student must be set
+        if not self.grade_level and not self.section and not self.student:
+            raise ValidationError("At least one of grade_level, section, or student must be specified.")
+        # If student is set, grade_level and section should be null (individual assessment)
+        if self.student and (self.grade_level or self.section):
+            raise ValidationError("Individual student assessments cannot have grade_level or section set.")
+        # If section is set, grade_level must match
+        if self.section and self.grade_level and self.section.grade_level_id != self.grade_level_id:
+            raise ValidationError("Section's grade level must match the assessment's grade level.")
+        # If section is set, school_year must match
+        if self.section and self.section.school_year_id != self.school_year_id:
+            raise ValidationError("Section's school year must match the assessment's school year.")
+
+    def get_applicable_students(self):
+        """
+        Returns a queryset of StudentProfile objects this assessment applies to.
+        """
+        from django.db.models import Q
+        qs = StudentProfile.objects.filter(user__is_active=True)
+
+        if self.student:
+            return qs.filter(pk=self.student.pk)
+
+        if self.section:
+            return qs.filter(section=self.section)
+
+        if self.grade_level:
+            sections = Section.objects.filter(
+                school_year=self.school_year, grade_level=self.grade_level
+            )
+            return qs.filter(section__in=sections)
+
+        # School-wide: all students in the school year
+        sections = Section.objects.filter(school_year=self.school_year)
+        return qs.filter(section__in=sections)
+
+    @property
+    def total_assessed(self):
+        """Total amount assessed across all applicable students."""
+        count = self.get_applicable_students().count()
+        return self.amount * count
+
+    @property
+    def total_collected(self):
+        """Total amount collected for this assessment."""
+        from django.db.models import Sum
+        students = self.get_applicable_students()
+        payments = FeePayment.objects.filter(
+            assessment=self, student__in=students, status=FeePayment.Status.COMPLETED
+        )
+        return payments.aggregate(total=Sum("amount"))["total"] or 0
+
+    @property
+    def outstanding_balance(self):
+        """Total outstanding balance for this assessment."""
+        return self.total_assessed - self.total_collected
+
+
+class FeePayment(models.Model):
+    """
+    A payment record for a fee assessment by a student.
+    Supports partial payments and tracks payment method, reference, etc.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        COMPLETED = "completed", "Completed"
+        VOIDED = "voided", "Voided"
+        REFUNDED = "refunded", "Refunded"
+
+    class PaymentMethod(models.TextChoices):
+        CASH = "cash", "Cash"
+        CHECK = "check", "Check"
+        BANK_TRANSFER = "bank_transfer", "Bank Transfer"
+        ONLINE = "online", "Online Payment"
+        OTHER = "other", "Other"
+
+    assessment = models.ForeignKey(
+        FeeAssessment, on_delete=models.CASCADE, related_name="payments"
+    )
+    student = models.ForeignKey(
+        StudentProfile, on_delete=models.CASCADE, related_name="fee_payments"
+    )
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    payment_date = models.DateField()
+    payment_method = models.CharField(
+        max_length=20, choices=PaymentMethod.choices, default=PaymentMethod.CASH
+    )
+    reference_number = models.CharField(max_length=100, blank=True)
+    receipt_number = models.CharField(max_length=50, blank=True, unique=True)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.COMPLETED
+    )
+    notes = models.TextField(blank=True)
+    recorded_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="recorded_fee_payments",
+    )
+    voided_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="voided_fee_payments",
+    )
+    voided_at = models.DateTimeField(null=True, blank=True)
+    void_reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-payment_date", "-created_at"]
+        verbose_name = "Fee Payment"
+        verbose_name_plural = "Fee Payments"
+
+    def __str__(self):
+        return f"{self.student.user.get_full_name()} — {self.assessment.category.name} — {self.amount} — {self.payment_date}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        # Validate amount is positive
+        if self.amount and self.amount <= 0:
+            raise ValidationError({"amount": "Payment amount must be positive."})
+        # Validate student is applicable for this assessment
+        if self.assessment_id and self.student_id:
+            applicable = self.assessment.get_applicable_students()
+            if not applicable.filter(pk=self.student_id).exists():
+                raise ValidationError(
+                    {"student": "This student is not covered by the selected assessment."}
+                )
+
+    @property
+    def is_voided_or_refunded(self):
+        return self.status in [self.Status.VOIDED, self.Status.REFUNDED]
+
+
+class FeePaymentHistory(models.Model):
+    """
+    Immutable audit trail for every payment status change.
+    Preserves history for voided or reversed payments.
+    """
+
+    payment = models.ForeignKey(
+        FeePayment, on_delete=models.CASCADE, related_name="history"
+    )
+    changed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="fee_payment_changes"
+    )
+    old_status = models.CharField(max_length=20)
+    new_status = models.CharField(max_length=20)
+    old_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    new_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    note = models.TextField(blank=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-timestamp"]
+        verbose_name = "Fee Payment History"
+        verbose_name_plural = "Fee Payment Histories"
+
+    def __str__(self):
+        return f"{self.payment} | {self.old_status} → {self.new_status}"
+
+
+# ---------------------------------------------------------------------------
 # Audit log
 # ---------------------------------------------------------------------------
 
