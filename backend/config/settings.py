@@ -275,6 +275,7 @@ if IS_PRODUCTION:
     # session and CSRF tokens, so they must not travel over plain HTTP.
     # Opt out only for plain-HTTP rehearsals: DJANGO_SECURE_SSL_REDIRECT=0.
     SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SAMESITE = "None"   # required for split-origin (Vercel frontend + Render backend)
     CSRF_COOKIE_SECURE = True
     SECURE_SSL_REDIRECT = os.environ.get(
         "DJANGO_SECURE_SSL_REDIRECT", "1"
