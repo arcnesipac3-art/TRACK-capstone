@@ -5,7 +5,7 @@
   "build": {
     "base": {
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-WITH-DEPLOYED-BACKEND.example.com/api"
+        "EXPO_PUBLIC_API_URL": "https://track-capstone.onrender.com/api"
       }
     },
     "preview": {
