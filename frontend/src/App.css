@@ -1966,3 +1966,138 @@
 @media (max-width: 479px) {
   .seg-face { padding: 5px 6px; font-size: 0.74rem; gap: 3px; }
 }
+
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 16px;
+  height: 40px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--ease), border-color var(--ease), color var(--ease), box-shadow var(--ease), opacity var(--ease);
+  vertical-align: middle;
+}
+
+.btn:disabled,
+.btn.btn-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--navy-800);
+  color: var(--on-navy);
+  border-color: var(--navy-800);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--navy-900);
+  border-color: var(--navy-900);
+}
+.btn-primary:active:not(:disabled) {
+  background: var(--navy-800);
+}
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--navy-800);
+  border-color: var(--border-strong);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--surface-alt);
+  border-color: var(--navy-600);
+}
+
+.btn-danger {
+  background: var(--surface);
+  color: var(--red-700);
+  border-color: var(--red-700);
+}
+.btn-danger:hover:not(:disabled) {
+  background: var(--red-100);
+  border-color: var(--red-700);
+  color: var(--red-700);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--navy-800);
+  border-color: transparent;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--surface-alt);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--navy-800);
+  border-color: var(--border-strong);
+}
+.btn-outline:hover:not(:disabled) {
+  background: var(--surface-alt);
+  border-color: var(--navy-600);
+}
+
+.btn-sm {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 0.8rem;
+}
+
+.btn-lg {
+  height: 48px;
+  padding: 0 24px;
+  font-size: 0.96rem;
+}
+
+.btn-loading {
+  position: relative;
+  color: transparent !important;
+}
+.btn-spinner {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   Badges
+   ========================================================================== */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.badge-success { background: var(--green-100); color: var(--green-700); }
+.badge-warning { background: var(--amber-100); color: var(--amber-700); }
+.badge-danger,
+.badge-error { background: var(--red-100); color: var(--red-700); }
+.badge-info { background: var(--blue-100); color: var(--blue-700); }
+.badge-secondary { background: var(--gray-100); color: var(--text-muted); }
+.badge-neutral { background: var(--gray-100); color: var(--text); }

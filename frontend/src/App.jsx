@@ -28,6 +28,12 @@ import ParentDashboard from './pages/dashboards/ParentDashboard'
 import StudentDashboard from './pages/dashboards/StudentDashboard'
 import TeacherDashboard from './pages/dashboards/TeacherDashboard'
 
+import AdminFeesPage from './pages/AdminFeesPage'
+import AdminFeeCategoryDetailPage from './pages/AdminFeeCategoryDetailPage'
+import AdminFeeAssessmentDetailPage from './pages/AdminFeeAssessmentDetailPage'
+import StudentFeesPage from './pages/StudentFeesPage'
+import ParentFeesPage from './pages/ParentFeesPage'
+
 export default function App() {
   const { hash, pathname } = useLocation()
 
@@ -72,6 +78,11 @@ export default function App() {
             <Route path="/admin/schedules" element={<SchedulesPage />} />
             <Route path="/admin/requirements" element={<RequirementsPage scope="admin" />} />
             <Route path="/admin/attendance" element={<AttendancePage mode="admin" />} />
+            <Route path="/admin/fees" element={<AdminFeesPage />} />
+            <Route path="/admin/fees/categories/new" element={<AdminFeeCategoryDetailPage />} />
+            <Route path="/admin/fees/categories/:id" element={<AdminFeeCategoryDetailPage />} />
+            <Route path="/admin/fees/assessments/new" element={<AdminFeeAssessmentDetailPage />} />
+            <Route path="/admin/fees/assessments/:id" element={<AdminFeeAssessmentDetailPage />} />
           </Route>
 
           {/* Teacher */}
@@ -89,6 +100,7 @@ export default function App() {
             <Route path="/student/requirements" element={<RequirementsPage scope="student" />} />
             <Route path="/student/submissions" element={<SubmissionsPage mode="mine" />} />
             <Route path="/student/attendance" element={<AttendancePage mode="student" />} />
+            <Route path="/student/fees" element={<StudentFeesPage />} />
           </Route>
 
           {/* Parent */}
@@ -97,6 +109,7 @@ export default function App() {
             <Route path="/parent/children" element={<ParentChildrenPage />} />
             <Route path="/parent/requirements" element={<RequirementsPage scope="parent" />} />
             <Route path="/parent/attendance" element={<AttendancePage mode="parent" />} />
+            <Route path="/parent/fees" element={<ParentFeesPage />} />
           </Route>
         </Route>
       </Route>

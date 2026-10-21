@@ -146,3 +146,13 @@ export function initials(name) {
 export function dashboardPath(role) {
   return `/${role}/dashboard`
 }
+
+/** Format a number with commas (e.g., 12345 -> 12,345). */
+export function formatNumber(value) {
+  return Number(value || 0).toLocaleString()
+}
+
+/** Format currency in Philippine Peso (e.g., 5000 -> ₱5,000.00). */
+export function formatCurrency(value) {
+  return '₱' + Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
