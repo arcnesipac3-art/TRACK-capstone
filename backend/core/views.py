@@ -96,8 +96,29 @@ def health_check(request):
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def csrf_token(request):
-    """Return a CSRF token so the React SPA can attach it to POST requests."""
-    return Response({"csrfToken": get_token(request)})
+    """
+    Return a CSRF token and explicitly set the csrftoken cookie.
+
+    In a split-origin deploy (Vercel frontend + Render backend) the browser
+    drops Set-Cookie headers that lack SameSite=None; Secure. Django's
+    middleware sets those attributes when CSRF_COOKIE_SAMESITE="None" and
+    CSRF_COOKIE_SECURE=True are configured, but only if the cookie is
+    explicitly written onto the response — calling get_token() alone is not
+    enough because Django defers the Set-Cookie until process_response, which
+    DRF's Response bypasses.  Force it here so the browser receives the cookie
+    on this preflight GET before the login POST.
+    """
+    token = get_token(request)
+    response = Response({"csrfToken": token})
+    response.set_cookie(
+        "csrftoken",
+        token,
+        max_age=31449600,          # 1 year — matches Django's default
+        secure=True,
+        httponly=False,            # JS must be able to read this cookie
+        samesite="None",           # cross-origin: Vercel → Render
+    )
+    return response
 
 
 class LoginView(APIView):
