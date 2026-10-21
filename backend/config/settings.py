@@ -277,6 +277,7 @@ if IS_PRODUCTION:
     SESSION_COOKIE_SECURE = True
     SESSION_COOKIE_SAMESITE = "None"   # required for split-origin (Vercel frontend + Render backend)
     CSRF_COOKIE_SECURE = True
+    CSRF_COOKIE_SAMESITE = "None"      # required: cookie must cross origins for the login POST to work
     SECURE_SSL_REDIRECT = os.environ.get(
         "DJANGO_SECURE_SSL_REDIRECT", "1"
     ).lower() not in ("0", "false", "no")
