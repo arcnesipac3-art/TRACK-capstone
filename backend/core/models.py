@@ -173,6 +173,40 @@ class TeacherAssignment(models.Model):
         return f"{self.teacher.get_full_name()} — {self.subject} / {self.section}"
 
 
+class ClassSchedule(models.Model):
+    """Weekly class schedule for a teacher assignment."""
+
+    class DayOfWeek(models.IntegerChoices):
+        MONDAY = 1, "Monday"
+        TUESDAY = 2, "Tuesday"
+        WEDNESDAY = 3, "Wednesday"
+        THURSDAY = 4, "Thursday"
+        FRIDAY = 5, "Friday"
+        SATURDAY = 6, "Saturday"
+        SUNDAY = 7, "Sunday"
+
+    teacher_assignment = models.ForeignKey(
+        TeacherAssignment,
+        on_delete=models.CASCADE,
+        related_name="schedules",
+    )
+    day_of_week = models.IntegerField(choices=DayOfWeek.choices)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    room = models.CharField(max_length=50, blank=True)
+
+    class Meta:
+        ordering = ["day_of_week", "start_time"]
+        unique_together = [["teacher_assignment", "day_of_week", "start_time"]]
+
+    def __str__(self):
+        return f"{self.teacher_assignment} — {self.get_day_of_week_display()} {self.start_time}-{self.end_time}"
+
+    def clean(self):
+        if self.start_time and self.end_time and self.start_time >= self.end_time:
+            raise ValidationError("Start time must be before end time.")
+
+
 # ---------------------------------------------------------------------------
 # Student & Parent profiles
 # ---------------------------------------------------------------------------
@@ -338,7 +372,13 @@ class SubmissionHistory(models.Model):
 class AttendanceSession(models.Model):
     """
     One attendance-taking event — e.g. 'Grade 7 Sampaguita, Math, Oct 17 2026'.
+    Can be auto-generated from schedule or manually created.
     """
+
+    class Status(models.TextChoices):
+        NOT_STARTED = "not_started", "Not Started"
+        IN_PROGRESS = "in_progress", "In Progress"
+        COMPLETED = "completed", "Completed"
 
     teacher_assignment = models.ForeignKey(
         TeacherAssignment,
@@ -346,6 +386,19 @@ class AttendanceSession(models.Model):
         related_name="attendance_sessions",
     )
     date = models.DateField()
+    schedule = models.ForeignKey(
+        'ClassSchedule',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="attendance_sessions",
+        help_text="The schedule entry that generated this session (null for manual sessions)"
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.NOT_STARTED,
+    )
     notes = models.TextField(blank=True)
     created_by = models.ForeignKey(
         User,
@@ -356,11 +409,41 @@ class AttendanceSession(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        ordering = ["-date"]
-        unique_together = [["teacher_assignment", "date"]]
+        ordering = ["-date", "schedule__start_time"]
+        # Unique: one session per (assignment, date, schedule)
+        # For manual sessions (schedule=null), only one per (assignment, date)
+        constraints = [
+            models.UniqueConstraint(
+                fields=['teacher_assignment', 'date', 'schedule'],
+                name='unique_scheduled_session',
+                condition=models.Q(schedule__isnull=False)
+            ),
+            models.UniqueConstraint(
+                fields=['teacher_assignment', 'date'],
+                name='unique_manual_session',
+                condition=models.Q(schedule__isnull=True)
+            ),
+        ]
 
     def __str__(self):
-        return f"{self.teacher_assignment} — {self.date}"
+        time_str = f" {self.schedule.start_time}" if self.schedule else ""
+        return f"{self.teacher_assignment} — {self.date}{time_str}"
+
+    def update_status(self):
+        """Auto-update status based on records."""
+        from django.db.models import Count
+        total_students = self.teacher_assignment.section.students.count()
+        if total_students == 0:
+            self.status = self.Status.NOT_STARTED
+        else:
+            recorded_count = self.records.count()
+            if recorded_count == 0:
+                self.status = self.Status.NOT_STARTED
+            elif recorded_count < total_students:
+                self.status = self.Status.IN_PROGRESS
+            else:
+                self.status = self.Status.COMPLETED
+        self.save(update_fields=['status'])
 
 
 class AttendanceRecord(models.Model):

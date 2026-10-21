@@ -8,6 +8,7 @@ Run from the backend folder:
 from datetime import timedelta
 from io import StringIO
 
+from django.core.cache import cache
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -112,6 +113,12 @@ class TrackTestCase(APITestCase):
             "t_parent": "pass-Parent1",
         }[user.username])
         return self.client
+
+    def setUp(self):
+        # DRF throttle counters (login/token endpoints) live in the default
+        # cache and persist across tests in a process. Clearing here keeps a
+        # test that logs in repeatedly from tripping ScopedRateThrottle.
+        cache.clear()
 
 
 class AuthTests(TrackTestCase):
@@ -657,6 +664,118 @@ class AttendanceRecordShapeTests(TrackTestCase):
         self.assertEqual(detail["date"], session.date.isoformat())
         self.assertEqual(detail["section_name"], "Grade 7 — Sampaguita (2026-2027)")
         self.assertEqual(detail["subject_name"], "Mathematics")
+
+
+class AttendanceHistoryTests(TrackTestCase):
+    """Read/write paths the teacher attendance-history screens depend on."""
+
+    def _make_session(self, days_ago=2):
+        return AttendanceSession.objects.create(
+            teacher_assignment=self.assignment1,
+            date=timezone.now().date() - timedelta(days=days_ago),
+        )
+
+    def test_session_history_is_scoped_to_the_teachers_own_classes(self):
+        mine = self._make_session()
+        AttendanceRecord.objects.create(
+            session=mine, student=self.student1, status="absent",
+            recorded_by=self.teacher1,
+        )
+        other = AttendanceSession.objects.create(
+            teacher_assignment=self.assignment2,
+            date=timezone.now().date() - timedelta(days=2),
+        )
+        AttendanceRecord.objects.create(
+            session=other, student=self.student2, status="present",
+            recorded_by=self.teacher2,
+        )
+
+        self.login_as(self.teacher1)
+        results = self.client.get("/api/attendance/sessions/").json()["results"]
+        self.assertEqual([row["id"] for row in results], [mine.id])
+        # The history counts are read off these persisted rows.
+        row = results[0]
+        self.assertEqual(row["records"][0]["status"], "absent")
+        self.assertEqual(row["records"][0]["student"], self.student1.id)
+        self.assertEqual(row["records"][0]["student_name"], "Sara Student")
+        self.assertEqual(row["subject_name"], "Mathematics")
+        self.assertEqual(row["section_name"], "Grade 7 — Sampaguita (2026-2027)")
+
+        self.client.logout()
+        self.login_as(self.teacher2)
+        results = self.client.get("/api/attendance/sessions/").json()["results"]
+        self.assertEqual([row["id"] for row in results], [other.id])
+
+    def test_another_teachers_session_is_not_reachable(self):
+        foreign = AttendanceSession.objects.create(
+            teacher_assignment=self.assignment2,
+            date=timezone.now().date(),
+        )
+        self.login_as(self.teacher1)
+
+        detail = self.client.get(f"/api/attendance/sessions/{foreign.id}/")
+        self.assertEqual(detail.status_code, 404)
+
+        update = self.client.patch(
+            f"/api/attendance/sessions/{foreign.id}/",
+            {"notes": "tampered"},
+            format="json",
+        )
+        self.assertEqual(update.status_code, 404)
+
+    def test_another_teachers_record_cannot_be_corrected(self):
+        foreign_session = AttendanceSession.objects.create(
+            teacher_assignment=self.assignment2, date=timezone.now().date()
+        )
+        record = AttendanceRecord.objects.create(
+            session=foreign_session, student=self.student2, status="present",
+        )
+        self.login_as(self.teacher1)
+        response = self.client.patch(
+            f"/api/attendance/records/{record.id}/", {"status": "absent"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 404)
+
+        record.refresh_from_db()
+        self.assertEqual(record.status, "present")  # untouched
+
+    def test_correcting_a_record_stamps_modified_by(self):
+        session = self._make_session()
+        record = AttendanceRecord.objects.create(
+            session=session, student=self.student1, status="present",
+            recorded_by=self.teacher1,
+        )
+        self.login_as(self.teacher1)
+        response = self.client.patch(
+            f"/api/attendance/records/{record.id}/", {"status": "absent"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+
+        record.refresh_from_db()
+        self.assertEqual(record.status, "absent")
+        self.assertEqual(record.modified_by, self.teacher1)
+
+    def test_a_teacher_cannot_read_another_classes_student_history(self):
+        # student2 sits in section_b, which this teacher does not teach.
+        self.login_as(self.teacher1)
+        denied = self.client.get(f"/api/attendance/records/?student={self.student2.id}")
+        self.assertEqual(denied.status_code, 403)
+
+        session = self._make_session()
+        AttendanceRecord.objects.create(
+            session=session, student=self.student1, status="late",
+            recorded_by=self.teacher1,
+        )
+        allowed = self.client.get(f"/api/attendance/records/?student={self.student1.id}")
+        self.assertEqual(allowed.status_code, 200)
+        results = allowed.json()["results"]
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["status"], "late")
+        self.assertEqual(results[0]["notes"], "")
+        self.assertEqual(results[0]["session_detail"]["date"], session.date.isoformat())
+        self.assertEqual(results[0]["session_detail"]["subject_name"], "Mathematics")
 
 
 class AdminUserManagementTests(TrackTestCase):
@@ -1774,3 +1893,833 @@ class DeadlineCommandTests(TrackTestCase):
 
         self.run_cmd("--overdue-only")
         self.assertEqual(self.student1_user.notifications.count(), first)
+
+
+class TokenAuthTests(TrackTestCase):
+    """
+    The mobile app has no cookie jar, so it cannot hold a Django session or
+    echo a CSRF header. It trades credentials for a DRF token instead.
+
+    These tests also pin the guarantee that adding TokenAuthentication did not
+    disturb the web app: session auth must keep working untouched.
+    """
+
+    def obtain_token(self, username="t_student1", password="pass-Stud123"):
+        return self.client.post(
+            "/api/auth/token/", {"username": username, "password": password}
+        )
+
+    def authed(self, key):
+        """A fresh client carrying only the token — no cookies, no CSRF."""
+        client = self.client_class()
+        client.credentials(HTTP_AUTHORIZATION=f"Token {key}")
+        return client
+
+    # ── Obtaining a token ───────────────────────────────────────────────────
+
+    def test_a_correct_password_returns_a_token_and_the_user(self):
+        response = self.obtain_token()
+
+        self.assertEqual(response.status_code, 200, response.content)
+        payload = response.json()
+        self.assertIn("token", payload)
+        self.assertTrue(payload["token"])
+        self.assertEqual(payload["user"]["username"], "t_student1")
+        self.assertEqual(payload["user"]["role"], "student")
+
+    def test_an_email_address_is_accepted_just_like_on_the_web(self):
+        self.student1_user.email = "sara@school.edu.ph"
+        self.student1_user.save(update_fields=["email"])
+
+        response = self.obtain_token(username="sara@school.edu.ph")
+
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(
+            response.json()["user"]["username"], "t_student1"
+        )
+
+    def test_a_wrong_password_is_refused_without_leaking_which_half_was_bad(self):
+        response = self.obtain_token(password="wrong-password")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Invalid username or password.", response.content.decode())
+
+    def test_an_unknown_account_is_refused(self):
+        response = self.obtain_token(username="nobody-here")
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_an_inactive_account_cannot_mint_a_token(self):
+        self.student1_user.is_active = False
+        self.student1_user.save(update_fields=["is_active"])
+
+        response = self.obtain_token()
+
+        # Django's authenticate() rejects inactive users before
+        # LoginSerializer's own is_active branch is reached, so the response
+        # is the same generic message as a wrong password — which is the
+        # safer behaviour, as it does not reveal the account exists.
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(
+            "Invalid username or password.", response.content.decode()
+        )
+        from rest_framework.authtoken.models import Token
+
+        self.assertFalse(Token.objects.filter(user=self.student1_user).exists())
+
+    def test_signing_in_twice_reuses_the_same_token_rather_than_minting_a_new_one(self):
+        first = self.obtain_token().json()["token"]
+        second = self.obtain_token().json()["token"]
+
+        self.assertEqual(first, second)
+        # Exactly one Token row exists for the user.
+        from rest_framework.authtoken.models import Token
+
+        self.assertEqual(Token.objects.filter(user=self.student1_user).count(), 1)
+
+    def test_a_mobile_sign_in_is_still_recorded_in_the_audit_log(self):
+        self.obtain_token()
+
+        self.assertTrue(
+            AuditLog.objects.filter(
+                actor=self.student1_user, action="auth.login"
+            ).exists()
+        )
+
+    # ── Using a token ───────────────────────────────────────────────────────
+
+    def test_a_token_authenticates_requests_with_no_cookies_at_all(self):
+        key = self.obtain_token().json()["token"]
+
+        response = self.authed(key).get("/api/auth/me/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["username"], "t_student1")
+
+    def test_an_unauthenticated_token_request_is_rejected(self):
+        response = self.authed("not-a-real-token").get("/api/auth/me/")
+
+        self.assertEqual(response.status_code, 401)
+
+    def test_a_token_does_not_grant_someone_elses_identity(self):
+        key = self.obtain_token(username="t_student2").json()["token"]
+
+        response = self.authed(key).get("/api/auth/me/")
+
+        self.assertEqual(response.json()["username"], "t_student2")
+
+    def test_token_requests_need_no_csrf_token(self):
+        # The web client must send X-CSRFToken on unsafe methods; a token
+        # client has no cookie to echo, so the same POST must succeed bare.
+        key = self.obtain_token().json()["token"]
+
+        response = self.authed(key).post(
+            "/api/submissions/",
+            {
+                "requirement": self.requirement1.id,
+                "status": "submitted",
+                "link_url": "https://example.com/mobile-work",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201, response.content)
+
+    def test_a_token_user_is_still_bound_by_the_same_permissions(self):
+        # Being on mobile must not widen what a student may do.
+        key = self.obtain_token().json()["token"]
+
+        response = self.authed(key).get("/api/users/")
+
+        self.assertEqual(response.status_code, 403)
+
+    # ── Signing out ─────────────────────────────────────────────────────────
+
+    def test_signing_out_invalidates_the_token_server_side(self):
+        key = self.obtain_token().json()["token"]
+        self.assertEqual(self.authed(key).get("/api/auth/me/").status_code, 200)
+
+        logout_response = self.authed(key).post("/api/auth/token/logout/")
+
+        self.assertEqual(logout_response.status_code, 200)
+        self.assertEqual(self.authed(key).get("/api/auth/me/").status_code, 401)
+
+    def test_signing_out_leaves_the_web_session_alone(self):
+        key = self.obtain_token().json()["token"]
+        self.login_as(self.student1_user)
+
+        self.authed(key).post("/api/auth/token/logout/")
+
+        # The browser's session cookie is a separate credential and must
+        # survive a mobile sign-out.
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, 200)
+
+    # ── The web app is unaffected ───────────────────────────────────────────
+
+    def test_the_web_session_login_still_works_after_adding_token_auth(self):
+        response = self.client.post(
+            "/api/auth/login/",
+            {"username": "t_admin", "password": "pass-Admin123"},
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        me = self.client.get("/api/auth/me/")
+        self.assertEqual(me.status_code, 200)
+        self.assertEqual(me.json()["username"], "t_admin")
+
+    def test_a_session_request_without_csrf_is_still_rejected(self):
+        # TokenAuthentication must not have weakened the web's CSRF posture.
+        # DRF's APIClient disables CSRF by default (enforce_csrf_checks=False),
+        # so this has to opt in explicitly to test the real middleware path.
+        from rest_framework.test import APIClient
+
+        client = APIClient(enforce_csrf_checks=True)
+        client.login(username="t_student1", password="pass-Stud123")
+
+        response = client.post("/api/submissions/", {
+            "requirement": self.requirement1.id,
+            "status": "submitted",
+            "link_url": "https://example.com/no-csrf",
+        }, format="json")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_a_token_request_is_not_held_up_by_csrf(self):
+        # The same CSRF-strict client must still accept a token, because a
+        # token is not ambient authority the way a cookie is.
+        from rest_framework.test import APIClient
+
+        key = self.obtain_token().json()["token"]
+        client = APIClient(enforce_csrf_checks=True)
+        client.credentials(HTTP_AUTHORIZATION=f"Token {key}")
+
+        response = client.post("/api/submissions/", {
+            "requirement": self.requirement1.id,
+            "status": "submitted",
+            "link_url": "https://example.com/token-no-csrf",
+        }, format="json")
+
+        self.assertEqual(response.status_code, 201, response.content)
+
+
+class Phase2IntegrationRegressionTests(TrackTestCase):
+    """
+    Guards for defects found during the Phase 2 full-integration audit.
+
+    Each test reproduces a defect that was observed over HTTP against a live
+    server, so a refactor cannot quietly reintroduce it.
+    """
+
+    # ── Attendance write path ──────────────────────────────────────────────
+
+    def _fresh_session(self):
+        return AttendanceSession.objects.create(
+            teacher_assignment=self.assignment1,
+            date=timezone.now().date() + timedelta(days=90),
+        )
+
+    def test_a_student_cannot_create_an_attendance_record(self):
+        # Observed live: POST /api/attendance/records/ returned 201 for a
+        # student — only the (session, student) UNIQUE constraint happened to
+        # be in the way. Writing a mark is a staff action.
+        session = self._fresh_session()
+        self.login_as(self.student1_user)
+        response = self.client.post("/api/attendance/records/", {
+            "session": session.id, "student": self.student1.id, "status": "absent",
+        }, format="json")
+
+        self.assertEqual(response.status_code, 403, response.content)
+        self.assertFalse(
+            AttendanceRecord.objects.filter(
+                session=session, student=self.student1
+            ).exists()
+        )
+
+    def test_a_parent_cannot_create_an_attendance_record(self):
+        session = self._fresh_session()
+        self.login_as(self.parent)
+        response = self.client.post("/api/attendance/records/", {
+            "session": session.id, "student": self.student1.id, "status": "absent",
+        }, format="json")
+
+        self.assertEqual(response.status_code, 403, response.content)
+
+    def test_a_teacher_can_still_create_an_attendance_record(self):
+        session = self._fresh_session()
+        self.login_as(self.teacher1)
+        response = self.client.post("/api/attendance/records/", {
+            "session": session.id, "student": self.student1.id, "status": "absent",
+        }, format="json")
+
+        self.assertEqual(response.status_code, 201, response.content)
+
+    def test_reading_attendance_still_works_for_students_and_parents(self):
+        # The guard above is on create only: GET must stay open so a student
+        # can review their own history and a parent their child's.
+        AttendanceRecord.objects.create(
+            session=self._fresh_session(), student=self.student1,
+            status=AttendanceRecord.Status.PRESENT,
+        )
+        self.login_as(self.student1_user)
+        self.assertEqual(self.client.get("/api/attendance/records/").status_code, 200)
+
+        self.login_as(self.parent)
+        self.assertEqual(self.client.get("/api/attendance/records/").status_code, 200)
+
+    # ── Notification mark-read verbs ───────────────────────────────────────
+
+    def _announcement_for(self):
+        self.login_as(self.teacher1)
+        self.client.post("/api/announcements/", {
+            "title": "Staff meeting", "body": "Room 4.", "audience": "teachers",
+        }, format="json")
+        return self.teacher1.notifications.first()
+
+    def test_post_marks_a_notification_read_for_the_mobile_client(self):
+        # The Expo app posts to /notifications/<id>/read/. DRF's UpdateAPIView
+        # only wires PUT/PATCH, so the tap was a silent 405 no-op on mobile.
+        notif = self._announcement_for()
+        self.client.logout()
+
+        self.login_as(self.teacher1)
+        response = self.client.post(f"/api/notifications/{notif.id}/read/", {},
+                                    format="json")
+
+        self.assertEqual(response.status_code, 200, response.content)
+        notif.refresh_from_db()
+        self.assertTrue(notif.is_read)
+
+    def test_post_cannot_mark_another_users_notification_read(self):
+        notif = self._announcement_for()
+        self.client.logout()
+
+        self.login_as(self.student1_user)
+        response = self.client.post(f"/api/notifications/{notif.id}/read/", {},
+                                    format="json")
+
+        self.assertIn(response.status_code, (403, 404))
+        notif.refresh_from_db()
+        self.assertFalse(notif.is_read)
+
+    # ── Requirement detail must match the requirement list ────────────────
+
+    def test_a_student_can_open_a_requirement_they_can_list(self):
+        self.login_as(self.student1_user)
+        rows = self.client.get("/api/requirements/").json()["results"]
+        self.assertTrue(rows, "the student should be able to list something")
+
+        response = self.client.get(f"/api/requirements/{rows[0]['id']}/")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()["id"], rows[0]["id"])
+
+    def test_a_parent_can_open_a_requirement_of_a_linked_child(self):
+        self.login_as(self.parent)
+        rows = self.client.get("/api/requirements/").json()["results"]
+        self.assertTrue(rows)
+
+        response = self.client.get(f"/api/requirements/{rows[0]['id']}/")
+        self.assertEqual(response.status_code, 200, response.content)
+
+    def test_a_parent_still_cannot_open_an_unlinked_childs_requirement(self):
+        self.login_as(self.parent)
+        # requirement2 belongs to section_b, which has no linked child.
+        response = self.client.get(f"/api/requirements/{self.requirement2.id}/")
+        self.assertEqual(response.status_code, 404)
+
+    def test_widening_the_detail_route_does_not_open_writes(self):
+        self.login_as(self.student1_user)
+        patch = self.client.patch(
+            f"/api/requirements/{self.requirement1.id}/", {"title": "Edited"},
+            format="json",
+        )
+        delete = self.client.delete(f"/api/requirements/{self.requirement1.id}/")
+        self.assertEqual(patch.status_code, 403)
+        self.assertEqual(delete.status_code, 403)
+
+        self.client.logout()
+        self.login_as(self.parent)
+        self.assertEqual(
+            self.client.patch(
+                f"/api/requirements/{self.requirement1.id}/", {"title": "Edited"},
+                format="json",
+            ).status_code,
+            403,
+        )
+
+        # Staff keep the route they always had.
+        self.client.logout()
+        self.login_as(self.teacher1)
+        response = self.client.patch(
+            f"/api/requirements/{self.requirement1.id}/", {"title": "Edited"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+
+    # ── Submission detail must match the submission list ──────────────────
+
+    def _students_submission(self):
+        return Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.SUBMITTED, submitted_at=timezone.now(),
+        )
+
+    def test_a_parent_can_open_a_submission_they_can_list(self):
+        sub = self._students_submission()
+        self.login_as(self.parent)
+
+        listed = self.client.get("/api/submissions/").json()["results"]
+        self.assertIn(sub.id, [row["id"] for row in listed])
+
+        response = self.client.get(f"/api/submissions/{sub.id}/")
+        self.assertEqual(response.status_code, 200, response.content)
+
+    def test_a_parent_cannot_change_a_submissions_status(self):
+        sub = self._students_submission()
+        self.login_as(self.parent)
+        response = self.client.patch(
+            f"/api/submissions/{sub.id}/", {"status": "verified"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, 403, response.content)
+        sub.refresh_from_db()
+        self.assertEqual(sub.status, Submission.Status.SUBMITTED)
+
+    def test_a_parent_cannot_open_an_unlinked_childs_submission(self):
+        other = Submission.objects.create(
+            requirement=self.requirement2, student=self.student2,
+            status=Submission.Status.SUBMITTED, submitted_at=timezone.now(),
+        )
+        self.login_as(self.parent)
+        response = self.client.get(f"/api/submissions/{other.id}/")
+        self.assertEqual(response.status_code, 404)
+
+    # ── Subject detail must carry the same fields as the list ─────────────
+
+    def test_subject_detail_exposes_assignment_count(self):
+        # views.py declared SubjectDetailView twice; the shadowing copy had an
+        # unannotated queryset, so `assignment_count` vanished on detail.
+        self.login_as(self.admin)
+        listed = self.client.get("/api/subjects/").json()["results"]
+        detail = self.client.get(f"/api/subjects/{self.subject.id}/")
+
+        self.assertEqual(detail.status_code, 200, detail.content)
+        self.assertIn("assignment_count", detail.json())
+        self.assertEqual(
+            detail.json()["assignment_count"],
+            [row for row in listed if row["id"] == self.subject.id][0]["assignment_count"],
+        )
+
+    # ── Annotated lists must keep a stable order ──────────────────────────
+
+    def _bulk_students(self, n, prefix="page_user"):
+        """Cheap user rows (one hash for all of them) for pagination checks."""
+        from django.contrib.auth.hashers import make_password
+
+        hashed = make_password("pass-Page123")
+        User.objects.bulk_create([
+            User(username=f"{prefix}_{i}", password=hashed, role=User.Role.STUDENT)
+            for i in range(n)
+        ])
+
+    def test_page_size_is_honoured_on_endpoints_using_the_default_paginator(self):
+        # Both clients send ?page_size=100 and follow `next` at most ten
+        # times. DRF has no PAGE_SIZE_QUERY_PARAM *setting*, so the key that
+        # used to be in settings.py did nothing and these endpoints stayed at
+        # 20 rows per page — a hard, silent 200-row ceiling.
+        self._bulk_students(25)
+        self.login_as(self.admin)
+
+        page = self.client.get("/api/users/?page_size=25").json()
+
+        # The fixture already seeds six accounts, so a 20-row default page
+        # would have been full; 25 proves the parameter was applied.
+        self.assertEqual(len(page["results"]), 25)
+        self.assertGreater(page["count"], 25)
+
+    def test_page_size_cannot_exceed_the_configured_maximum(self):
+        self._bulk_students(110, prefix="cap_user")
+        self.login_as(self.admin)
+
+        page = self.client.get("/api/users/?page_size=100000").json()
+
+        self.assertEqual(len(page["results"]), 100)
+        self.assertIsNotNone(page["next"])
+
+    def test_paginated_subject_pages_do_not_shift_between_requests(self):
+        # annotate() drops Meta.ordering and no OrderingFilter is enabled, so
+        # /api/subjects/ was paginated with no ORDER BY at all: a reader
+        # walking the pages could see a subject twice and miss another.
+        Subject.objects.create(
+            name="Alpha club", grade_level=self.grade7, school_year=self.school_year,
+        )
+        Subject.objects.create(
+            name="Zulu club", grade_level=self.grade7, school_year=self.school_year,
+        )
+        self.login_as(self.admin)
+
+        seen = []
+        url = "/api/subjects/?page_size=1"
+        for _ in range(3):
+            page = self.client.get(url).json()
+            seen.extend(row["name"] for row in page["results"])
+            url = page["next"].replace("http://testserver", "") if page["next"] else None
+            if url is None:
+                break
+
+        self.assertEqual(
+            seen, ["Alpha club", "Mathematics", "Zulu club"],
+            "subject pages must follow the model's documented ordering",
+        )
+
+
+class Phase3SecurityRegressionTests(TrackTestCase):
+    """
+    Guards for defects found during the Phase 3 security & data-integrity audit.
+
+    Every test reproduces a defect proven over HTTP against a live sandbox (a
+    disposable copy of the database), so a refactor cannot silently reintroduce
+    it. Read-only behaviour that was already correct is pinned too, so the fixes
+    cannot drift into breaking a legitimate workflow.
+    """
+
+    def _fresh_session(self, assignment=None, offset=120):
+        return AttendanceSession.objects.create(
+            teacher_assignment=assignment or self.assignment1,
+            date=timezone.now().date() + timedelta(days=offset),
+        )
+
+    # ── Submissions: mass assignment / identity ────────────────────────────
+
+    def test_a_student_cannot_write_teacher_feedback(self):
+        sub = Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.SUBMITTED, submitted_at=timezone.now(),
+        )
+        self.login_as(self.student1_user)
+        response = self.client.patch(
+            f"/api/submissions/{sub.id}/", {"teacher_feedback": "forged"}
+        )
+
+        sub.refresh_from_db()
+        self.assertEqual(sub.teacher_feedback, "")
+        # The field is ignored, not honoured.
+        self.assertNotEqual(response.json().get("teacher_feedback"), "forged")
+
+    def test_a_student_cannot_backdate_submitted_at(self):
+        sub = Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.SUBMITTED, submitted_at=timezone.now(),
+        )
+        original = sub.submitted_at
+        self.login_as(self.student1_user)
+        self.client.patch(
+            f"/api/submissions/{sub.id}/", {"submitted_at": "2020-01-01T00:00:00Z"}
+        )
+
+        sub.refresh_from_db()
+        self.assertEqual(sub.submitted_at, original)
+
+    def test_a_student_cannot_move_their_submission_to_another_requirement(self):
+        sub = Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.SUBMITTED, submitted_at=timezone.now(),
+        )
+        self.login_as(self.student1_user)
+        self.client.patch(
+            f"/api/submissions/{sub.id}/", {"requirement": self.requirement2.id}
+        )
+
+        sub.refresh_from_db()
+        self.assertEqual(sub.requirement_id, self.requirement1.id)
+
+    def test_a_student_cannot_reassign_their_submission_to_a_classmate(self):
+        sub = Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.SUBMITTED, submitted_at=timezone.now(),
+        )
+        self.login_as(self.student1_user)
+        self.client.patch(
+            f"/api/submissions/{sub.id}/", {"student": self.student2.id}
+        )
+
+        sub.refresh_from_db()
+        self.assertEqual(sub.student_id, self.student1.id)
+
+    def test_a_teacher_can_still_review_and_leave_feedback(self):
+        # The legitimate flow the fix must not break: a teacher PATCHes
+        # {status, teacher_feedback}.
+        sub = Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.SUBMITTED, submitted_at=timezone.now(),
+        )
+        self.login_as(self.teacher1)
+        response = self.client.patch(
+            f"/api/submissions/{sub.id}/",
+            {"status": "returned", "teacher_feedback": "Revise item 4."},
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        sub.refresh_from_db()
+        self.assertEqual(sub.status, Submission.Status.RETURNED)
+        self.assertEqual(sub.teacher_feedback, "Revise item 4.")
+
+    # ── Submissions: cross-section hand-in ─────────────────────────────────
+
+    def test_a_student_cannot_submit_to_a_foreign_sections_requirement(self):
+        # requirement2 belongs to teacher2 / section_b; student1 is in section_a.
+        self.login_as(self.student1_user)
+        response = self.client.post("/api/submissions/", {
+            "requirement": self.requirement2.id,
+            "link_url": "https://example.com/work", "status": "submitted",
+        }, format="json")
+
+        self.assertEqual(response.status_code, 403, response.content)
+        self.assertFalse(
+            Submission.objects.filter(
+                requirement=self.requirement2, student=self.student1
+            ).exists()
+        )
+
+    def test_a_student_can_still_submit_to_their_own_section(self):
+        self.login_as(self.student1_user)
+        response = self.client.post("/api/submissions/", {
+            "requirement": self.requirement1.id,
+            "link_url": "https://example.com/work", "status": "submitted",
+        }, format="json")
+
+        self.assertEqual(response.status_code, 201, response.content)
+
+    # ── Submissions: hostile file upload ───────────────────────────────────
+
+    def test_an_active_script_upload_is_refused(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.login_as(self.student1_user)
+        evil = SimpleUploadedFile(
+            "probe.html", b"<script>alert(1)</script>", content_type="text/html",
+        )
+        response = self.client.post("/api/submissions/", {
+            "requirement": self.requirement1.id, "status": "submitted",
+            "file_upload": evil,
+        }, format="multipart")
+
+        self.assertEqual(response.status_code, 400, response.content)
+
+    def test_a_normal_document_upload_is_still_accepted(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        self.login_as(self.student1_user)
+        doc = SimpleUploadedFile(
+            "worksheet.pdf", b"%PDF-1.4 sample", content_type="application/pdf",
+        )
+        response = self.client.post("/api/submissions/", {
+            "requirement": self.requirement1.id, "status": "submitted",
+            "file_upload": doc,
+        }, format="multipart")
+
+        self.assertEqual(response.status_code, 201, response.content)
+
+    # ── Attendance records: identity & attribution ─────────────────────────
+
+    def test_recorded_by_is_stamped_by_the_server_not_the_body(self):
+        session = self._fresh_session()
+        record = AttendanceRecord.objects.create(
+            session=session, student=self.student1,
+            status=AttendanceRecord.Status.PRESENT, recorded_by=self.teacher1,
+        )
+        self.login_as(self.teacher1)
+        self.client.patch(
+            f"/api/attendance/records/{record.id}/", {"recorded_by": self.admin.id}
+        )
+
+        record.refresh_from_db()
+        self.assertEqual(record.recorded_by_id, self.teacher1.id)
+
+    def test_a_teacher_cannot_move_a_record_into_another_teachers_session(self):
+        own = self._fresh_session(self.assignment1, offset=120)
+        other = self._fresh_session(self.assignment2, offset=121)
+        record = AttendanceRecord.objects.create(
+            session=own, student=self.student1,
+            status=AttendanceRecord.Status.PRESENT, recorded_by=self.teacher1,
+        )
+        self.login_as(self.teacher1)
+        self.client.patch(
+            f"/api/attendance/records/{record.id}/", {"session": other.id}
+        )
+
+        record.refresh_from_db()
+        self.assertEqual(record.session_id, own.id)
+
+    def test_a_teacher_cannot_repoint_a_record_at_another_student(self):
+        session = self._fresh_session()
+        record = AttendanceRecord.objects.create(
+            session=session, student=self.student1,
+            status=AttendanceRecord.Status.PRESENT, recorded_by=self.teacher1,
+        )
+        self.login_as(self.teacher1)
+        self.client.patch(
+            f"/api/attendance/records/{record.id}/", {"student": self.student2.id}
+        )
+
+        record.refresh_from_db()
+        self.assertEqual(record.student_id, self.student1.id)
+
+    def test_a_teacher_can_still_change_status_and_notes(self):
+        session = self._fresh_session()
+        record = AttendanceRecord.objects.create(
+            session=session, student=self.student1,
+            status=AttendanceRecord.Status.PRESENT, recorded_by=self.teacher1,
+        )
+        self.login_as(self.teacher1)
+        response = self.client.patch(
+            f"/api/attendance/records/{record.id}/",
+            {"status": "absent", "notes": "Sick leave"},
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        record.refresh_from_db()
+        self.assertEqual(record.status, AttendanceRecord.Status.ABSENT)
+        self.assertEqual(record.notes, "Sick leave")
+
+    # ── Attendance sessions: identity & attribution ────────────────────────
+
+    def test_created_by_is_stamped_by_the_server_not_the_body(self):
+        session = self._fresh_session()
+        self.login_as(self.teacher1)
+        self.client.patch(
+            f"/api/attendance/sessions/{session.id}/", {"created_by": self.admin.id}
+        )
+
+        session.refresh_from_db()
+        self.assertNotEqual(session.created_by_id, self.admin.id)
+
+    def test_a_teacher_cannot_reassign_a_session_to_another_class(self):
+        session = self._fresh_session()
+        self.login_as(self.teacher1)
+        self.client.patch(
+            f"/api/attendance/sessions/{session.id}/",
+            {"teacher_assignment": self.assignment2.id},
+        )
+
+        session.refresh_from_db()
+        self.assertEqual(session.teacher_assignment_id, self.assignment1.id)
+
+    def test_a_teacher_can_still_change_date_and_notes(self):
+        session = self._fresh_session()
+        new_date = timezone.now().date() + timedelta(days=150)
+        self.login_as(self.teacher1)
+        response = self.client.patch(
+            f"/api/attendance/sessions/{session.id}/",
+            {"date": new_date.isoformat(), "notes": "Moved to the hall."},
+        )
+
+        self.assertEqual(response.status_code, 200, response.content)
+        session.refresh_from_db()
+        self.assertEqual(session.date, new_date)
+        self.assertEqual(session.notes, "Moved to the hall.")
+
+    # ── Announcements: section scoping ─────────────────────────────────────
+
+    def test_a_section_scoped_announcement_stays_inside_its_section(self):
+        self.login_as(self.teacher1)
+        created = self.client.post("/api/announcements/", {
+            "title": "Grade 7 only", "body": "Sampaguita notice.",
+            "audience": "all", "section": self.section_a.id,
+        }, format="json")
+        self.assertEqual(created.status_code, 201, created.content)
+
+        # student1 is in section_a -> sees it.
+        self.login_as(self.student1_user)
+        titles = [a["title"] for a in
+                  self.client.get("/api/announcements/").json()["results"]]
+        self.assertIn("Grade 7 only", titles)
+
+        # student2 is in section_b -> must not see it.
+        self.login_as(self.student2_user)
+        titles = [a["title"] for a in
+                  self.client.get("/api/announcements/").json()["results"]]
+        self.assertNotIn("Grade 7 only", titles)
+
+    def test_a_school_wide_announcement_reaches_every_section(self):
+        self.login_as(self.teacher1)
+        self.client.post("/api/announcements/", {
+            "title": "Everyone", "body": "School-wide.",
+            "audience": "all", "section": None,
+        }, format="json")
+
+        for user in (self.student1_user, self.student2_user):
+            self.login_as(user)
+            titles = [a["title"] for a in
+                      self.client.get("/api/announcements/").json()["results"]]
+            self.assertIn("Everyone", titles)
+
+    def test_a_teacher_cannot_target_a_section_they_do_not_teach(self):
+        # teacher1 teaches section_a only; section_b belongs to teacher2.
+        self.login_as(self.teacher1)
+        response = self.client.post("/api/announcements/", {
+            "title": "Intruder", "body": "Not yours.",
+            "audience": "all", "section": self.section_b.id,
+        }, format="json")
+
+        self.assertEqual(response.status_code, 400, response.content)
+
+    def test_a_teacher_can_target_their_own_section(self):
+        self.login_as(self.teacher1)
+        response = self.client.post("/api/announcements/", {
+            "title": "My class", "body": "For Sampaguita.",
+            "audience": "all", "section": self.section_a.id,
+        }, format="json")
+
+        self.assertEqual(response.status_code, 201, response.content)
+
+    def test_an_admin_can_target_any_section(self):
+        self.login_as(self.admin)
+        response = self.client.post("/api/announcements/", {
+            "title": "Admin notice", "body": "For Gumamela.",
+            "audience": "all", "section": self.section_b.id,
+        }, format="json")
+
+        self.assertEqual(response.status_code, 201, response.content)
+
+    # ── Session generation: malformed & unbounded input ────────────────────
+
+    def test_generate_rejects_a_malformed_date(self):
+        self.login_as(self.teacher1)
+        response = self.client.post("/api/attendance/generate/", {
+            "start_date": "not-a-date", "end_date": "2026-01-07",
+        }, format="json")
+
+        self.assertEqual(response.status_code, 400, response.content)
+
+    def test_generate_rejects_an_unbounded_range(self):
+        self.login_as(self.teacher1)
+        response = self.client.post("/api/attendance/generate/", {
+            "start_date": "1990-01-01", "end_date": "2099-12-31",
+        }, format="json")
+
+        self.assertEqual(response.status_code, 400, response.content)
+
+    def test_generate_rejects_end_before_start(self):
+        self.login_as(self.teacher1)
+        response = self.client.post("/api/attendance/generate/", {
+            "start_date": "2027-01-07", "end_date": "2027-01-01",
+        }, format="json")
+
+        self.assertEqual(response.status_code, 400, response.content)
+
+    # ── Brute-force resistance ─────────────────────────────────────────────
+
+    def test_repeated_failed_logins_are_throttled(self):
+        codes = []
+        for i in range(12):
+            response = self.client.post(
+                "/api/auth/token/",
+                {"username": "t_student1", "password": f"wrong-{i}"},
+                format="json",
+            )
+            codes.append(response.status_code)
+
+        self.assertIn(
+            429, codes,
+            f"expected the auth throttle to kick in; got {sorted(set(codes))}",
+        )
+
+

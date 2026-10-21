@@ -14,6 +14,7 @@ export const NAVIGATION = {
     { label: 'Parents', to: '/admin/parents', icon: 'users' },
     { label: 'School Structure', to: '/admin/sections', icon: 'layers' },
     { label: 'Class Assignments', to: '/admin/assignments', icon: 'book' },
+    { label: 'Class Schedules', to: '/admin/schedules', icon: 'clock' },
     { label: 'Requirements', to: '/admin/requirements', icon: 'clipboard' },
     { label: 'Attendance', to: '/admin/attendance', icon: 'calendar' },
     { label: 'Announcements', to: '/announcements', icon: 'megaphone' },

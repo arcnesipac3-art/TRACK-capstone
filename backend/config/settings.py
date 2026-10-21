@@ -11,9 +11,21 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 """
 
 from pathlib import Path
+import os
+
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Load backend/.env (if present) BEFORE reading any configuration, so the
+# "cp .env.example .env" instruction in that file actually works. Values
+# already set in the real environment always win — python-dotenv never
+# overrides them, so deployment platforms (which set real env vars) and the
+# existing test/sandbox workflows are unaffected.
+from dotenv import load_dotenv  # noqa: E402
+
+load_dotenv(BASE_DIR / ".env")
 
 
 # Quick-start development settings - unsuitable for production
@@ -25,7 +37,16 @@ SECRET_KEY = 'django-insecure-26^(rx!u8myt0y39_8-0#)a344$&e$x#iu$i6o#-m2kj8kl3$n
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+# A physical phone cannot reach the dev machine via "localhost" — it must use
+# the machine's LAN IP (e.g. 192.168.1.10). Set DJANGO_EXTRA_ALLOWED_HOSTS to
+# that IP when testing the Expo app on a real device:
+#   $env:DJANGO_EXTRA_ALLOWED_HOSTS="192.168.1.10"; python backend\manage.py runserver
+_extra_hosts = [
+    h.strip()
+    for h in os.environ.get("DJANGO_EXTRA_ALLOWED_HOSTS", "").split(",")
+    if h.strip()
+]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", *_extra_hosts]
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -42,6 +63,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
 
     "rest_framework",
+    "rest_framework.authtoken",
     "corsheaders",
     "core",
 ]
@@ -87,6 +109,22 @@ DATABASES = {
     }
 }
 
+# PostgreSQL for production via DATABASE_URL (Render/Railway/Heroku-style
+# connection strings, including ?sslmode=require). SQLite remains the default
+# whenever DATABASE_URL is unset, so local development is unchanged.
+#   DATABASE_URL=postgres://user:password@host:5432/dbname
+_database_url = os.environ.get("DATABASE_URL", "").strip()
+if _database_url:
+    import dj_database_url
+
+    DATABASES["default"] = dj_database_url.parse(
+        _database_url,
+        conn_max_age=600,   # keep connections warm between requests
+    )
+    # dj-database-url v3 drops unknown keys, so pass Django's health-check
+    # option explicitly: re-check broken/stale connections before use.
+    DATABASES["default"]["conn_health_checks"] = True
+
 
 # Password validation
 # https://docs.djangoproject.com/en/6.1/ref/settings/#auth-password-validators
@@ -124,12 +162,19 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# collectstatic target (gitignored). Required for any deployment: production
+# serves admin/API static from here (via WhiteNoise — see the block below).
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# Email — console backend for development; replace with SMTP in production
+
+# Email — console backend for development; replace with SMTP in production.
+# The admin-initiated password-reset flow degrades gracefully without SMTP:
+# the generated password is printed to the server console/log instead.
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
+    "http://localhost:5173",   # React web app (Vite dev server)
+    "http://localhost:8081",   # Expo web preview of the mobile app (npx expo start --web)
 ]
 
 # Custom user model
@@ -138,16 +183,24 @@ AUTH_USER_MODEL = "core.User"
 # Django REST Framework
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
+        # Token first: the mobile app sends `Authorization: Token <key>` and
+        # has no cookie jar. Session stays listed so the React web app keeps
+        # working unchanged — DRF simply falls through when no header is sent.
+        "rest_framework.authentication.TokenAuthentication",
         "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
-    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "DEFAULT_PAGINATION_CLASS": "core.pagination.TrackPagination",
     "PAGE_SIZE": 20,
-    # Allow the SPA to request larger pages for dashboard aggregates
-    "PAGE_SIZE_QUERY_PARAM": "page_size",
-    "MAX_PAGE_SIZE": 100,
+    "DEFAULT_THROTTLE_RATES": {
+        # Brute-force resistance on the credential-exchange endpoints. Scoped
+        # views (LoginView / TokenLoginView) opt in via throttle_scope="auth".
+        # Keyed per-IP; 10/min is far more than one human needs but stops
+        # online password guessing. Override with TRACK_AUTH_THROTTLE_RATE.
+        "auth": os.environ.get("TRACK_AUTH_THROTTLE_RATE", "10/min"),
+    },
 }
 
 # Allow session cookies to be sent cross-origin in development
@@ -164,3 +217,139 @@ CSRF_TRUSTED_ORIGINS = [
 import os
 MEDIA_URL = "/media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
+
+
+# ---------------------------------------------------------------------------
+# Production hardening (opt-in via environment)
+# ---------------------------------------------------------------------------
+# Local development keeps working exactly as before — nothing below runs unless
+# DJANGO_PRODUCTION=1 is set in the deployment environment. This gives a real,
+# documented production configuration path instead of shipping DEBUG=True and a
+# committed SECRET_KEY.
+#
+#   DJANGO_PRODUCTION=1            enable every setting in this block
+#   SECRET_KEY=...                 required in production (a fresh random value)
+#   DJANGO_ALLOWED_HOSTS=a,b       required in production (comma-separated)
+#   DJANGO_CSRF_ORIGINS=https://a  comma-separated trusted origins for CSRF
+#   DATABASE_URL=postgres://...    optional; PostgreSQL instead of SQLite
+#   DJANGO_SECURE_SSL_REDIRECT=0   set to 0 to disable the HTTPS redirect
+#                                  (default on in production; only needed for
+#                                  plain-HTTP rehearsals or unusual proxies)
+#
+# Example (POSIX):  export DJANGO_PRODUCTION=1 SECRET_KEY="$(rand)" \
+#                      DJANGO_ALLOWED_HOSTS="track.knhs.edu.ph"
+
+IS_PRODUCTION = os.environ.get("DJANGO_PRODUCTION", "").lower() in ("1", "true", "yes")
+
+if IS_PRODUCTION:
+    # Never run a production process with the committed development key.
+    _prod_secret = os.environ.get("SECRET_KEY", "")
+    if not _prod_secret:
+        raise ImproperlyConfigured(
+            "DJANGO_PRODUCTION is set but SECRET_KEY is empty. Generate one "
+            "with `python -c \"from django.core.management.utils import "
+            "get_random_secret_key; print(get_random_secret_key())\"` and pass "
+            "it via the SECRET_KEY environment variable."
+        )
+    SECRET_KEY = _prod_secret
+
+    # Debug must be off: it leaks stack traces, settings and student data in
+    # error pages (a live 500 during the audit returned a full traceback).
+    DEBUG = False
+
+    # Explicit host allow-list. Refuse to boot without it rather than defaulting
+    # to something that silently accepts the wrong Host header.
+    _prod_hosts = [
+        h.strip()
+        for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",")
+        if h.strip()
+    ]
+    if not _prod_hosts:
+        raise ImproperlyConfigured(
+            "DJANGO_PRODUCTION is set but DJANGO_ALLOWED_HOSTS is empty. List "
+            "the public hostname(s), e.g. DJANGO_ALLOWED_HOSTS=track.knhs.edu.ph"
+        )
+    ALLOWED_HOSTS = _prod_hosts
+
+    # HTTPS is required for production traffic. Session/CSRF cookies carry the
+    # session and CSRF tokens, so they must not travel over plain HTTP.
+    # Opt out only for plain-HTTP rehearsals: DJANGO_SECURE_SSL_REDIRECT=0.
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_SSL_REDIRECT = os.environ.get(
+        "DJANGO_SECURE_SSL_REDIRECT", "1"
+    ).lower() not in ("0", "false", "no")
+    SECURE_HSTS_SECONDS = 31536000  # 1 year, incl. subdomains
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+    # Only the deployed origins may talk to the API cross-origin. Override with
+    # DJANGO_CSRF_ORIGINS (comma-separated, scheme included).
+    _csrf_origins = [
+        o.strip()
+        for o in os.environ.get("DJANGO_CSRF_ORIGINS", "").split(",")
+        if o.strip()
+    ]
+    if _csrf_origins:
+        CSRF_TRUSTED_ORIGINS = _csrf_origins
+    else:
+        # Fall back to https on each allowed host.
+        CSRF_TRUSTED_ORIGINS = [f"https://{h}" for h in _prod_hosts]
+    CORS_ALLOWED_ORIGINS = CSRF_TRUSTED_ORIGINS
+
+    # Do not expose the media root through the dev static handler in production;
+    # the web server (nginx/etc.) should serve /media/ with an off-by-default
+    # content-disposition and a restrictive content-type allow-list.
+
+    # Serve collected static files (admin + any app assets) straight from the
+    # WSGI process — no nginx required for a low-cost single-service deploy.
+    # Placement: immediately after SecurityMiddleware (WhiteNoise's advice).
+    MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {
+            # Fails loudly at collectstatic if a referenced file is missing —
+            # that is intentional: a broken manifest must surface at deploy
+            # time, not as 404s on the CSS of the admin login page.
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
+
+    # Console logging: gunicorn/platforms capture stdout/stderr. Request
+    # failures, security warnings and app errors stay visible without
+    # DEBUG-level noise; messages never include secrets or student records.
+    LOGGING = {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "standard": {
+                "format": "{asctime} {levelname} {name} {message}",
+                "style": "{",
+            },
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": "standard",
+            },
+        },
+        "root": {"handlers": ["console"], "level": "WARNING"},
+        "loggers": {
+            "django": {
+                "handlers": ["console"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "django.request": {
+                "handlers": ["console"],
+                "level": "WARNING",
+                "propagate": False,
+            },
+            "django.security": {
+                "handlers": ["console"],
+                "level": "WARNING",
+                "propagate": False,
+            },
+        },
+    }

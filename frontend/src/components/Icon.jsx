@@ -146,6 +146,12 @@ const PATHS = {
       <path d="m12 19-7-7 7-7" />
     </>
   ),
+  arrowRight: (
+    <>
+      <path d="M5 12h14" />
+      <path d="m12 5 7 7-7 7" />
+    </>
+  ),
   gradCap: (
     <>
       <path d="M22 10 12 5 2 10l10 5 10-5z" />
@@ -163,6 +169,12 @@ const PATHS = {
     <>
       <path d="M22 2 11 13" />
       <path d="M22 2 15 22l-4-9-9-4 20-7z" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.6-3.6" />
     </>
   ),
 }

@@ -1,0 +1,799 @@
+/* ================================================================== */
+/* SchedulesPage — Period-based timetable matching reference layout  */
+/* ================================================================== */
+
+/* ---------------------------- Summary cards ------------------------- */
+
+.sched-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.sched-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  text-align: left;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sched-summary-card.is-clickable {
+  cursor: pointer;
+  background: none;
+  border: 1px solid var(--border);
+  color: inherit;
+  font: inherit;
+  width: 100%;
+}
+
+.sched-summary-card.is-clickable:hover {
+  border-color: var(--navy-400);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.sched-summary-card.is-clickable:focus-visible {
+  outline: 2px solid var(--navy-500);
+  outline-offset: 2px;
+}
+
+.sched-summary-card.has-warning {
+  border-color: #f59e0b;
+}
+
+.sched-summary-card.has-warning:hover {
+  border-color: #d97706;
+}
+
+.sched-summary-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.sched-summary-body {
+  min-width: 0;
+}
+
+.sched-summary-value {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--navy-900);
+}
+
+.sched-summary-label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+/* ------------------------- Toolbar (above grid) -------------------- */
+
+.sched-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  flex-wrap: wrap;
+}
+
+.sched-toolbar-left,
+.sched-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sched-week-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: var(--navy-800);
+  font-weight: 600;
+}
+
+.sched-week-label .subtle {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+/* ------------------------------- Filters ---------------------------- */
+
+.sched-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  flex-wrap: wrap;
+}
+
+.sched-filters .field {
+  margin: 0;
+  min-width: 150px;
+  flex: 1 1 150px;
+}
+
+/* --------------------------- Timetable panel ------------------------ */
+
+.sched-timetable-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* Empty state inside the timetable card */
+.timetable-empty {
+  padding: 32px;
+}
+
+/* Table container with horizontal scroll and capped vertical scroll */
+.timetable-table-container {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 70vh;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Main timetable table — fixed layout so the colgroup widths are honored
+   exactly and the six columns always fill 100% of the available width. */
+.timetable-table {
+  border-collapse: collapse;
+  width: 100%;
+  table-layout: fixed;
+  font-size: 0.82rem;
+  min-width: 720px;
+}
+
+/* Column width distribution: Time ~8%, 5 weekdays = 18.4% each */
+.timetable-table col.time-col { width: 8%; }
+.timetable-table col.day-col { width: 18.4%; }
+
+/* Header row — TRACK navy branding */
+.timetable-header-row {
+  background: var(--navy-700);
+  color: #fff;
+  position: sticky;
+  top: 0;
+  z-index: 4;
+}
+
+.timetable-th {
+  padding: 12px 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  white-space: nowrap;
+  vertical-align: middle;
+  letter-spacing: 0.2px;
+}
+
+.timetable-th:last-child {
+  border-right: none;
+}
+
+.timetable-th.time-col {
+  text-align: center;
+  font-size: 0.78rem;
+  letter-spacing: 0.3px;
+}
+
+.timetable-day-label {
+  display: block;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.timetable-today-badge {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 600;
+  opacity: 0.9;
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.timetable-th.is-today {
+  background: rgba(34, 211, 238, 0.22);
+  box-shadow: inset 0 -3px 0 var(--cyan-400, #22d3ee);
+}
+
+/* Time column — sticky on horizontal scroll */
+.timetable-time-td {
+  background: var(--surface-1, #f8fafc);
+  border-right: 2px solid var(--border, #e2e8f0);
+  border-bottom: 1px solid var(--border-light, #f1f5f9);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  min-width: 72px;
+}
+
+.timetable-period-num {
+  display: block;
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: var(--navy-700, #1e3a5f);
+  line-height: 1.2;
+}
+
+.timetable-time-range {
+  display: block;
+  font-size: 0.66rem;
+  color: var(--text-muted, #64748b);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  margin-top: 1px;
+}
+
+/* Day cells */
+.timetable-td {
+  border-right: 1px solid var(--border-light, #f1f5f9);
+  border-bottom: 1px solid var(--border-light, #f1f5f9);
+  padding: 0;
+  vertical-align: top;
+  height: 64px;
+  position: relative;
+}
+
+.timetable-td:last-child {
+  border-right: none;
+}
+
+.timetable-td.is-today {
+  background: linear-gradient(180deg, rgba(34, 211, 238, 0.05), rgba(34, 211, 238, 0.01));
+}
+
+/* Empty cell — keeps grid intact */
+.timetable-td.empty {
+  background: #fff;
+}
+
+.timetable-td.empty.is-today {
+  background: linear-gradient(180deg, rgba(34, 211, 238, 0.05), rgba(34, 211, 238, 0.01));
+}
+
+/* Occupied cell (contains a schedule card). Let the card provide its own
+   background; the td itself stays transparent so the card fills it. */
+.timetable-td.occupied {
+  background: transparent;
+  padding: 4px;
+}
+
+/* Stacked cell — multiple schedules in the same period */
+.timetable-td.occupied.stacked {
+  padding: 4px;
+}
+
+.timetable-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 100%;
+}
+
+/* When stacked, cards should share the available space */
+.timetable-stack .timetable-card {
+  flex: 1 1 0;
+  min-height: 48px;
+}
+
+/* Schedule card — the actual colored block inside a cell */
+.timetable-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid;
+  border-left-width: 3px;
+  width: 100%;
+  height: 100%;
+  min-height: 56px;
+  background: inherit;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: box-shadow 0.15s ease, transform 0.1s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.timetable-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.14);
+  z-index: 10;
+}
+
+.timetable-card:focus-visible {
+  outline: 2px solid var(--navy-500, #2563eb);
+  outline-offset: 1px;
+}
+
+.timetable-card.has-conflict {
+  border-color: #dc2626 !important;
+  border-width: 2px;
+  border-left-width: 4px;
+  box-shadow:
+    0 0 0 2px rgba(220, 38, 38, 0.18),
+    0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.timetable-card-subject {
+  font-weight: 700;
+  font-size: 0.82rem;
+  line-height: 1.25;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timetable-card-section {
+  font-size: 0.7rem;
+  line-height: 1.3;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timetable-card-time {
+  font-size: 0.65rem;
+  line-height: 1.3;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.timetable-card-teacher,
+.timetable-card-room {
+  font-size: 0.65rem;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timetable-card-room {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* Conflict warning badge */
+.timetable-card-warn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #dc2626;
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  z-index: 1;
+  animation: sched-pulse 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes sched-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.85; transform: scale(1.1); }
+}
+
+/* Conflict tooltip */
+.timetable-card-warn::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  padding: 6px 10px;
+  background: #1f2937;
+  color: #fff;
+  font-size: 0.66rem;
+  font-weight: 500;
+  white-space: normal;
+  border-radius: 4px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  z-index: 100;
+  pointer-events: none;
+  max-width: 240px;
+  width: max-content;
+}
+
+.timetable-card-warn:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Timetable card wrapper and dropdown menu */
+.timetable-card-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.timetable-card-menu {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 5;
+}
+
+.timetable-card-menu-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  color: inherit;
+  opacity: 0;
+  transition: opacity 0.15s ease, background 0.15s ease;
+  cursor: pointer;
+  padding: 0;
+}
+
+.timetable-card:hover .timetable-card-menu-trigger,
+.timetable-card-menu-trigger:focus-visible {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.timetable-card-menu-trigger:focus-visible {
+  outline: 2px solid var(--navy-500);
+  outline-offset: 1px;
+}
+
+.timetable-card-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+  min-width: 120px;
+  z-index: 10;
+  overflow: hidden;
+}
+
+.timetable-card-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.timetable-card-dropdown-item:hover {
+  background: var(--surface-1);
+}
+
+.timetable-card-dropdown-item.danger {
+  color: var(--red-700);
+}
+
+.timetable-card-dropdown-item.danger:hover {
+  background: #fef2f2;
+}
+
+/* Empty states */
+.sched-empty-row {
+  grid-column: 2 / -1;
+  padding: 28px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* ---------------------------- Conflict panel ------------------------- */
+
+.sched-conflict-panel {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.sched-conflict-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-1);
+}
+
+.sched-conflict-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Grouped conflict styles */
+.sched-conflict-group {
+  border-bottom: 1px solid var(--border-light);
+}
+
+.sched-conflict-group:last-child {
+  border-bottom: none;
+}
+
+.sched-conflict-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  background: var(--surface-1);
+  border-bottom: 1px solid var(--border-light);
+  flex-wrap: wrap;
+}
+
+.sched-conflict-group:first-child .sched-conflict-group-header {
+  border-top: none;
+}
+
+.sched-conflict-daytime {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--navy-900);
+}
+
+.sched-conflict-summary-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.sched-conflict-pairs {
+  padding: 12px 18px;
+}
+
+.sched-conflict-pair-item {
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--border-light);
+}
+
+.sched-conflict-pair-item:last-child {
+  border-bottom: none;
+}
+
+.sched-conflict-pair {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.sched-conflict-side {
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-1);
+  border: 1px solid var(--border-light);
+  font-size: 0.85rem;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sched-conflict-side:hover {
+  border: 1px solid var(--navy-400);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.sched-conflict-side .subject {
+  font-weight: 700;
+  color: var(--navy-900);
+}
+
+.sched-conflict-side .meta {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin-top: 2px;
+}
+
+.sched-conflict-vs {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sched-conflict-reasons-detail {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-left: 2px;
+}
+
+.sched-conflict-reason-detail {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+.sched-conflict-reason-detail.high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.sched-conflict-reason-detail.medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.sched-conflict-reason {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.sched-conflict-reason.high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.sched-conflict-reason.medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* ---------------------------- Responsive ---------------------------- */
+
+@media (max-width: 1024px) {
+  .sched-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .sched-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .sched-toolbar {
+    padding: 12px;
+  }
+
+  .sched-filters {
+    padding: 10px 12px;
+  }
+
+  .sched-filters .field {
+    min-width: 120px;
+  }
+
+  /* Let the timetable scroll horizontally on small screens instead of
+     squishing columns until text becomes unreadable. */
+  .timetable-table {
+    min-width: 760px;
+  }
+
+  .timetable-table-container {
+    max-height: 60vh;
+  }
+
+  .sched-conflict-item {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Print styles */
+@media print {
+  .sched-toolbar,
+  .sched-filters,
+  .sched-summary-card.is-clickable {
+    display: none;
+  }
+  .timetable-table-container {
+    overflow: visible;
+    max-height: none;
+  }
+  .timetable-table {
+    min-width: auto;
+  }
+  .timetable-th,
+  .timetable-time-td {
+    position: static;
+  }
+}
+
+/* ---------------------------- Undo Toast ---------------------------- */
+
+.sched-undo-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  max-width: 420px;
+  margin: 0 auto;
+  z-index: 1100;
+  animation: sched-slide-up 0.25s ease-out;
+}
+
+@keyframes sched-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.sched-undo-toast-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.18);
+}
+
+@media (max-width: 479px) {
+  .sched-undo-toast {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+  }
+}

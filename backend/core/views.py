@@ -3,7 +3,7 @@ TRACK — API Views
 """
 
 from django.contrib.auth import login, logout
-from django.db.models import Count, ProtectedError
+from django.db.models import Count, ProtectedError, Q
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
 from django.utils import timezone
@@ -13,14 +13,18 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework import generics
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.authtoken.models import Token
 
 from .models import (
     Announcement,
     AuditLog,
     AttendanceRecord,
     AttendanceSession,
+    ClassSchedule,
     GradeLevel,
     Notification,
     ParentProfile,
@@ -48,6 +52,7 @@ from .serializers import (
     AttendanceRecordSerializer,
     AttendanceSessionSerializer,
     ChangePasswordSerializer,
+    ClassScheduleSerializer,
     GradeLevelSerializer,
     LoginSerializer,
     NotificationSerializer,
@@ -97,6 +102,8 @@ def csrf_token(request):
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
 
     def post(self, request):
         serializer = LoginSerializer(data=request.data, context={"request": request})
@@ -123,6 +130,60 @@ class LogoutView(APIView):
 
     def post(self, request):
         logout(request)
+        return Response({"message": "Logged out successfully."})
+
+
+class TokenLoginView(APIView):
+    """
+    Mobile counterpart to LoginView.
+
+    The Expo app has no browser cookie jar, so it cannot hold a Django session
+    or echo a CSRF header. It exchanges credentials for a DRF token instead.
+
+    Reuses LoginSerializer, so a username *or* an email address works here
+    exactly as it does on the web.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        serializer = LoginSerializer(data=request.data, context={"request": request})
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        user = serializer.validated_data["user"]
+
+        # get_or_create, not create: a user has exactly one token, and a
+        # reinstall of the app must not mint a second one.
+        token, _ = Token.objects.get_or_create(user=user)
+
+        AuditLog.objects.create(
+            actor=user,
+            action="auth.login",
+            target_model="User",
+            target_id=str(user.pk),
+            description=f"{user.get_full_name()} signed in (mobile).",
+            ip_address=_client_ip(request),
+        )
+        return Response({
+            "token": token.key,
+            "user": UserSerializer(user).data,
+        })
+
+
+class TokenLogoutView(APIView):
+    """
+    Discard the token that authenticated the request.
+
+    Deletes the key server-side so it stops working immediately — dropping it
+    only on the device would leave a stolen token valid forever.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        Token.objects.filter(user=request.user).delete()
         return Response({"message": "Logged out successfully."})
 
 class CurrentUserView(APIView):
@@ -256,15 +317,47 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
 # School structure
 # ---------------------------------------------------------------------------
 
+from django.db.models import Q, Count
+
+
+class SchoolYearPagination(PageNumberPagination):
+    page_size = 25
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class SchoolYearListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdminOrReadOnly]
-    queryset = SchoolYear.objects.all()
+    queryset = SchoolYear.objects.all().annotate(
+        section_count=Count('sections'),
+        subject_count=Count('subjects')
+    )
     serializer_class = SchoolYearSerializer
+    pagination_class = SchoolYearPagination
+    ordering_fields = ['label', 'start_date', 'end_date', 'is_active']
+    ordering = ['-start_date']
+
+    def get_queryset(self):
+        # Annotate() drops Meta.ordering, and no OrderingFilter is enabled, so
+        # without an explicit order_by() DRF paginated this list in whatever
+        # order SQLite produced from the GROUP BY — rows could shift between
+        # pages and between refreshes.
+        qs = super().get_queryset().order_by('-start_date')
+        search = self.request.query_params.get('search')
+        is_active = self.request.query_params.get('is_active')
+        if search:
+            qs = qs.filter(label__icontains=search)
+        if is_active is not None:
+            qs = qs.filter(is_active=is_active.lower() == 'true')
+        return qs
 
 
 class SchoolYearDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdmin]
-    queryset = SchoolYear.objects.all()
+    queryset = SchoolYear.objects.all().annotate(
+        section_count=Count('sections'),
+        subject_count=Count('subjects')
+    )
     serializer_class = SchoolYearSerializer
 
     def perform_destroy(self, instance):
@@ -290,15 +383,37 @@ class SchoolYearDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.delete()
 
 
+class GradeLevelPagination(PageNumberPagination):
+    page_size = 25
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class GradeLevelListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdminOrReadOnly]
-    queryset = GradeLevel.objects.all()
+    queryset = GradeLevel.objects.all().annotate(
+        section_count=Count('sections'),
+        subject_count=Count('subjects')
+    ).order_by('order')
     serializer_class = GradeLevelSerializer
+    pagination_class = GradeLevelPagination
+    ordering_fields = ['name', 'order']
+    ordering = ['order']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        search = self.request.query_params.get('search')
+        if search:
+            qs = qs.filter(name__icontains=search)
+        return qs
 
 
 class GradeLevelDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdmin]
-    queryset = GradeLevel.objects.all()
+    queryset = GradeLevel.objects.all().annotate(
+        section_count=Count('sections'),
+        subject_count=Count('subjects')
+    )
     serializer_class = GradeLevelSerializer
 
     def perform_destroy(self, instance):
@@ -314,24 +429,47 @@ class GradeLevelDetailView(generics.RetrieveUpdateDestroyAPIView):
             )})
 
 
+class SectionPagination(PageNumberPagination):
+    page_size = 25
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class SectionListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdminOrReadOnly]
     serializer_class = SectionSerializer
+    pagination_class = SectionPagination
+    ordering_fields = ['name', 'grade_level__order', 'school_year__label', 'adviser__last_name']
+    ordering = ['grade_level__order', 'name']
 
     def get_queryset(self):
-        qs = Section.objects.select_related("grade_level", "school_year", "adviser")
+        # annotate() drops Meta.ordering and no OrderingFilter is enabled, so
+        # without an explicit order_by() this paginated list had no ORDER BY
+        # at all (DRF logged UnorderedObjectListWarning) and rows moved
+        # between pages and between refreshes.
+        qs = Section.objects.select_related("grade_level", "school_year", "adviser").annotate(
+            student_count=Count('students')
+        ).order_by('grade_level__order', 'name')
         school_year = self.request.query_params.get("school_year")
         grade = self.request.query_params.get("grade_level")
+        adviser = self.request.query_params.get("adviser")
+        search = self.request.query_params.get("search")
         if school_year:
             qs = qs.filter(school_year_id=school_year)
         if grade:
             qs = qs.filter(grade_level_id=grade)
+        if adviser:
+            qs = qs.filter(adviser_id=adviser)
+        if search:
+            qs = qs.filter(name__icontains=search)
         return qs
 
 
 class SectionDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdmin]
-    queryset = Section.objects.all()
+    queryset = Section.objects.select_related("grade_level", "school_year", "adviser").annotate(
+        student_count=Count('students')
+    )
     serializer_class = SectionSerializer
 
     def perform_destroy(self, instance):
@@ -350,24 +488,42 @@ class SectionDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.delete()
 
 
+class SubjectPagination(PageNumberPagination):
+    page_size = 25
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
 class SubjectListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdminOrReadOnly]
     serializer_class = SubjectSerializer
+    pagination_class = SubjectPagination
+    ordering_fields = ['name', 'code', 'grade_level__order', 'school_year__label']
+    ordering = ['grade_level__order', 'name']
 
     def get_queryset(self):
-        qs = Subject.objects.select_related("grade_level", "school_year")
+        # annotate() drops Meta.ordering and no OrderingFilter is enabled, so
+        # this list also had no ORDER BY — pin the documented order here.
+        qs = Subject.objects.select_related("grade_level", "school_year").annotate(
+            assignment_count=Count('assignments')
+        ).order_by('grade_level__order', 'name')
         school_year = self.request.query_params.get("school_year")
         grade = self.request.query_params.get("grade_level")
+        search = self.request.query_params.get("search")
         if school_year:
             qs = qs.filter(school_year_id=school_year)
         if grade:
             qs = qs.filter(grade_level_id=grade)
+        if search:
+            qs = qs.filter(Q(name__icontains=search) | Q(code__icontains=search))
         return qs
 
 
 class SubjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdmin]
-    queryset = Subject.objects.all()
+    queryset = Subject.objects.select_related("grade_level", "school_year").annotate(
+        assignment_count=Count('assignments')
+    )
     serializer_class = SubjectSerializer
 
     def perform_destroy(self, instance):
@@ -440,63 +596,82 @@ class StudentProfileListView(generics.ListAPIView):
 # Requirements
 # ---------------------------------------------------------------------------
 
+def _requirement_queryset_for(user, query_params=None):
+    """
+    Every requirement `user` is allowed to see.
+
+    Shared by the list *and* the detail endpoint so a client can never list a
+    row it is then unable to open. The list view layers its own `?section=`
+    filter on top of the admin branch.
+    """
+    query_params = query_params or {}
+
+    if user.is_admin:
+        qs = Requirement.objects.select_related(
+            "teacher_assignment__subject",
+            "teacher_assignment__section",
+        )
+        section = query_params.get("section")
+        if section:
+            qs = qs.filter(teacher_assignment__section_id=section)
+        return qs
+
+    if user.is_teacher:
+        assignments = TeacherAssignment.objects.filter(teacher=user)
+        return Requirement.objects.filter(
+            teacher_assignment__in=assignments
+        ).select_related(
+            "teacher_assignment__subject",
+            "teacher_assignment__section",
+        )
+
+    if user.is_student:
+        try:
+            profile = user.student_profile
+        except StudentProfile.DoesNotExist:
+            return Requirement.objects.none()
+        if not profile.section:
+            return Requirement.objects.none()
+        assignments = TeacherAssignment.objects.filter(section=profile.section)
+        return Requirement.objects.filter(
+            teacher_assignment__in=assignments
+        ).select_related(
+            "teacher_assignment__subject",
+            "teacher_assignment__section",
+        )
+
+    if user.is_parent:
+        # A parent may only request requirements belonging to their own
+        # linked children — enforced here, not in the browser.
+        try:
+            children = user.parent_profile.children.all()
+        except ParentProfile.DoesNotExist:
+            return Requirement.objects.none()
+        child_id = query_params.get("child")
+        if child_id:
+            children = children.filter(pk=child_id)
+            if not children.exists():
+                return Requirement.objects.none()
+        sections = [c.section_id for c in children if c.section_id]
+        assignments = TeacherAssignment.objects.filter(section_id__in=sections)
+        return Requirement.objects.filter(
+            teacher_assignment__in=assignments
+        ).select_related(
+            "teacher_assignment__subject",
+            "teacher_assignment__section",
+        )
+
+    return Requirement.objects.none()
+
+
 class RequirementListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = RequirementSerializer
 
     def get_queryset(self):
-        user = self.request.user
-        if user.is_admin:
-            qs = Requirement.objects.select_related(
-                "teacher_assignment__subject",
-                "teacher_assignment__section",
-            )
-            section = self.request.query_params.get("section")
-            if section:
-                qs = qs.filter(teacher_assignment__section_id=section)
-            return qs
-        if user.is_teacher:
-            assignments = TeacherAssignment.objects.filter(teacher=user)
-            return Requirement.objects.filter(
-                teacher_assignment__in=assignments
-            ).select_related(
-                "teacher_assignment__subject",
-                "teacher_assignment__section",
-            )
-        if user.is_student:
-            try:
-                profile = user.student_profile
-                if profile.section:
-                    assignments = TeacherAssignment.objects.filter(section=profile.section)
-                    return Requirement.objects.filter(
-                        teacher_assignment__in=assignments
-                    ).select_related(
-                        "teacher_assignment__subject",
-                        "teacher_assignment__section",
-                    )
-            except Exception:
-                pass
-        if user.is_parent:
-            # A parent may only request requirements belonging to their own
-            # linked children — enforced here, not in the browser.
-            try:
-                children = user.parent_profile.children.all()
-            except ParentProfile.DoesNotExist:
-                return Requirement.objects.none()
-            child_id = self.request.query_params.get("child")
-            if child_id:
-                children = children.filter(pk=child_id)
-                if not children.exists():
-                    return Requirement.objects.none()
-            sections = [c.section_id for c in children if c.section_id]
-            assignments = TeacherAssignment.objects.filter(section_id__in=sections)
-            return Requirement.objects.filter(
-                teacher_assignment__in=assignments
-            ).select_related(
-                "teacher_assignment__subject",
-                "teacher_assignment__section",
-            )
-        return Requirement.objects.none()
+        return _requirement_queryset_for(
+            self.request.user, self.request.query_params
+        )
 
     def perform_create(self, serializer):
         # Only teachers (and admins) can create requirements — and only for
@@ -519,14 +694,21 @@ class RequirementDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = RequirementSerializer
 
+    def get_permissions(self):
+        # Reads follow the list scoping (student: own section, parent: linked
+        # children). Writes stay staff-only — widening `get_queryset` to those
+        # roles must not hand them an edit/delete route they never had.
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [IsAuthenticated()]
+        return [IsAdminOrTeacher()]
+
     def get_queryset(self):
-        user = self.request.user
-        if user.is_admin:
-            return Requirement.objects.all()
-        if user.is_teacher:
-            assignments = TeacherAssignment.objects.filter(teacher=user)
-            return Requirement.objects.filter(teacher_assignment__in=assignments)
-        return Requirement.objects.none()
+        # Same scoping as the list view. Returning `none()` here (the old
+        # behaviour) meant a student or parent could list their assigned work
+        # and then get a 404 the moment they opened any row of it.
+        return _requirement_queryset_for(
+            self.request.user, self.request.query_params
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -612,6 +794,17 @@ class SubmissionListCreateView(generics.ListCreateAPIView):
         if student is not None and student.pk != profile.pk:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("You can only submit your own work.")
+        # A student may only hand in work for a requirement issued to their own
+        # section. Without this check a student could submit into any class in
+        # the school by swapping the requirement id (observed live: a Grade 7
+        # student submitted into a Grade 8 requirement).
+        requirement = serializer.validated_data["requirement"]
+        req_section_id = requirement.teacher_assignment.section_id
+        if profile.section_id != req_section_id:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied(
+                "You can only submit work for a requirement issued to your section."
+            )
         status_value = serializer.validated_data.get(
             "status", Submission.Status.SUBMITTED
         )
@@ -692,10 +885,24 @@ class SubmissionDetailView(generics.RetrieveUpdateAPIView):
                 return Submission.objects.filter(student=user.student_profile)
             except Exception:
                 pass
+        if user.is_parent:
+            # Read-only mirror of the list view: a parent may open a
+            # submission they can already list, and nothing else.
+            try:
+                return Submission.objects.filter(
+                    student__in=user.parent_profile.children.all()
+                )
+            except ParentProfile.DoesNotExist:
+                pass
         return Submission.objects.none()
 
     def perform_update(self, serializer):
         user = self.request.user
+        if user.is_parent:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied(
+                "Parents have read-only access to submissions."
+            )
         old_status = serializer.instance.status
         submission = serializer.save()
         if submission.status != old_status:
@@ -719,6 +926,168 @@ class SubmissionDetailView(generics.RetrieveUpdateAPIView):
 # ---------------------------------------------------------------------------
 # Attendance
 # ---------------------------------------------------------------------------
+
+class ClassScheduleListCreateView(generics.ListCreateAPIView):
+    """Admin can create schedules, teachers can view their own."""
+    permission_classes = [IsAuthenticated]
+    serializer_class = ClassScheduleSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_admin:
+            return ClassSchedule.objects.select_related("teacher_assignment")
+        if user.is_teacher:
+            assignments = TeacherAssignment.objects.filter(teacher=user)
+            return ClassSchedule.objects.filter(
+                teacher_assignment__in=assignments
+            ).select_related("teacher_assignment")
+        return ClassSchedule.objects.none()
+
+    def perform_create(self, serializer):
+        if not self.request.user.is_admin:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("Only administrators can create schedules.")
+        serializer.save()
+
+
+class ClassScheduleDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """Admin only for schedule management."""
+    permission_classes = [IsAdmin]
+    queryset = ClassSchedule.objects.all()
+    serializer_class = ClassScheduleSerializer
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def generate_attendance_sessions(request):
+    """
+    Generate attendance sessions based on class schedules for a date range.
+    This is called automatically by the frontend, or manually by teachers/admins.
+    """
+    from datetime import datetime, timedelta
+    
+    # Get date range from request
+    start_date_str = request.data.get("start_date")
+    end_date_str = request.data.get("end_date")
+
+    # Parse defensively: a malformed date used to raise an unhandled ValueError
+    # and surface as a 500 (with a stack trace when DEBUG=True). Return a clean
+    # 400 instead.
+    try:
+        if not start_date_str:
+            start_date = timezone.now().date()
+        else:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+
+        if not end_date_str:
+            # Default: generate for next 7 days
+            end_date = start_date + timedelta(days=7)
+        else:
+            end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return Response(
+            {"error": "Dates must be in YYYY-MM-DD format (e.g. 2026-10-19)."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    if end_date < start_date:
+        return Response(
+            {"error": "The end date must not be before the start date."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    # Cap the span. A school year is well under a year; an unbounded range lets
+    # any teacher create tens of thousands of rows in one call (observed: a
+    # 1990–2099 request generated 5,738 sessions). 366 days is generous for any
+    # legitimate batch while keeping the operation bounded.
+    MAX_GENERATION_SPAN_DAYS = 366
+    if (end_date - start_date).days > MAX_GENERATION_SPAN_DAYS:
+        return Response(
+            {"error": (
+                "The date range is too long. Generate at most "
+                f"{MAX_GENERATION_SPAN_DAYS} days at a time."
+            )},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    
+    user = request.user
+    
+    # Get teacher assignments
+    if user.is_admin:
+        # Admin can generate for all teachers
+        teacher_param = request.data.get("teacher_id")
+        if teacher_param:
+            assignments = TeacherAssignment.objects.filter(teacher_id=teacher_param)
+        else:
+            assignments = TeacherAssignment.objects.all()
+    elif user.is_teacher:
+        # Teachers generate only for themselves
+        assignments = TeacherAssignment.objects.filter(teacher=user)
+    else:
+        return Response(
+            {"error": "Only teachers and administrators can generate sessions."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+    
+    generated = []
+    skipped = []
+    
+    # For each assignment with schedules
+    for assignment in assignments:
+        schedules = assignment.schedules.all()
+        
+        if not schedules.exists():
+            continue
+        
+        # Generate sessions for each day in range
+        current_date = start_date
+        while current_date <= end_date:
+            # Get day of week (1=Monday, 7=Sunday)
+            day_of_week = current_date.isoweekday()
+            
+            # Find schedules for this day
+            day_schedules = schedules.filter(day_of_week=day_of_week)
+            
+            for schedule in day_schedules:
+                # Check if session already exists
+                existing = AttendanceSession.objects.filter(
+                    teacher_assignment=assignment,
+                    date=current_date,
+                    schedule=schedule
+                ).first()
+                
+                if existing:
+                    skipped.append({
+                        "date": current_date.isoformat(),
+                        "assignment": str(assignment),
+                        "time": schedule.start_time.strftime("%H:%M"),
+                        "reason": "Already exists"
+                    })
+                else:
+                    # Create new session
+                    session = AttendanceSession.objects.create(
+                        teacher_assignment=assignment,
+                        date=current_date,
+                        schedule=schedule,
+                        status=AttendanceSession.Status.NOT_STARTED,
+                        created_by=user
+                    )
+                    generated.append({
+                        "id": session.id,
+                        "date": current_date.isoformat(),
+                        "assignment": str(assignment),
+                        "time": schedule.start_time.strftime("%H:%M"),
+                    })
+            
+            current_date += timedelta(days=1)
+    
+    return Response({
+        "generated": len(generated),
+        "skipped": len(skipped),
+        "sessions": generated,
+        "skipped_details": skipped,
+    })
+
 
 class AttendanceSessionListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAdminOrTeacher]
@@ -817,10 +1186,19 @@ class AttendanceRecordListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         user = self.request.user
+        from rest_framework.exceptions import PermissionDenied
+        # GET stays open to every role (students read their own rows, parents
+        # their children's), but writing a mark is a staff action. Without
+        # this guard any signed-in student or parent could POST a record for
+        # any session and any student — only the (session, student) UNIQUE
+        # constraint happened to stand in the way.
+        if not (user.is_admin or user.is_teacher):
+            raise PermissionDenied(
+                "Only teachers and administrators can record attendance."
+            )
         session = serializer.validated_data.get("session")
         student = serializer.validated_data.get("student")
         if user.is_teacher:
-            from rest_framework.exceptions import PermissionDenied
             if session is None:
                 raise PermissionDenied("An attendance session is required.")
             assignment = session.teacher_assignment
@@ -833,6 +1211,8 @@ class AttendanceRecordListCreateView(generics.ListCreateAPIView):
                     "That student is not enrolled in this class."
                 )
         record = serializer.save(recorded_by=user)
+        # Update session status
+        session.update_status()
         # Absent/late marks alert the student's linked parents.
         notify_attendance_marked(record)
 
@@ -851,6 +1231,8 @@ class AttendanceRecordDetailView(generics.RetrieveUpdateAPIView):
 
     def perform_update(self, serializer):
         record = serializer.save(modified_by=self.request.user)
+        # Update session status
+        record.session.update_status()
         # A mark changed to absent/late must alert parents, not just the
         # initial creation.
         notify_attendance_marked(record)
@@ -878,6 +1260,16 @@ class NotificationMarkReadView(generics.UpdateAPIView):
         return self.request.user.notifications.all()
 
     def patch(self, request, *args, **kwargs):
+        return self._mark_read(request, *args, **kwargs)
+
+    # The Expo app posts to this action URL. DRF's UpdateAPIView only wires
+    # PUT/PATCH, so POST fell through to `http_method_not_allowed` and the
+    # mobile "mark as read" tap was a silent 405 no-op. Both verbs perform the
+    # same single-field update on the caller's own notification.
+    def post(self, request, *args, **kwargs):
+        return self._mark_read(request, *args, **kwargs)
+
+    def _mark_read(self, request, *args, **kwargs):
         notif = self.get_object()
         notif.is_read = True
         notif.save(update_fields=["is_read"])
@@ -911,6 +1303,62 @@ class AnnouncementListCreateView(generics.ListCreateAPIView):
         elif user.is_teacher:
             qs = qs.filter(audience__in=[A.Audience.ALL, A.Audience.TEACHERS])
         # Admins see all
+
+        # Section scoping: a section-targeted announcement must stay inside that
+        # section. `section__isnull=True` means school-wide and is visible to
+        # everyone who passes the audience filter above. Without this, students,
+        # parents and teachers in *other* sections could read a notice meant for
+        # a single class (observed live).
+        if not user.is_admin:
+            if user.is_student:
+                try:
+                    my_sections = [user.student_profile.section_id]
+                except StudentProfile.DoesNotExist:
+                    my_sections = []
+            elif user.is_parent:
+                try:
+                    my_sections = list(
+                        user.parent_profile.children.values_list(
+                            "section_id", flat=True
+                        )
+                    )
+                except ParentProfile.DoesNotExist:
+                    my_sections = []
+            elif user.is_teacher:
+                my_sections = list(
+                    TeacherAssignment.objects.filter(teacher=user)
+                    .values_list("section_id", flat=True)
+                )
+            else:
+                my_sections = []
+            my_sections = [s for s in my_sections if s is not None]
+            qs = qs.filter(Q(section__isnull=True) | Q(section__in=my_sections))
+
+        # Search by title or body
+        search = self.request.query_params.get("search")
+        if search:
+            qs = qs.filter(Q(title__icontains=search) | Q(body__icontains=search))
+
+        # Filter by audience (explicit, in addition to role-based filtering)
+        audience = self.request.query_params.get("audience")
+        if audience:
+            qs = qs.filter(audience=audience)
+
+        # Filter by pinned status
+        is_pinned = self.request.query_params.get("is_pinned")
+        if is_pinned is not None:
+            qs = qs.filter(is_pinned=is_pinned.lower() == "true")
+
+        # Ordering
+        ordering = self.request.query_params.get("ordering")
+        if ordering:
+            # Validate ordering fields to prevent injection
+            allowed_fields = ["published_at", "-published_at", "created_at", "-created_at", "is_pinned", "-is_pinned", "title", "-title"]
+            ordering_fields = [f.strip() for f in ordering.split(",")]
+            safe_ordering = [f for f in ordering_fields if f in allowed_fields]
+            if safe_ordering:
+                qs = qs.order_by(*safe_ordering)
+
         return qs
 
     def perform_create(self, serializer):

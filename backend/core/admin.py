@@ -6,6 +6,7 @@ from .models import (
     AttendanceRecord,
     AttendanceSession,
     AuditLog,
+    ClassSchedule,
     GradeLevel,
     Notification,
     ParentProfile,
@@ -66,6 +67,13 @@ class TeacherAssignmentAdmin(admin.ModelAdmin):
     search_fields = ("teacher__last_name", "subject__name")
 
 
+@admin.register(ClassSchedule)
+class ClassScheduleAdmin(admin.ModelAdmin):
+    list_display = ("teacher_assignment", "get_day_of_week_display", "start_time", "end_time", "room")
+    list_filter = ("day_of_week",)
+    search_fields = ("teacher_assignment__teacher__last_name", "room")
+
+
 @admin.register(StudentProfile)
 class StudentProfileAdmin(admin.ModelAdmin):
     list_display = ("__str__", "lrn", "section")
@@ -102,8 +110,9 @@ class SubmissionHistoryAdmin(admin.ModelAdmin):
 
 @admin.register(AttendanceSession)
 class AttendanceSessionAdmin(admin.ModelAdmin):
-    list_display = ("__str__", "date", "created_by")
-    list_filter = ("date", "teacher_assignment__subject__school_year")
+    list_display = ("__str__", "date", "status", "schedule", "created_by")
+    list_filter = ("status", "date", "teacher_assignment__subject__school_year")
+    readonly_fields = ("status",)
 
 
 @admin.register(AttendanceRecord)

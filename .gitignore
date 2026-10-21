@@ -26,14 +26,21 @@ backend/static_collected/
 
 # Secrets — never commit real env files
 .env
+.env.*
 .env.local
 .env.*.local
 backend/.env
 backend/.env.*
-# Allow .env.example files (no real secrets, just placeholders)
+# Allow env files that are safe by design (placeholders / committed dev URLs —
+# EXPO_PUBLIC_ values are public anyway; they are inlined into JS bundles)
 !.env.example
+!.env.*.example
+!.env.development
+!.env.production
 !backend/.env.example
 !frontend/.env.example
+!mobile/.env.example
+!mobile/.env.development
 
 # Python packaging
 *.egg-info/

@@ -16,6 +16,7 @@ import NotificationsPage from './pages/NotificationsPage'
 import ParentChildrenPage from './pages/ParentChildrenPage'
 import ProfilePage from './pages/ProfilePage'
 import RequirementsPage from './pages/RequirementsPage'
+import SchedulesPage from './pages/SchedulesPage'
 import SectionsPage from './pages/SectionsPage'
 import SubmissionsPage from './pages/SubmissionsPage'
 import TeacherClassesPage from './pages/TeacherClassesPage'
@@ -68,6 +69,7 @@ export default function App() {
             <Route path="/admin/parents" element={<UsersPage role="parent" />} />
             <Route path="/admin/sections" element={<SectionsPage />} />
             <Route path="/admin/assignments" element={<AssignmentsPage />} />
+            <Route path="/admin/schedules" element={<SchedulesPage />} />
             <Route path="/admin/requirements" element={<RequirementsPage scope="admin" />} />
             <Route path="/admin/attendance" element={<AttendancePage mode="admin" />} />
           </Route>

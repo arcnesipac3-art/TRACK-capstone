@@ -2,6 +2,8 @@
 TRACK — DRF Serializers
 """
 
+import os
+
 from django.contrib.auth import authenticate
 # Aliased: DRF calls `validate_<field>` hooks by name, so a hook called
 # `validate_password` would otherwise shadow this import and read as recursion.
@@ -12,6 +14,7 @@ from .models import (
     Announcement,
     AttendanceRecord,
     AttendanceSession,
+    ClassSchedule,
     GradeLevel,
     Notification,
     ParentProfile,
@@ -336,9 +339,12 @@ class AdminUserSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 
 class SchoolYearSerializer(serializers.ModelSerializer):
+    section_count = serializers.IntegerField(read_only=True)
+    subject_count = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = SchoolYear
-        fields = ["id", "label", "start_date", "end_date", "is_active"]
+        fields = ["id", "label", "start_date", "end_date", "is_active", "section_count", "subject_count"]
 
     def validate(self, attrs):
         # The model's clean() is never invoked by DRF (no full_clean call),
@@ -357,21 +363,26 @@ class SchoolYearSerializer(serializers.ModelSerializer):
 
 
 class GradeLevelSerializer(serializers.ModelSerializer):
+    section_count = serializers.IntegerField(read_only=True)
+    subject_count = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = GradeLevel
-        fields = ["id", "name", "order"]
+        fields = ["id", "name", "order", "section_count", "subject_count"]
 
 
 class SectionSerializer(serializers.ModelSerializer):
     grade_level_name = serializers.CharField(source="grade_level.name", read_only=True)
     school_year_label = serializers.CharField(source="school_year.label", read_only=True)
     adviser_name = serializers.SerializerMethodField()
+    student_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Section
         fields = [
             "id", "name", "grade_level", "grade_level_name",
             "school_year", "school_year_label", "adviser", "adviser_name",
+            "student_count",
         ]
 
     def get_adviser_name(self, obj):
@@ -381,6 +392,7 @@ class SectionSerializer(serializers.ModelSerializer):
 class SubjectSerializer(serializers.ModelSerializer):
     grade_level_name = serializers.CharField(source="grade_level.name", read_only=True)
     school_year_label = serializers.CharField(source="school_year.label", read_only=True)
+    assignment_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Subject
@@ -388,6 +400,7 @@ class SubjectSerializer(serializers.ModelSerializer):
             "id", "name", "code", "description",
             "grade_level", "grade_level_name",
             "school_year", "school_year_label",
+            "assignment_count",
         ]
 
 
@@ -549,8 +562,67 @@ class SubmissionSerializer(serializers.ModelSerializer):
     def get_student_name(self, obj):
         return obj.student.user.get_full_name()
 
+    # Only document/image types a school would accept. Everything else (HTML,
+    # SVG, executables, etc.) is refused so a hostile upload can never be served
+    # back as active content from /media/.
+    ALLOWED_UPLOAD_EXTENSIONS = {
+        ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
+        ".txt", ".jpg", ".jpeg", ".png", ".gif", ".webp",
+    }
+    MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+
+    def validate_file_upload(self, value):
+        if not value:
+            return value
+        ext = os.path.splitext(value.name)[1].lower()
+        if ext not in self.ALLOWED_UPLOAD_EXTENSIONS:
+            raise serializers.ValidationError(
+                "That file type is not allowed. Upload a document or image "
+                "(PDF, Word, Excel, PowerPoint, TXT, or JPG/PNG/GIF/WebP)."
+            )
+        if value.size > self.MAX_UPLOAD_BYTES:
+            raise serializers.ValidationError(
+                "That file is too large (10 MB maximum)."
+            )
+        return value
+
+    def get_extra_kwargs(self):
+        """
+        Freeze server-owned fields.
+
+        On update a submission's identity (`requirement`, `student`) and its
+        hand-in time (`submitted_at`) must not be client-writable — otherwise a
+        student can re-point their work at a different requirement, reassign it
+        to a classmate, or backdate the timestamp (all observed live). Teachers
+        legitimately PATCH `{status, teacher_feedback}` only, so freezing these
+        does not touch that flow.
+        """
+        extra = super().get_extra_kwargs()
+        if self.instance is not None:
+            extra["requirement"] = {"read_only": True}
+            # The hand-in time is stamped by the server (create/resubmit/status
+            # change); a client must not be able to backdate it. (`student` is
+            # an explicitly declared field, so extra_kwargs cannot freeze it —
+            # ownership immutability is enforced in validate() instead.)
+            extra["submitted_at"] = {"read_only": True}
+        # `teacher_feedback` is authored by the reviewer, never the student.
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated and user.is_student:
+            extra["teacher_feedback"] = {"read_only": True}
+        return extra
+
     def validate(self, data):
         request = self.context.get("request")
+        # A submission's owner is fixed at creation. `student` is an explicitly
+        # declared field, so extra_kwargs cannot mark it read-only — enforce the
+        # immutability here instead of relying on the UNIQUE constraint to catch
+        # it (which only fires if the target student already submitted).
+        if self.instance is not None and "student" in data:
+            if data["student"].pk != self.instance.student_id:
+                raise serializers.ValidationError(
+                    {"student": "A submission's student cannot be changed."}
+                )
         if request and request.user.is_student:
             # Students may only create/update their own work as
             # "not submitted" or "submitted" — never verified/returned/overdue,
@@ -574,6 +646,39 @@ class SubmissionSerializer(serializers.ModelSerializer):
 # ---------------------------------------------------------------------------
 # Attendance
 # ---------------------------------------------------------------------------
+
+class ClassScheduleSerializer(serializers.ModelSerializer):
+    day_of_week_display = serializers.CharField(source="get_day_of_week_display", read_only=True)
+    teacher_assignment_detail = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ClassSchedule
+        fields = [
+            "id", "teacher_assignment", "teacher_assignment_detail",
+            "day_of_week", "day_of_week_display",
+            "start_time", "end_time", "room",
+        ]
+
+    def get_teacher_assignment_detail(self, obj):
+        return {
+            "id": obj.teacher_assignment.id,
+            "teacher_id": obj.teacher_assignment.teacher_id,
+            "teacher_name": obj.teacher_assignment.teacher.get_full_name(),
+            "subject_name": obj.teacher_assignment.subject.name,
+            "section_id": obj.teacher_assignment.section_id,
+            "section_name": section_label(obj.teacher_assignment.section),
+            "grade_level": obj.teacher_assignment.section.grade_level.name,
+        }
+
+    def validate(self, attrs):
+        start = attrs.get("start_time", self.instance.start_time if self.instance else None)
+        end = attrs.get("end_time", self.instance.end_time if self.instance else None)
+        if start and end and start >= end:
+            raise serializers.ValidationError(
+                {"end_time": "End time must be after start time."}
+            )
+        return attrs
+
 
 class AttendanceSessionBriefSerializer(serializers.ModelSerializer):
     """Read-only session summary embedded in attendance records."""
@@ -600,10 +705,27 @@ class AttendanceRecordSerializer(serializers.ModelSerializer):
             "id", "session", "session_detail", "student", "student_name", "status",
             "notes", "recorded_by", "modified_by", "recorded_at", "modified_at",
         ]
-        read_only_fields = ["recorded_at", "modified_at"]
+        # Who recorded/modified a mark is stamped by the server from the
+        # authenticated user — never taken from the request body.
+        read_only_fields = [
+            "recorded_at", "modified_at", "recorded_by", "modified_by",
+        ]
 
     def get_student_name(self, obj):
         return obj.student.user.get_full_name()
+
+    def get_extra_kwargs(self):
+        """
+        A record's identity (which session, which student) is fixed at creation.
+        Freezing both on update stops a teacher moving a mark into another
+        teacher's session or re-pointing it at a classmate — only `status` and
+        `notes` (the fields the attendance UI actually PATCHes) stay editable.
+        """
+        extra = super().get_extra_kwargs()
+        if self.instance is not None:
+            extra["session"] = {"read_only": True}
+            extra["student"] = {"read_only": True}
+        return extra
 
 
 class AttendanceSessionSerializer(serializers.ModelSerializer):
@@ -612,17 +734,73 @@ class AttendanceSessionSerializer(serializers.ModelSerializer):
         source="teacher_assignment.subject.name", read_only=True
     )
     section_name = serializers.SerializerMethodField()
+    schedule_time = serializers.SerializerMethodField()
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
 
     class Meta:
         model = AttendanceSession
         fields = [
             "id", "teacher_assignment", "subject_name", "section_name",
-            "date", "notes", "created_by", "created_at", "records",
+            "date", "schedule", "schedule_time", "status", "status_display",
+            "notes", "created_by", "created_at", "records",
         ]
-        read_only_fields = ["created_at"]
+        # `created_by` is stamped by the server from the authenticated user.
+        read_only_fields = ["created_at", "status", "created_by"]
+
+    def get_extra_kwargs(self):
+        """
+        A session's identity (which class, which weekly slot) is fixed at
+        creation. Freezing `teacher_assignment` and `schedule` on update stops a
+        teacher re-parenting their session onto another teacher's class; only
+        `date` and `notes` (what the attendance UI PATCHes) stay editable.
+        """
+        extra = super().get_extra_kwargs()
+        if self.instance is not None:
+            extra["teacher_assignment"] = {"read_only": True}
+            extra["schedule"] = {"read_only": True}
+        return extra
 
     def get_section_name(self, obj):
         return section_label(obj.teacher_assignment.section)
+
+    def get_schedule_time(self, obj):
+        if obj.schedule:
+            return {
+                "start_time": obj.schedule.start_time.strftime("%H:%M"),
+                "end_time": obj.schedule.end_time.strftime("%H:%M"),
+                "room": obj.schedule.room,
+            }
+        return None
+
+    def validate(self, attrs):
+        """Validate uniqueness before database constraint raises IntegrityError."""
+        assignment = attrs.get("teacher_assignment", getattr(self.instance, "teacher_assignment", None))
+        date = attrs.get("date", getattr(self.instance, "date", None))
+        schedule = attrs.get("schedule", getattr(self.instance, "schedule", None))
+
+        if assignment and date and self.instance is None:
+            # Check for duplicate sessions
+            if schedule is None:
+                # Manual session: only one per (assignment, date)
+                if AttendanceSession.objects.filter(
+                    teacher_assignment=assignment,
+                    date=date,
+                    schedule__isnull=True
+                ).exists():
+                    raise serializers.ValidationError(
+                        "A session for this class on this date already exists."
+                    )
+            else:
+                # Scheduled session: one per (assignment, date, schedule)
+                if AttendanceSession.objects.filter(
+                    teacher_assignment=assignment,
+                    date=date,
+                    schedule=schedule
+                ).exists():
+                    raise serializers.ValidationError(
+                        "A session for this class at this time already exists."
+                    )
+        return attrs
 
 
 # ---------------------------------------------------------------------------
@@ -660,3 +838,24 @@ class AnnouncementSerializer(serializers.ModelSerializer):
 
     def get_author_name(self, obj):
         return obj.author.get_full_name() if obj.author else None
+
+    def validate_section(self, value):
+        """
+        A teacher may only aim a section-scoped announcement at a section they
+        actually teach. Admins may target any section; `null` stays school-wide.
+        Without this a teacher could post into another teacher's class feed.
+        """
+        if value is None:
+            return value
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        if user is not None and user.is_authenticated and user.is_teacher:
+            from .models import TeacherAssignment
+            teaches = TeacherAssignment.objects.filter(
+                teacher=user, section=value
+            ).exists()
+            if not teaches:
+                raise serializers.ValidationError(
+                    "You can only post announcements to a section you teach."
+                )
+        return value

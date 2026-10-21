@@ -15,6 +15,10 @@ urlpatterns = [
     path("auth/csrf/", views.csrf_token, name="csrf_token"),
     path("auth/login/", views.LoginView.as_view(), name="login"),
     path("auth/logout/", views.LogoutView.as_view(), name="logout"),
+    # Mobile: the Expo app exchanges credentials for a DRF token, since it has
+    # no cookie jar to hold a Django session or a CSRF token.
+    path("auth/token/", views.TokenLoginView.as_view(), name="token_login"),
+    path("auth/token/logout/", views.TokenLogoutView.as_view(), name="token_logout"),
     path("auth/me/", views.CurrentUserView.as_view(), name="current_user"),
     path("auth/change-password/", views.ChangePasswordView.as_view(), name="change_password"),
     path("auth/reset-password/", views.ResetPasswordView.as_view(), name="reset_password"),
@@ -47,6 +51,9 @@ urlpatterns = [
     path("submissions/<int:pk>/", views.SubmissionDetailView.as_view(), name="submission_detail"),
 
     # ── Attendance ──────────────────────────────────────────────────────────
+    path("schedules/", views.ClassScheduleListCreateView.as_view(), name="schedule_list"),
+    path("schedules/<int:pk>/", views.ClassScheduleDetailView.as_view(), name="schedule_detail"),
+    path("attendance/generate/", views.generate_attendance_sessions, name="generate_attendance"),
     path("attendance/sessions/", views.AttendanceSessionListCreateView.as_view(), name="attendance_session_list"),
     path("attendance/sessions/<int:pk>/", views.AttendanceSessionDetailView.as_view(), name="attendance_session_detail"),
     path("attendance/records/", views.AttendanceRecordListCreateView.as_view(), name="attendance_record_list"),

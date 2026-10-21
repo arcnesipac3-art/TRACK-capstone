@@ -1547,3 +1547,422 @@
     text-align: right;
   }
 }
+
+/* ---------------------------------------------------------------------
+   Attendance — teacher session list and record sheet
+   --------------------------------------------------------------------- */
+
+/* Filter strip under the sessions card header */
+.att-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px 10px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.att-filters .field { min-width: 168px; }
+.att-filter-meta {
+  margin-left: auto;
+  align-self: center;
+  white-space: nowrap;
+}
+
+/* Completion column: a short bar (or a "Complete" pill) plus the ratio */
+.att-completion { display: flex; align-items: center; gap: 8px; }
+.att-bar {
+  flex: none;
+  width: 52px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  overflow: hidden;
+}
+.att-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--navy-600);
+  border-radius: 999px;
+}
+.att-frac {
+  font-size: 0.82rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.att-sessions td { padding-top: 10px; padding-bottom: 10px; }
+.att-more { border-top: 1px solid var(--border); }
+
+/* Note previews stay on one line so rows never grow */
+.att-notes { min-width: 0; }
+.att-note-text {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.att-note-btn {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  justify-content: flex-start;
+}
+.att-note-btn .att-note-text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.att-note-btn.has-note .att-note-text { color: var(--text); font-weight: 550; }
+
+/* --- Record sheet -------------------------------------------------- */
+
+.att-sheet .card-header {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.att-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.att-summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.att-total {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+  padding-right: 10px;
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+}
+.att-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.att-search { position: relative; display: flex; }
+.att-search > svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-subtle);
+  pointer-events: none;
+}
+.att-search .input {
+  min-width: 190px;
+  padding-left: 31px;
+}
+
+.att-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 20px 0;
+}
+
+/* --- Roster table -------------------------------------------------- */
+
+.att-roster {
+  min-width: 840px;
+  table-layout: fixed;
+}
+.att-roster th,
+.att-roster td { padding-left: 12px; padding-right: 12px; }
+.att-roster td { padding-top: 7px; padding-bottom: 7px; }
+
+.att-idx {
+  font-size: 0.78rem;
+  color: var(--text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+.att-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.att-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+}
+.att-dirty-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber-700);
+}
+.att-id {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Sticky save bar ------------------------------------------------ */
+
+.att-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  flex-wrap: wrap;
+  padding: 11px 20px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.att-foot-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+}
+.att-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--text-subtle);
+}
+
+/* --- Segmented status control -------------------------------------- */
+
+.seg-group {
+  display: inline-flex;
+  flex: none;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.seg { position: relative; display: inline-flex; }
+.seg + .seg { border-left: 1px solid var(--border-strong); }
+.seg-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+.seg-face {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--ease), color var(--ease);
+}
+/* Leading glyph slot is reserved so segments never shift when selected. */
+.seg-face::before {
+  content: "";
+  display: inline-block;
+  width: 0.7em;
+  text-align: center;
+  font-size: 0.85em;
+}
+.seg:hover .seg-face { background: var(--surface-alt); color: var(--text); }
+.seg-input:focus-visible + .seg-face { outline: 2px solid var(--blue-600); outline-offset: -2px; }
+.seg-input:disabled + .seg-face { opacity: 0.55; cursor: not-allowed; }
+
+.seg-present .seg-input:checked + .seg-face {
+  background: var(--green-100);
+  color: var(--green-700);
+  box-shadow: inset 0 -2px 0 var(--green-700);
+}
+.seg-absent .seg-input:checked + .seg-face {
+  background: var(--red-100);
+  color: var(--red-700);
+  box-shadow: inset 0 -2px 0 var(--red-700);
+}
+.seg-late .seg-input:checked + .seg-face {
+  background: var(--amber-100);
+  color: var(--amber-700);
+  box-shadow: inset 0 -2px 0 var(--amber-700);
+}
+.seg-excused .seg-input:checked + .seg-face {
+  background: var(--blue-100);
+  color: var(--blue-700);
+  box-shadow: inset 0 -2px 0 var(--blue-700);
+}
+.seg-present .seg-input:checked + .seg-face::before { content: "\2713"; }
+.seg-absent .seg-input:checked + .seg-face::before { content: "!"; }
+.seg-late .seg-input:checked + .seg-face::before { content: "\25F7"; }
+.seg-excused .seg-input:checked + .seg-face::before { content: "\2192"; }
+
+/* --- Attendance view tabs ------------------------------------------ */
+
+.att-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  align-self: flex-start;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+.att-tab {
+  padding: 7px 16px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 0.87rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--ease), color var(--ease);
+}
+.att-tab:hover { background: var(--surface-alt); color: var(--text); }
+.att-tab:focus-visible { outline: 2px solid var(--blue-600); outline-offset: 1px; }
+.att-tab[aria-selected="true"] {
+  background: var(--navy-800);
+  color: #fff;
+}
+
+/* --- Attendance history -------------------------------------------- */
+
+.att-count {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.att-count-present { color: var(--green-700); }
+.att-count-absent { color: var(--red-700); }
+.att-count-late { color: var(--amber-700); }
+.att-count-excused { color: var(--blue-700); }
+.att-history th.att-count,
+.att-history td.att-count {
+  padding-left: 6px;
+  padding-right: 6px;
+  text-align: center;
+}
+
+.att-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  border-top: 1px solid var(--border);
+}
+
+/* Correction hint: shows what a staged edit replaces. */
+.att-was {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.att-search-wide { flex: 1 1 auto; }
+.att-search-wide .input { width: 100%; min-width: 0; }
+
+.att-student-hits {
+  display: flex;
+  flex-direction: column;
+}
+.att-student-hit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 20px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border);
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--ease);
+}
+.att-student-hit:hover { background: var(--surface-alt); }
+.att-student-hit:focus-visible { outline: 2px solid var(--blue-600); outline-offset: -2px; }
+.att-student-hit .hit-meta {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Attendance on small screens ----------------------------------- */
+
+@media (max-width: 767px) {
+  .att-filters,
+  .att-toolbar,
+  .att-alerts { padding-left: 14px; padding-right: 14px; }
+
+  .att-filters .field { flex: 1 1 140px; min-width: 0; }
+  .att-filter-meta { margin-left: 0; }
+
+  .att-toolbar { gap: 8px; }
+  .att-total { border-right: none; padding-right: 0; }
+  .att-tools { width: 100%; margin-left: 0; }
+  .att-search { flex: 1 1 auto; }
+  .att-search .input { width: 100%; min-width: 0; }
+
+  .att-sessions,
+  .att-roster { min-width: 0; }
+
+  .att-roster .att-idx { display: none; }
+  .att-roster td { flex-wrap: wrap; }
+  .att-roster .seg-group { margin-left: auto; }
+
+  .att-history td.att-count { text-align: right; }
+
+  .att-tabs { width: 100%; }
+  .att-tab { flex: 1 1 auto; text-align: center; padding-left: 10px; padding-right: 10px; }
+
+  .att-pager { padding-left: 14px; padding-right: 14px; }
+  .att-student-hit { padding-left: 14px; padding-right: 14px; }
+
+  /* Keep the save bar above the fixed bottom navigation. */
+  .att-foot {
+    bottom: calc(62px + env(safe-area-inset-bottom, 0px));
+    padding: 10px 14px;
+  }
+}
+
+@media (max-width: 479px) {
+  .seg-face { padding: 5px 6px; font-size: 0.74rem; gap: 3px; }
+}
