@@ -975,13 +975,21 @@
 .landing-skip:focus { transform: translateY(0); }
 
 /* --- Navigation --- */
+/* Pinned to the top of the window so the section links stay reachable on a
+   long read. Translucent over the hero gradient, with a blur to keep the copy
+   underneath legible as it scrolls past. */
 .landing-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 16px;
   padding: 14px 32px;
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .landing-nav-links {
@@ -1088,6 +1096,13 @@
   min-height: 46px;
   padding: 0 22px;
   font-size: 0.98rem;
+}
+
+/* Answers the first question a visitor without an account has. */
+.landing-hero .hero-note {
+  margin-top: 16px;
+  font-size: 0.84rem;
+  color: var(--text-subtle);
 }
 
 /* --- Product preview --- */
@@ -1252,22 +1267,174 @@
   color: var(--text-muted);
 }
 
+/* --- Who it's for (role cards) --- */
+.role-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+.role-card {
+  display: flex;
+  flex-direction: column;
+  padding: 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.role-card .rc-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 14px;
+  background: var(--blue-50);
+  color: var(--blue-700);
+  border-radius: var(--radius-sm);
+}
+.role-card h3 {
+  margin-bottom: 6px;
+  font-size: 1rem;
+  color: var(--navy-800);
+}
+.role-card .rc-body {
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+/* The bullets are the concrete screens each role gets. */
+.role-points {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.role-points li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.role-points .rp-mark {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  margin-top: 1px;
+  display: grid;
+  place-items: center;
+  background: var(--green-100);
+  color: var(--green-700);
+  border-radius: 50%;
+}
+
+/* --- Questions --- */
+/* Native <details>, so the accordion works with the keyboard and with a screen
+   reader without a line of JavaScript. */
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 780px;
+}
+.faq-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+.faq-item summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 0.96rem;
+  font-weight: 650;
+  color: var(--navy-800);
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary:hover { color: var(--navy-600); }
+.faq-item .faq-chev {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--text-subtle);
+  transition: transform var(--ease);
+}
+.faq-item[open] .faq-chev { transform: rotate(180deg); }
+.faq-item[open] summary { padding-bottom: 10px; }
+.faq-item .faq-answer {
+  padding: 0 20px 18px;
+  max-width: 68ch;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+/* --- Closing call to action --- */
+.landing-cta {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 64px 32px;
+}
+.cta-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 26px;
+  padding: 34px 36px;
+  background: var(--navy-800);
+  background-image: radial-gradient(
+    closest-side,
+    rgba(1, 155, 253, 0.22),
+    transparent
+  );
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  color: var(--on-navy);
+}
+.cta-card h2 {
+  font-size: clamp(1.3rem, 2.2vw, 1.6rem);
+  letter-spacing: -0.02em;
+  color: #fff;
+}
+.cta-card p {
+  margin-top: 8px;
+  max-width: 56ch;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--on-navy-muted);
+}
+.cta-actions { flex: 0 0 auto; }
+.btn-light {
+  background: var(--surface);
+  color: var(--navy-800);
+}
+.btn-light:hover:not(:disabled) { background: var(--blue-50); }
+
 /* --- Footer --- */
 .landing-foot {
-  padding: 40px 32px;
+  padding: 44px 32px 0;
   background: var(--navy-900);
   color: var(--on-navy);
 }
 .landing-foot-inner {
   max-width: 1080px;
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  text-align: center;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 28px 48px;
 }
-.landing-foot .logo { margin-bottom: 8px; }
+.landing-foot .foot-brand { max-width: 46ch; }
+.landing-foot .logo { margin-bottom: 10px; }
 .landing-foot .foot-school {
   font-size: 1rem;
   font-weight: 650;
@@ -1280,6 +1447,83 @@
 .landing-foot .foot-acronym {
   margin-top: 10px;
   font-size: 0.8rem;
+}
+
+.landing-foot .foot-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 168px;
+}
+.landing-foot .foot-col-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #7f9ac4;
+}
+.landing-foot .foot-col a {
+  color: var(--on-navy-muted);
+  font-size: 0.88rem;
+  font-weight: 550;
+  text-decoration: none;
+}
+.landing-foot .foot-col a:hover {
+  color: #fff;
+  text-decoration: none;
+}
+/* The default blue focus ring is hard to see on navy. */
+.landing-foot a:focus-visible { outline-color: var(--cyan-400); }
+
+.landing-foot .foot-bottom {
+  max-width: 1080px;
+  margin: 30px auto 0;
+  padding: 18px 0 26px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 18px;
+  font-size: 0.78rem;
+  color: var(--on-navy-muted);
+}
+
+/* --- Scroll reveal ---
+   Sections start hidden only after the effect below has confirmed that
+   IntersectionObserver exists, so the page never depends on it to be read. */
+.landing.reveal-ready [data-reveal] {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 520ms ease, transform 520ms ease;
+}
+.landing.reveal-ready [data-reveal].reveal-in {
+  opacity: 1;
+  transform: none;
+}
+/* Backstop: set once the fade's window has closed (see LandingPage). Author
+   !important outranks a running transition, so this pins the visible end state
+   even if the timeline was suspended and the fade never finished. */
+.landing.reveal-ready [data-reveal].reveal-settled {
+  opacity: 1 !important;
+  transform: none !important;
+  transition: none !important;
+}
+/* No waiting on scroll for readers who asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .landing.reveal-ready [data-reveal] {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+/* Sections below the fold have never been revealed when the page is printed,
+   and an unrevealed section would come out blank. */
+@media print {
+  .landing.reveal-ready [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
 }
 
 /* ---------------------------------------------------------------------
@@ -1440,6 +1684,10 @@
   .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* The call to action stacks once it has less than a full desktop to run in. */
+  .cta-card { padding: 30px 28px; }
 
   .auth-layout { grid-template-columns: minmax(0, 1fr); }
   .auth-aside { display: none; }
@@ -1487,8 +1735,22 @@
   .landing-hero { padding: 48px 18px 42px; }
   .landing-preview { padding: 30px 18px 4px; }
   .landing-section { padding: 44px 18px; }
-  .landing-foot { padding: 32px 18px; }
+  .landing-foot { padding: 34px 18px 0; }
   .how-steps { grid-template-columns: minmax(0, 1fr); }
+
+  .landing-cta { padding: 44px 18px; }
+  .cta-card {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 26px 22px;
+  }
+  .cta-actions { width: 100%; }
+  .cta-actions .btn { width: 100%; }
+
+  .landing-foot-inner { grid-template-columns: minmax(0, 1fr); }
+  .landing-foot .foot-bottom { justify-content: flex-start; }
+  .faq-item summary { padding: 14px 16px; font-size: 0.93rem; }
+  .faq-item .faq-answer { padding: 0 16px 16px; }
 
   .popover { position: fixed; top: var(--topbar-h); right: 8px; left: 8px; width: auto; }
 
@@ -1500,7 +1762,8 @@
    of the mobile rules, and on small phones the hero calls to action go full
    width so they are easy to hit. */
 @media (max-width: 639px) {
-  .feature-grid { grid-template-columns: minmax(0, 1fr); }
+  .feature-grid,
+  .role-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 479px) {
