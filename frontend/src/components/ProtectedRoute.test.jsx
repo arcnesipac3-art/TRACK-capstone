@@ -9,12 +9,12 @@ import ProtectedRoute from './ProtectedRoute'
  * known state. `useAuth` reads the context value directly, so stubbing the
  * provider value is enough — no network involved.
  */
-function renderGuard(authValue, { path = '/admin/dashboard', roles } = {}) {
+function renderGuard(authValue, { path = '/admin/dashboard', roles, permission } = {}) {
   return render(
     <AuthContext.Provider value={authValue}>
       <MemoryRouter initialEntries={[path]}>
         <Routes>
-          <Route element={<ProtectedRoute roles={roles} />}>
+          <Route element={<ProtectedRoute roles={roles} permission={permission} />}>
             <Route
               path={path}
               element={<p>secret screen</p>}
@@ -113,5 +113,26 @@ describe('ProtectedRoute', () => {
     // Documents the contract so nobody assumes this is a security boundary.
     renderGuard(teacher, { roles: ['admin'] })
     expect(screen.getByText('denied screen')).toBeInTheDocument()
+  })
+})
+
+describe('ProtectedRoute — permission gate', () => {
+  const can = (key) => key === 'audit.view'
+
+  it('lets an administrator holding the key onto the gated route', () => {
+    renderGuard({ ...admin, can }, { permission: 'audit.view' })
+    expect(screen.getByText('secret screen')).toBeInTheDocument()
+  })
+
+  it('redirects an administrator without the key to /unauthorized', () => {
+    renderGuard({ ...admin, can }, { permission: 'fees.view' })
+    expect(screen.getByText('denied screen')).toBeInTheDocument()
+    expect(screen.queryByText('secret screen')).not.toBeInTheDocument()
+  })
+
+  it('applies the key check only when a permission is passed', () => {
+    // No `permission` prop → the key is never consulted, role gate alone.
+    renderGuard(admin, { roles: ['admin'] })
+    expect(screen.getByText('secret screen')).toBeInTheDocument()
   })
 })

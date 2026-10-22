@@ -8,8 +8,29 @@ vi.mock('../../services/api', () => ({
   default: {
     post: vi.fn(),
     patch: vi.fn(),
+    put: vi.fn(),
+    get: vi.fn(),
     list: vi.fn().mockResolvedValue([]),
   },
+}))
+
+// The modal reads the signed-in administrator through the auth context — the
+// tests stand in for a Super Administrator who holds every permission.
+const { mockAuth } = vi.hoisted(() => ({
+  mockAuth: {
+    user: {
+      id: 1,
+      username: 'ada',
+      role: 'admin',
+      fullName: 'Ada Admin',
+      isSuperAdmin: true,
+      permissions: [],
+    },
+    can: () => true,
+  },
+}))
+vi.mock('../../context/AuthContext', () => ({
+  useAuth: () => mockAuth,
 }))
 
 const SECTIONS = [
@@ -236,5 +257,72 @@ describe('UserFormModal — submit and errors', () => {
     await waitFor(() =>
       expect(screen.getByText(/valid email/i)).toBeInTheDocument()
     )
+  })
+})
+
+describe('UserFormModal — administrator assignment', () => {
+  const DEPARTMENTS = [
+    { id: 2, name: 'Registrar — Student Records', code: 'REGISTRAR', is_active: true },
+    { id: 5, name: 'Finance — Fee Management', code: 'FINANCE', is_active: true },
+  ]
+
+  async function fillRequired(user) {
+    await user.type(screen.getByLabelText(/first name/i), 'Ana')
+    await user.type(screen.getByLabelText(/last name/i), 'Santos')
+    await user.type(screen.getByLabelText(/username/i), 'ana.santos')
+    await user.type(screen.getByLabelText(/initial password/i), 'pass-Test1234')
+  }
+
+  it('offers the department list when the role is Administrator', async () => {
+    api.list.mockResolvedValue(DEPARTMENTS)
+    const user = userEvent.setup()
+    setup()
+    await user.selectOptions(screen.getByLabelText(/role/i), 'admin')
+
+    await waitFor(() =>
+      expect(screen.getByRole('checkbox', { name: /registrar/i })).toBeInTheDocument()
+    )
+    expect(screen.getByRole('checkbox', { name: /finance/i })).toBeInTheDocument()
+    expect(screen.getByText(/holds exactly the permissions/i)).toBeInTheDocument()
+  })
+
+  it('requires a department or the super flag for a new administrator', async () => {
+    api.list.mockResolvedValue(DEPARTMENTS)
+    const user = userEvent.setup()
+    const { onSaved } = setup()
+    await user.selectOptions(screen.getByLabelText(/role/i), 'admin')
+    await fillRequired(user)
+
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    await waitFor(() =>
+      expect(screen.getByText(/at least one department/i)).toBeInTheDocument()
+    )
+    expect(api.post).not.toHaveBeenCalled()
+    expect(onSaved).not.toHaveBeenCalled()
+  })
+
+  it('creates an administrator with the picked department and the super flag', async () => {
+    api.list.mockResolvedValue(DEPARTMENTS)
+    api.post.mockResolvedValue({ id: 42 })
+    const user = userEvent.setup()
+    const { onSaved, onClose } = setup()
+    await user.selectOptions(screen.getByLabelText(/role/i), 'admin')
+    await fillRequired(user)
+    await user.click(screen.getByRole('checkbox', { name: /registrar/i }))
+    await user.click(screen.getByRole('checkbox', { name: /super administrator/i }))
+
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1))
+    const [path, payload] = api.post.mock.calls[0]
+    expect(path).toBe('/users/')
+    expect(payload).toMatchObject({
+      role: 'admin',
+      departments: [2],
+      is_super_admin: true,
+    })
+    expect(onSaved).toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalled()
   })
 })

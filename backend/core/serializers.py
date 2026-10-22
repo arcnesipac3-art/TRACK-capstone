@@ -10,6 +10,7 @@ from django.core.exceptions import ValidationError
 # `validate_password` would otherwise shadow this import and read as recursion.
 from django.contrib.auth.password_validation import validate_password as check_password
 from rest_framework import serializers
+from rest_framework.exceptions import PermissionDenied
 
 from .models import (
     Announcement,
@@ -17,6 +18,8 @@ from .models import (
     AttendanceRecord,
     AttendanceSession,
     ClassSchedule,
+    Department,
+    DepartmentPermission,
     FeeAssessment,
     FeeCategory,
     FeePayment,
@@ -24,6 +27,7 @@ from .models import (
     GradeLevel,
     Notification,
     ParentProfile,
+    PermissionDefinition,
     Requirement,
     SchoolYear,
     Section,
@@ -33,7 +37,9 @@ from .models import (
     SubmissionHistory,
     TeacherAssignment,
     User,
+    UserPermission,
 )
+from .rbac import PERMISSIONS
 
 
 # ---------------------------------------------------------------------------
@@ -137,18 +143,42 @@ class ResetPasswordSerializer(serializers.Serializer):
 # ---------------------------------------------------------------------------
 
 class UserSerializer(serializers.ModelSerializer):
+    """
+    The signed-in user's own profile (returned by /api/auth/me/ and login).
+
+    Everything permission-related is read-only: a client can never write its
+    own roles or grants through this serializer.
+    """
     full_name = serializers.SerializerMethodField()
+    is_super_admin = serializers.BooleanField(read_only=True)
+    departments = serializers.SerializerMethodField()
+    permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
             "id", "username", "email", "first_name", "middle_name",
             "last_name", "full_name", "role", "is_active",
+            "is_super_admin", "departments", "permissions",
         ]
         read_only_fields = ["id", "username", "role", "is_active"]
 
     def get_full_name(self, obj):
         return obj.get_full_name()
+
+    def get_departments(self, obj):
+        if not obj.is_admin:
+            return []
+        return [
+            {"id": d.id, "name": d.name, "code": d.code, "is_active": d.is_active}
+            for d in obj.departments.all()
+        ]
+
+    def get_permissions(self, obj):
+        """Effective permission keys — what the frontend uses to filter nav."""
+        if not obj.is_admin:
+            return []
+        return sorted(obj.permission_keys())
 
 
 class AdminUserSerializer(serializers.ModelSerializer):
@@ -169,6 +199,13 @@ class AdminUserSerializer(serializers.ModelSerializer):
         help_text="Required for new accounts; leave blank to keep the current one.",
     )
     full_name = serializers.SerializerMethodField()
+    # Department-scoped administration (see core/rbac.py). `departments` is
+    # writable only through this admin serializer, and only for accounts the
+    # actor is allowed to touch — validated in validate().
+    is_super_admin = serializers.BooleanField(required=False)
+    departments = serializers.PrimaryKeyRelatedField(
+        queryset=Department.objects.all(), many=True, required=False,
+    )
     # Write-only: the read values are assembled from the profile rows below.
     section = serializers.PrimaryKeyRelatedField(
         queryset=Section.objects.all(), write_only=True,
@@ -190,6 +227,7 @@ class AdminUserSerializer(serializers.ModelSerializer):
         fields = [
             "id", "username", "password", "email", "first_name", "middle_name",
             "last_name", "full_name", "role", "is_active",
+            "is_super_admin", "departments",
             "section", "lrn", "children", "contact_number",
         ]
         read_only_fields = ["id"]
@@ -245,7 +283,103 @@ class AdminUserSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(
                     {"role": "You cannot change your own role."}
                 )
+
+        self._check_department_scoped_rules(attrs, role)
         return attrs
+
+    # -- department-scoped administration ----------------------------------
+
+    def _check_department_scoped_rules(self, attrs, role):
+        """
+        Enforce the RBAC rules on administrator and student accounts.
+
+        Runs for every create and update that comes through the admin
+        endpoints. A non-admin actor never reaches this code — the views are
+        gated on the `users.*` keys before the serializer runs.
+        """
+        request = self.context.get("request")
+        actor = getattr(request, "user", None)
+        if actor is None or not actor.is_admin:
+            return
+
+        target_is_admin = role == User.Role.ADMIN or (
+            self.instance is not None and self.instance.is_admin
+        )
+
+        # Touching an administrator account needs the administrator key.
+        if target_is_admin and not actor.has_perm_key("users.manage_admins"):
+            raise PermissionDenied(
+                "Only administrators with the 'Manage administrators' "
+                "permission can change administrator accounts."
+            )
+
+        # Student records are a separate permission from account management.
+        if role == User.Role.STUDENT and not actor.has_perm_key("students.manage"):
+            raise PermissionDenied(
+                "You do not have the 'Manage student records' permission."
+            )
+
+        departments = attrs.get("departments")
+        # On HTML-form input DRF fills a missing list field with [], so only a
+        # real assignment counts as "assigning departments".
+        if departments and role != User.Role.ADMIN:
+            raise serializers.ValidationError(
+                {"departments": "Only administrator accounts can be assigned to departments."}
+            )
+
+        # Every administrator must be reachable: a department, or the super
+        # flag. This keeps new accounts least-privilege by construction.
+        if self.instance is None and role == User.Role.ADMIN:
+            if not departments and not attrs.get("is_super_admin"):
+                raise serializers.ValidationError(
+                    {"departments": (
+                        "Assign the new administrator to at least one "
+                        "department, or make them a Super Administrator."
+                    )}
+                )
+
+        if "is_super_admin" in attrs:
+            if attrs["is_super_admin"] and not actor.is_super_admin:
+                raise PermissionDenied(
+                    "Only a Super Administrator can grant the Super "
+                    "Administrator flag."
+                )
+            if (
+                attrs["is_super_admin"] is False
+                and self.instance is not None
+                and self.instance.is_super_admin
+            ):
+                self._require_another_super_admin()
+
+        # Leaving the administrator role also loses the super flag, so it
+        # needs the same safeguard.
+        if (
+            self.instance is not None
+            and self.instance.is_super_admin
+            and role != User.Role.ADMIN
+        ):
+            self._require_another_super_admin()
+
+        # Deactivating the last active super administrator would lock the
+        # school out of its own permission system.
+        if (
+            attrs.get("is_active") is False
+            and self.instance is not None
+            and self.instance.is_super_admin
+        ):
+            self._require_another_super_admin()
+
+    def _require_another_super_admin(self):
+        others = User.objects.filter(
+            role=User.Role.ADMIN, is_super_admin=True, is_active=True
+        ).exclude(pk=self.instance.pk)
+        if not others.exists():
+            raise serializers.ValidationError(
+                {"is_super_admin": (
+                    "This is the last active Super Administrator. Promote "
+                    "another administrator first."
+                )}
+            )
 
     # -- read ---------------------------------------------------------------
 
@@ -274,12 +408,21 @@ class AdminUserSerializer(serializers.ModelSerializer):
             else []
         )
         data["contact_number"] = parent.contact_number if parent else ""
+        data["department_detail"] = (
+            [
+                {"id": d.id, "name": d.name, "code": d.code, "is_active": d.is_active}
+                for d in instance.departments.all()
+            ]
+            if instance.is_admin
+            else []
+        )
         return data
 
     # -- write --------------------------------------------------------------
 
     def create(self, validated_data):
         password = validated_data.pop("password")
+        departments = validated_data.pop("departments", None)
         section = validated_data.pop("section", None)
         lrn = (validated_data.pop("lrn", "") or "").strip()
         children = validated_data.pop("children", None)
@@ -288,6 +431,10 @@ class AdminUserSerializer(serializers.ModelSerializer):
         user = User(**validated_data)
         user.set_password(password)
         user.save()
+
+        # M2M cannot go through User(**validated_data); set it after save.
+        if departments:
+            user.departments.set(departments)
 
         if user.is_student:
             StudentProfile.objects.create(
@@ -304,6 +451,8 @@ class AdminUserSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         password = validated_data.pop("password", None)
+        has_departments = "departments" in validated_data
+        departments = validated_data.pop("departments", [])
         # Track explicit nulls (e.g. clearing a section) apart from omissions.
         has_section = "section" in validated_data
         section = validated_data.pop("section", None)
@@ -320,6 +469,14 @@ class AdminUserSerializer(serializers.ModelSerializer):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
+
+        if instance.is_admin and has_departments:
+            instance.departments.set(departments)
+        elif not instance.is_admin:
+            # A demoted account must not keep department assignments (and
+            # with them a back door to their permissions).
+            instance.departments.clear()
+        instance.invalidate_permission_cache()
 
         if instance.is_student:
             profile, _ = StudentProfile.objects.get_or_create(user=instance)
@@ -1083,3 +1240,105 @@ class FeeOutstandingReportSerializer(serializers.Serializer):
     outstanding = serializers.DecimalField(max_digits=12, decimal_places=2)
     due_date = serializers.DateField()
     payment_status = serializers.CharField()
+
+
+# ---------------------------------------------------------------------------
+# Departments, roles & permissions
+# ---------------------------------------------------------------------------
+
+class DepartmentSerializer(serializers.ModelSerializer):
+    """Department row for the administration screens."""
+
+    administrator_count = serializers.SerializerMethodField()
+    permission_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Department
+        fields = [
+            "id", "name", "code", "description", "is_active",
+            "administrator_count", "permission_count", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]
+
+    def get_administrator_count(self, obj):
+        return obj.administrators.count()
+
+    def get_permission_count(self, obj):
+        return obj.permission_grants.count()
+
+    def validate_code(self, value):
+        value = value.upper().strip()
+        if self.instance and self.instance.code == value:
+            return value
+        if Department.objects.filter(code__iexact=value).exists():
+            raise serializers.ValidationError(
+                "A department with this code already exists."
+            )
+        return value
+
+    def validate(self, attrs):
+        # The code is the stable identifier the audit log and seeded grants
+        # refer to, so it is fixed after creation.
+        if self.instance and "code" in attrs and attrs["code"] != self.instance.code:
+            attrs.pop("code")
+        return attrs
+
+
+class PermissionDefinitionSerializer(serializers.ModelSerializer):
+    """One cell of the permission matrix, rendered from the registry."""
+
+    module_label = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PermissionDefinition
+        fields = [
+            "key", "module", "module_label", "action", "label",
+            "description", "position",
+        ]
+        read_only_fields = fields
+
+    def get_module_label(self, obj):
+        from .rbac import MODULES
+        return MODULES.get(obj.module, obj.module)
+
+
+class PermissionMatrixSerializer(serializers.Serializer):
+    """
+    Body of a matrix save: the complete list of granted keys.
+
+    Replacing the whole set (rather than diffing) means what you see in the
+    UI is exactly what the database ends up holding.
+    """
+    permissions = serializers.ListField(
+        child=serializers.CharField(max_length=60),
+        allow_empty=True,
+    )
+
+    def validate_permissions(self, value):
+        unknown = [key for key in value if key not in PERMISSIONS]
+        if unknown:
+            raise serializers.ValidationError(
+                f"Unknown permission key(s): {', '.join(sorted(unknown))}."
+            )
+        # Keep registry order and drop duplicates so the audit entry is stable.
+        ordered = [key for key in PERMISSIONS if key in set(value)]
+        return ordered
+
+
+class AuditLogSerializer(serializers.ModelSerializer):
+    """Audit trail row. Read-only — nothing here is ever written by a client."""
+
+    actor_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AuditLog
+        fields = [
+            "id", "actor", "actor_name", "action", "target_model", "target_id",
+            "description", "ip_address", "timestamp",
+        ]
+        read_only_fields = fields
+
+    def get_actor_name(self, obj):
+        if not obj.actor:
+            return None
+        return obj.actor.get_full_name() or obj.actor.username

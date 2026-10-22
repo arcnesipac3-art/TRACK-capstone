@@ -10,6 +10,8 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
+from .rbac import PERMISSION_KEYS
+
 
 # ---------------------------------------------------------------------------
 # User
@@ -35,6 +37,21 @@ class User(AbstractUser):
     # Middle name is common in Philippine records
     middle_name = models.CharField(max_length=60, blank=True)
 
+    # ── Department-scoped administration (see core/rbac.py) ───────────────
+    is_super_admin = models.BooleanField(
+        default=False,
+        help_text=(
+            "Holds every permission key. Only meaningful for role='admin'; "
+            "the Super Administrator may grant or revoke it."
+        ),
+    )
+    departments = models.ManyToManyField(
+        "Department",
+        blank=True,
+        related_name="administrators",
+        help_text="Departments this administrator belongs to (admin accounts only).",
+    )
+
     class Meta:
         verbose_name = "User"
         verbose_name_plural = "Users"
@@ -58,6 +75,156 @@ class User(AbstractUser):
     @property
     def is_parent(self):
         return self.role == self.Role.PARENT
+
+    # -- permissions --------------------------------------------------------
+
+    def permission_keys(self):
+        """
+        Every permission key this user currently holds.
+
+        * Super administrators hold all of them.
+        * Other administrators hold their personal grants plus the grants of
+          every *active* department they belong to.
+        * Non-administrative roles hold none — their access is role-scoped.
+        """
+        if not self.is_admin:
+            return frozenset()
+        if self.is_super_admin:
+            return frozenset(PERMISSION_KEYS)
+
+        cached = getattr(self, "_permission_keys_cache", None)
+        if cached is not None:
+            return cached
+
+        keys = set(
+            self.direct_grants.values_list("permission__key", flat=True)
+        )
+        keys |= set(
+            DepartmentPermission.objects.filter(
+                department__in=self.departments.all(),
+                department__is_active=True,
+            ).values_list("permission__key", flat=True)
+        )
+        keys = frozenset(keys)
+        self._permission_keys_cache = keys
+        return keys
+
+    def has_perm_key(self, key):
+        """True when this user holds the permission `key`."""
+        return key in self.permission_keys()
+
+    def invalidate_permission_cache(self):
+        """Call after changing a user's grants or departments mid-request."""
+        self._permission_keys_cache = None
+
+
+# ---------------------------------------------------------------------------
+# Departments & permissions
+# ---------------------------------------------------------------------------
+
+class Department(models.Model):
+    """
+    An administrative department — the unit administrators are assigned to.
+
+    A department carries an explicit set of permission keys
+    (DepartmentPermission). Belonging to a department never grants blanket
+    access: an administrator only ever holds the keys that were granted.
+    """
+
+    name = models.CharField(max_length=120, unique=True)
+    # Stable machine identifier ("REGISTRAR"). Set on creation, then fixed —
+    # it is what the seeded default set and the audit log refer to.
+    code = models.SlugField(max_length=40, unique=True)
+    description = models.TextField(blank=True)
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Deactivated departments stop granting their permissions.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class PermissionDefinition(models.Model):
+    """
+    One row per permission key the code knows about.
+
+    The registry in `core/rbac.py` is the source of truth; a migration keeps
+    this table in step so the permission matrix can be rendered from the
+    database without the frontend hardcoding keys.
+    """
+
+    key = models.CharField(max_length=60, unique=True)  # e.g. "fees.record_payment"
+    module = models.CharField(max_length=40)            # rbac.MODULES key
+    action = models.CharField(max_length=40)            # matrix column
+    label = models.CharField(max_length=80)
+    description = models.TextField(blank=True)
+    position = models.PositiveIntegerField(default=0)   # registry order
+
+    class Meta:
+        ordering = ["position", "key"]
+        verbose_name = "Permission"
+        verbose_name_plural = "Permissions"
+
+    def __str__(self):
+        return self.key
+
+
+class DepartmentPermission(models.Model):
+    """A permission key granted to a department (its matrix row)."""
+
+    department = models.ForeignKey(
+        Department, on_delete=models.CASCADE, related_name="permission_grants"
+    )
+    permission = models.ForeignKey(
+        PermissionDefinition, on_delete=models.CASCADE, related_name="department_grants"
+    )
+    granted_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["department", "permission"], name="uniq_department_permission"
+            )
+        ]
+        ordering = ["department__name", "permission__position"]
+
+    def __str__(self):
+        return f"{self.department.code} → {self.permission.key}"
+
+
+class UserPermission(models.Model):
+    """A permission key granted to one administrator personally."""
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="direct_grants"
+    )
+    permission = models.ForeignKey(
+        PermissionDefinition, on_delete=models.CASCADE, related_name="user_grants"
+    )
+    granted_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "permission"], name="uniq_user_permission"
+            )
+        ]
+        ordering = ["user__username", "permission__position"]
+
+    def __str__(self):
+        return f"{self.user.username} → {self.permission.key}"
 
 
 # ---------------------------------------------------------------------------

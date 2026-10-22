@@ -83,4 +83,14 @@ urlpatterns = [
 
     # ── Dashboard ────────────────────────────────────────────────────────────
     path("dashboard/", views.dashboard_summary, name="dashboard_summary"),
+
+    # ── Departments, roles & permissions ────────────────────────────────────
+    path("departments/", views.DepartmentListCreateView.as_view(), name="department_list"),
+    path("departments/<int:pk>/", views.DepartmentDetailView.as_view(), name="department_detail"),
+    path("departments/<int:pk>/permissions/", views.DepartmentPermissionsView.as_view(), name="department_permissions"),
+    path("permissions/", views.PermissionDefinitionListView.as_view(), name="permission_list"),
+    path("users/<int:pk>/permissions/", views.UserPermissionsView.as_view(), name="user_permissions"),
+
+    # ── Audit log ────────────────────────────────────────────────────────────
+    path("audit-logs/", views.AuditLogListView.as_view(), name="audit_log_list"),
 ]

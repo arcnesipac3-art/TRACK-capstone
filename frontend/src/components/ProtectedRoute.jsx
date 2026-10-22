@@ -7,12 +7,13 @@ import LoadingSpinner from './LoadingSpinner'
  *
  * - while the session is being restored → full-page spinner (no layout jump),
  * - anonymous visitors               → /login (remembering where they went),
- * - wrong role for this branch       → /unauthorized.
+ * - wrong role for this branch       → /unauthorized,
+ * - `permission` not held (admin)    → /unauthorized.
  *
- * This is UX only: Django enforces the real authorization.
+ * This is UX only: Django enforces the real authorization on every request.
  */
-export default function ProtectedRoute({ roles }) {
-  const { isAuthenticated, isLoading, user } = useAuth()
+export default function ProtectedRoute({ roles, permission }) {
+  const { isAuthenticated, isLoading, user, can } = useAuth()
   const location = useLocation()
 
   if (isLoading) {
@@ -28,6 +29,10 @@ export default function ProtectedRoute({ roles }) {
   }
 
   if (roles && !roles.includes(user.role)) {
+    return <Navigate to="/unauthorized" replace />
+  }
+
+  if (permission && !can(permission)) {
     return <Navigate to="/unauthorized" replace />
   }
 

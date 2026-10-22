@@ -20,7 +20,7 @@ const TITLES = {
 }
 
 export default function UsersPage({ role = 'all' }) {
-  const { user: me } = useAuth()
+  const { user: me, can } = useAuth()
   const [title, subtitle] = TITLES[role] || TITLES.all
   const params = role === 'all' ? {} : { role }
   const { data, loading, error, reload } = useFetch('/users/', {
@@ -81,10 +81,12 @@ export default function UsersPage({ role = 'all' }) {
             <span className="badge badge-blue">
               {users.length} {users.length === 1 ? 'account' : 'accounts'}
             </span>
-            <button type="button" className="btn btn-primary btn-sm" onClick={openCreate}>
-              <Icon name="userPlus" size={15} />
-              Add account
-            </button>
+            {can('users.manage') && (
+              <button type="button" className="btn btn-primary btn-sm" onClick={openCreate}>
+                <Icon name="userPlus" size={15} />
+                Add account
+              </button>
+            )}
           </div>
         }
       />
@@ -144,11 +146,37 @@ export default function UsersPage({ role = 'all' }) {
               <tbody>
                 {users.map((user) => {
                   const isMe = me && user.id === me.id
+                  // Django checks the same keys on the write itself — this
+                  // only decides which buttons are offered.
+                  const canTouch =
+                    user.role === 'admin'
+                      ? can('users.manage_admins')
+                      : user.role === 'student'
+                        ? can('students.manage')
+                        : can('users.manage')
+                  const deptNames = (user.department_detail || []).map((d) => d.name)
                   return (
                     <tr key={user.id}>
                       <td data-label="Name" className="cell-main">
                         {user.full_name || user.username}
                         {isMe && <span className="subtle"> (you)</span>}
+                        {user.role === 'admin' && (
+                          <span
+                            style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}
+                          >
+                            {user.is_super_admin && (
+                              <span className="badge badge-red">Super Admin</span>
+                            )}
+                            {deptNames.map((name) => (
+                              <span className="badge badge-blue" key={name}>
+                                {name}
+                              </span>
+                            ))}
+                            {!user.is_super_admin && deptNames.length === 0 && (
+                              <span className="badge badge-neutral">No department</span>
+                            )}
+                          </span>
+                        )}
                       </td>
                       <td data-label="Username">{user.username}</td>
                       <td data-label="Email">
@@ -165,6 +193,8 @@ export default function UsersPage({ role = 'all' }) {
                       </td>
                       <td data-label="Actions">
                         <div className="row-actions">
+                          {canTouch && (
+                            <>
                           <button
                             type="button"
                             className="btn btn-sm btn-ghost"
@@ -204,6 +234,8 @@ export default function UsersPage({ role = 'all' }) {
                             )}
                             {user.is_active ? 'Deactivate' : 'Reactivate'}
                           </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

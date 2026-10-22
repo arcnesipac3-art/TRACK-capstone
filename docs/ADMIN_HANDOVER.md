@@ -56,6 +56,8 @@ For **parents**: link to one or more student profiles.
 | **student** | View own requirements and submissions; view own attendance; submit work |
 | **parent** | View linked child's requirements, submissions, and attendance |
 
+> **Departments & permissions:** administrator accounts can be scoped to departments that each carry a granular permission matrix, configured from the Departments & Roles page by a Super Administrator. Full reference: `docs/DEPARTMENTS_ROLES.md`.
+
 ### Resetting a password
 
 Only an administrator can reset another user's password. Use the Users page in the web app, find the user, and use the "Reset Password" action. The new password is written to the server log and must be communicated to the user securely (in person or by phone). This action is recorded in the audit log.

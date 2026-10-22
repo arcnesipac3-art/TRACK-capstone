@@ -6,21 +6,31 @@
  */
 
 export const NAVIGATION = {
+  // Admin items carry `perm`: the permission key the page needs. Django
+  // enforces the same key on the endpoint behind each page — this only
+  // decides what the sidebar offers. Items without `perm` (Dashboard,
+  // Notifications) stay visible to every administrator; the dashboard itself
+  // renders only the modules the administrator holds.
   admin: [
     { label: 'Dashboard', to: '/admin/dashboard', icon: 'grid' },
-    { label: 'Users', to: '/admin/users', icon: 'users' },
-    { label: 'Students', to: '/admin/students', icon: 'user' },
-    { label: 'Teachers', to: '/admin/teachers', icon: 'user' },
-    { label: 'Parents', to: '/admin/parents', icon: 'users' },
-    { label: 'School Structure', to: '/admin/sections', icon: 'layers' },
-    { label: 'Class Assignments', to: '/admin/assignments', icon: 'book' },
-    { label: 'Class Schedules', to: '/admin/schedules', icon: 'clock' },
-    { label: 'Fees', to: '/admin/fees', icon: 'creditCard' },
-    { label: 'Requirements', to: '/admin/requirements', icon: 'clipboard' },
-    { label: 'Attendance', to: '/admin/attendance', icon: 'calendar' },
-    { label: 'Announcements', to: '/announcements', icon: 'megaphone' },
+    { label: 'Users', to: '/admin/users', icon: 'users', perm: 'users.view' },
+    // The directory pages all read /api/users/, so they need users.view;
+    // *editing* students additionally needs students.manage (UserFormModal).
+    { label: 'Students', to: '/admin/students', icon: 'user', perm: 'users.view' },
+    { label: 'Teachers', to: '/admin/teachers', icon: 'user', perm: 'users.view' },
+    { label: 'Parents', to: '/admin/parents', icon: 'users', perm: 'users.view' },
+    { label: 'School Structure', to: '/admin/sections', icon: 'layers', perm: 'structure.manage' },
+    { label: 'Class Assignments', to: '/admin/assignments', icon: 'book', perm: 'structure.manage' },
+    { label: 'Class Schedules', to: '/admin/schedules', icon: 'clock', perm: 'structure.manage' },
+    { label: 'Fees', to: '/admin/fees', icon: 'creditCard', perm: 'fees.view' },
+    { label: 'Requirements', to: '/admin/requirements', icon: 'clipboard', perm: 'requirements.view' },
+    { label: 'Attendance', to: '/admin/attendance', icon: 'calendar', perm: 'attendance.view' },
+    { label: 'Announcements', to: '/announcements', icon: 'megaphone', perm: 'announcements.view' },
+    { label: 'Reports', to: '/admin/reports', icon: 'file', perm: 'reports.view' },
+    { label: 'Departments & Roles', to: '/admin/departments', icon: 'shield', perm: 'departments.view' },
+    { label: 'Audit Logs', to: '/admin/audit-logs', icon: 'clock', perm: 'audit.view' },
     { label: 'Notifications', to: '/notifications', icon: 'bell' },
-    { label: 'Settings', icon: 'settings', enabled: false },
+    { label: 'System Settings', to: '/admin/settings', icon: 'settings', perm: 'settings.manage' },
   ],
   teacher: [
     { label: 'Dashboard', to: '/teacher/dashboard', icon: 'grid' },
@@ -65,6 +75,19 @@ export const MOBILE_PRIMARY = {
 
 export function navForRole(role) {
   return NAVIGATION[role] || []
+}
+
+/**
+ * Sidebar items for a signed-in user.
+ *
+ * Administrators see only the pages their permission keys unlock (see
+ * core/rbac.py). Other roles are unchanged: their nav is already scoped by
+ * role and the backend keeps scoping their records.
+ */
+export function navForUser(user) {
+  const items = navForRole(user?.role)
+  if (user?.role !== 'admin') return items
+  return items.filter((item) => !item.perm || user.permissions?.includes(item.perm))
 }
 
 export function mobileItemsForRole(role) {

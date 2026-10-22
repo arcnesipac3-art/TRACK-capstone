@@ -18,9 +18,15 @@ from .models import (
     AuditLog,
     AttendanceRecord,
     AttendanceSession,
+    Department,
+    DepartmentPermission,
+    FeeAssessment,
+    FeeCategory,
+    FeePayment,
     GradeLevel,
     Notification,
     ParentProfile,
+    PermissionDefinition,
     Requirement,
     SchoolYear,
     Section,
@@ -30,7 +36,9 @@ from .models import (
     Subject,
     TeacherAssignment,
     User,
+    UserPermission,
 )
+from .rbac import DEFAULT_DEPARTMENTS, PERMISSION_KEYS
 
 
 class TrackTestCase(APITestCase):
@@ -38,9 +46,12 @@ class TrackTestCase(APITestCase):
 
     @classmethod
     def setUpTestData(cls):
+        # The shared fixture administrator is the system administrator: under
+        # the department model that is a Super Administrator. Department
+        # scoped administrators are created explicitly in the RBAC tests.
         cls.admin = User.objects.create_user(
             username="t_admin", password="pass-Admin123", role=User.Role.ADMIN,
-            first_name="Ada", last_name="Admin",
+            first_name="Ada", last_name="Admin", is_super_admin=True,
         )
         cls.teacher1 = User.objects.create_user(
             username="t_teacher1", password="pass-Teach123", role=User.Role.TEACHER,
@@ -2723,3 +2734,622 @@ class Phase3SecurityRegressionTests(TrackTestCase):
         )
 
 
+
+
+# ---------------------------------------------------------------------------
+# Department & role management (core/rbac.py)
+# ---------------------------------------------------------------------------
+
+FINANCE_KEYS = (
+    "students.view", "fees.view", "fees.manage", "fees.record_payment",
+    "fees.reverse", "reports.view", "reports.export", "announcements.view",
+)
+REGISTRAR_KEYS = (
+    "users.view", "users.manage", "students.view", "students.manage",
+    "structure.manage", "requirements.view", "requirements.manage",
+    "requirements.verify", "reports.view", "announcements.view",
+)
+
+
+class DepartmentAndRoleManagementTests(TrackTestCase):
+    """
+    Department-scoped administrators: seeding, enforcement, isolation and the
+    super-administrator safeguards.
+
+    The shared fixture administrator is the system administrator — a Super
+    Administrator. Every administrator created here is scoped exactly the way
+    a real department would scope one.
+    """
+
+    def make_dept_admin(self, username, keys, code=None):
+        """A department with the given keys, plus an administrator in it."""
+        department = Department.objects.create(
+            code=code or f"D{username.upper()}"[:40],
+            name=f"Dept {username}",
+        )
+        DepartmentPermission.objects.bulk_create([
+            DepartmentPermission(department=department, permission=permission)
+            for permission in PermissionDefinition.objects.filter(key__in=keys)
+        ])
+        admin = User.objects.create_user(
+            username=username, password="pass-Dept1234", role=User.Role.ADMIN,
+            first_name="Dee", last_name="Part",
+        )
+        admin.departments.add(department)
+        return admin
+
+    def login_dept(self, user):
+        assert self.client.login(username=user.username, password="pass-Dept1234")
+        return self.client
+
+    # ── Seeding ─────────────────────────────────────────────────────────────
+
+    def test_the_migration_seeds_the_suggested_departments(self):
+        for spec in DEFAULT_DEPARTMENTS:
+            department = Department.objects.get(code=spec["code"])
+            self.assertTrue(department.is_active, spec["code"])
+            self.assertEqual(
+                set(
+                    department.permission_grants.values_list(
+                        "permission__key", flat=True
+                    )
+                ),
+                set(spec["permissions"]),
+                spec["code"],
+            )
+
+    def test_the_permission_matrix_is_seeded_from_the_code_registry(self):
+        self.assertEqual(
+            set(PermissionDefinition.objects.values_list("key", flat=True)),
+            set(PERMISSION_KEYS),
+        )
+
+    # ── Effective permissions ───────────────────────────────────────────────
+
+    def test_an_administrator_holds_exactly_their_department_keys(self):
+        finance = self.make_dept_admin("t_rbac_fin", FINANCE_KEYS)
+
+        self.assertEqual(finance.permission_keys(), frozenset(FINANCE_KEYS))
+        self.assertTrue(finance.has_perm_key("fees.record_payment"))
+        self.assertFalse(finance.has_perm_key("users.view"))
+        # Non-administrative roles hold no keys at all.
+        self.assertEqual(self.teacher1.permission_keys(), frozenset())
+
+    def test_an_inactive_department_stops_granting_its_permissions(self):
+        finance = self.make_dept_admin("t_rbac_off", FINANCE_KEYS)
+        department = finance.departments.first()
+        department.is_active = False
+        department.save()
+
+        self.assertEqual(finance.permission_keys(), frozenset())
+
+    def test_auth_me_reports_the_effective_permissions(self):
+        finance = self.make_dept_admin("t_rbac_me", FINANCE_KEYS)
+        self.login_dept(finance)
+        data = self.client.get("/api/auth/me/").json()
+
+        self.assertEqual(data["permissions"], sorted(FINANCE_KEYS))
+        self.assertFalse(data["is_super_admin"])
+        self.assertEqual(
+            [d["code"] for d in data["departments"]],
+            [finance.departments.first().code],
+        )
+
+        self.client.logout()
+        self.login_as(self.admin)
+        mine = self.client.get("/api/auth/me/").json()
+        self.assertTrue(mine["is_super_admin"])
+        self.assertEqual(mine["permissions"], sorted(PERMISSION_KEYS))
+
+    def test_the_admin_dashboard_is_scoped_by_permission(self):
+        finance = self.make_dept_admin("t_rbac_dash", FINANCE_KEYS)
+        self.login_dept(finance)
+        data = self.client.get("/api/dashboard/").json()
+
+        self.assertEqual(data["role"], "admin")
+        self.assertIn("fees", data["blocks"])
+        # A finance dashboard carries no school-wide account counts.
+        self.assertNotIn("accounts", data["blocks"])
+        self.assertNotIn("total_users", data)
+
+        self.client.logout()
+        self.login_as(self.admin)
+        full = self.client.get("/api/dashboard/").json()
+        self.assertIn("total_users", full)
+        self.assertIn("fees", full["blocks"])
+        self.assertIn("departments", full["blocks"])
+
+    # ── Module isolation ────────────────────────────────────────────────────
+
+    def _published_assessment(self):
+        category = FeeCategory.objects.create(name="Misc fee", code="MISC-RBAC")
+        return FeeAssessment.objects.create(
+            category=category, school_year=self.school_year,
+            grade_level=self.grade7, amount=100,
+            due_date=timezone.now().date() + timedelta(days=30),
+            status=FeeAssessment.Status.PUBLISHED, created_by=self.admin,
+        )
+
+    def test_a_finance_administrator_can_run_the_fee_module(self):
+        finance = self.make_dept_admin("t_rbac_fee", FINANCE_KEYS)
+        assessment = self._published_assessment()
+        self.login_dept(finance)
+
+        category = self.client.post(
+            "/api/fee-categories/",
+            {"name": "Lab fee", "code": "LABRBAC", "fee_type": "compulsory"},
+            format="json",
+        )
+        self.assertEqual(category.status_code, 201, category.content)
+
+        payment = self.client.post("/api/fee-payments/", {
+            "assessment": assessment.id, "student": self.student1.id,
+            "amount": "50.00", "payment_date": timezone.now().date().isoformat(),
+            "payment_method": "cash",
+        }, format="json")
+        self.assertEqual(payment.status_code, 201, payment.content)
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action="fee_payment.recorded", actor=finance
+            ).exists()
+        )
+
+    def test_recording_a_payment_needs_its_own_permission(self):
+        # View and set up fees, but not record money: the cashier desk stays
+        # with the staff who actually take payments.
+        finance = self.make_dept_admin(
+            "t_rbac_norec",
+            ("students.view", "fees.view", "fees.manage", "reports.view"),
+        )
+        assessment = self._published_assessment()
+        self.login_dept(finance)
+
+        response = self.client.post("/api/fee-payments/", {
+            "assessment": assessment.id, "student": self.student1.id,
+            "amount": "50.00", "payment_date": timezone.now().date().isoformat(),
+        }, format="json")
+        self.assertEqual(response.status_code, 403, response.content)
+
+    def test_voiding_a_payment_needs_the_reversal_permission(self):
+        finance = self.make_dept_admin("t_rbac_void", FINANCE_KEYS)
+        assessment = self._published_assessment()
+        payment = FeePayment.objects.create(
+            assessment=assessment, student=self.student1, amount=50,
+            payment_date=timezone.now().date(), recorded_by=self.admin,
+        )
+        self.login_dept(finance)
+
+        voided = self.client.patch(
+            f"/api/fee-payments/{payment.id}/",
+            {"status": "voided", "void_reason": "Double entry."},
+            format="json",
+        )
+        self.assertEqual(voided.status_code, 200, voided.content)
+
+        # The same administrator without fees.reverse is refused.
+        limited = self.make_dept_admin(
+            "t_rbac_void2",
+            ("students.view", "fees.view", "fees.record_payment"),
+        )
+        self.client.logout()
+        self.login_dept(limited)
+        denied = self.client.patch(
+            f"/api/fee-payments/{payment.id}/", {"status": "refunded"},
+            format="json",
+        )
+        self.assertEqual(denied.status_code, 403, denied.content)
+
+    def test_a_finance_administrator_cannot_manage_accounts(self):
+        finance = self.make_dept_admin("t_rbac_fee2", FINANCE_KEYS)
+        self.login_dept(finance)
+
+        self.assertEqual(self.client.get("/api/users/").status_code, 403)
+        created = self.client.post("/api/users/", {
+            "username": "sneaky", "password": "pass-Long1234",
+            "role": "student", "lrn": "100000000088",
+        }, format="json")
+        self.assertEqual(created.status_code, 403, created.content)
+
+    def test_a_finance_administrator_can_read_the_student_directory(self):
+        # The fee screens pick the students they assess and collect from, so
+        # finance gets read-only access to the directory — never write.
+        finance = self.make_dept_admin("t_rbac_fee3", FINANCE_KEYS)
+        self.login_dept(finance)
+
+        listed = self.client.get("/api/students/")
+        self.assertEqual(listed.status_code, 200, listed.content)
+        self.assertTrue(listed.json()["results"])
+
+    def test_a_registrar_administrator_manages_records_but_not_money(self):
+        registrar = self.make_dept_admin("t_rbac_reg", REGISTRAR_KEYS)
+        self.login_dept(registrar)
+
+        created = self.client.post("/api/users/", {
+            "username": "regstudent", "password": "pass-Long1234",
+            "role": "student", "lrn": "100000000066",
+            "section": self.section_a.id,
+        }, format="json")
+        self.assertEqual(created.status_code, 201, created.content)
+
+        grade = self.client.post(
+            "/api/grade-levels/", {"name": "Grade 10", "order": 10},
+            format="json",
+        )
+        self.assertEqual(grade.status_code, 201, grade.content)
+
+        # No fee access, no school-calendar access.
+        self.assertEqual(
+            self.client.post(
+                "/api/fee-categories/",
+                {"name": "Nope", "code": "NOPEREQ"},
+                format="json",
+            ).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.post("/api/school-years/", {
+                "label": "2099-2100", "start_date": "2099-06-01",
+                "end_date": "2100-03-31",
+            }, format="json").status_code,
+            403,
+        )
+
+    def test_student_accounts_need_the_student_records_permission(self):
+        # Managing accounts is not the same as managing student records.
+        limited = self.make_dept_admin(
+            "t_rbac_nostu", ("users.view", "users.manage")
+        )
+        self.login_dept(limited)
+        denied = self.client.post("/api/users/", {
+            "username": "nostudent", "password": "pass-Long1234",
+            "role": "student", "lrn": "100000000055",
+        }, format="json")
+        self.assertEqual(denied.status_code, 403, denied.content)
+
+        # A teacher account is fine with users.manage alone.
+        teacher = self.client.post("/api/users/", {
+            "username": "regteacher", "password": "pass-Long1234",
+            "role": "teacher",
+        }, format="json")
+        self.assertEqual(teacher.status_code, 201, teacher.content)
+
+    def test_an_attendance_administrator_records_attendance_only(self):
+        attendance = self.make_dept_admin(
+            "t_rbac_att",
+            ("students.view", "attendance.view", "attendance.manage",
+             "reports.view"),
+        )
+        session = AttendanceSession.objects.create(
+            teacher_assignment=self.assignment1,
+            date=timezone.now().date() + timedelta(days=1),
+        )
+        self.login_dept(attendance)
+
+        record = self.client.post("/api/attendance/records/", {
+            "session": session.id, "student": self.student1.id,
+            "status": "present",
+        }, format="json")
+        self.assertEqual(record.status_code, 201, record.content)
+        self.assertEqual(
+            self.client.get("/api/attendance/records/").status_code, 200
+        )
+
+        self.assertEqual(self.client.get("/api/users/").status_code, 403)
+        self.assertEqual(
+            self.client.post("/api/fee-categories/", {
+                "name": "Nope", "code": "NOPEATT",
+            }, format="json").status_code,
+            403,
+        )
+
+    def test_a_communications_administrator_publishes_but_cannot_roam(self):
+        comms = self.make_dept_admin(
+            "t_rbac_com", ("announcements.view", "announcements.publish")
+        )
+        self.login_dept(comms)
+
+        posted = self.client.post("/api/announcements/", {
+            "title": "Enrolment week", "body": "Opens Monday.",
+            "audience": "all",
+        }, format="json")
+        self.assertEqual(posted.status_code, 201, posted.content)
+
+        self.assertEqual(self.client.get("/api/students/").status_code, 403)
+        self.assertEqual(self.client.get("/api/users/").status_code, 403)
+        self.assertEqual(
+            self.client.get("/api/attendance/records/").status_code, 403
+        )
+
+    def test_requirements_verification_needs_its_own_permission(self):
+        viewer = self.make_dept_admin(
+            "t_rbac_req", ("requirements.view", "announcements.view")
+        )
+        submission = Submission.objects.create(
+            requirement=self.requirement1, student=self.student1,
+            status=Submission.Status.SUBMITTED, submitted_at=timezone.now(),
+        )
+        self.login_dept(viewer)
+
+        self.assertEqual(self.client.get("/api/requirements/").status_code, 200)
+        denied = self.client.patch(
+            f"/api/submissions/{submission.id}/", {"status": "verified"},
+            format="json",
+        )
+        self.assertEqual(denied.status_code, 403, denied.content)
+
+        verifier = self.make_dept_admin(
+            "t_rbac_req2",
+            ("requirements.view", "requirements.verify", "announcements.view"),
+        )
+        self.client.logout()
+        self.login_dept(verifier)
+        allowed = self.client.patch(
+            f"/api/submissions/{submission.id}/", {"status": "verified"},
+            format="json",
+        )
+        self.assertEqual(allowed.status_code, 200, allowed.content)
+        submission.refresh_from_db()
+        self.assertEqual(submission.status, Submission.Status.VERIFIED)
+
+    # ── Administrator accounts & super-administrator safeguards ─────────────
+
+    def test_only_administrator_managers_touch_admin_accounts(self):
+        registrar = self.make_dept_admin("t_rbac_adm", REGISTRAR_KEYS)
+        other = self.make_dept_admin("t_rbac_adm2", REGISTRAR_KEYS)
+        self.login_dept(registrar)
+
+        denied = self.client.patch(
+            f"/api/users/{other.id}/", {"first_name": "Hacked"},
+            format="json",
+        )
+        self.assertEqual(denied.status_code, 403, denied.content)
+
+        created = self.client.post("/api/users/", {
+            "username": "backdoor", "password": "pass-Long1234",
+            "role": "admin", "departments": [registrar.departments.first().id],
+        }, format="json")
+        self.assertEqual(created.status_code, 403, created.content)
+
+    def test_only_a_super_administrator_can_grant_the_super_flag(self):
+        delegated = self.make_dept_admin(
+            "t_rbac_grant", ("users.view", "users.manage", "users.manage_admins")
+        )
+        self.login_dept(delegated)
+
+        denied = self.client.patch(
+            f"/api/users/{self.student2_user.id}/",
+            {"role": "admin", "is_super_admin": True,
+             "departments": [delegated.departments.first().id]},
+            format="json",
+        )
+        self.assertEqual(denied.status_code, 403, denied.content)
+
+        allowed = self.client.patch(
+            f"/api/users/{self.student2_user.id}/",
+            {"role": "admin", "is_super_admin": False,
+             "departments": [delegated.departments.first().id]},
+            format="json",
+        )
+        self.assertEqual(allowed.status_code, 200, allowed.content)
+        self.student2_user.refresh_from_db()
+        self.assertFalse(self.student2_user.is_super_admin)
+
+    def test_a_new_administrator_account_must_be_scoped(self):
+        self.login_as(self.admin)
+
+        unscoped = self.client.post("/api/users/", {
+            "username": "freeadmin", "password": "pass-Long1234",
+            "role": "admin",
+        }, format="json")
+        self.assertEqual(unscoped.status_code, 400, unscoped.content)
+        self.assertIn("departments", unscoped.json())
+
+        scoped = self.client.post("/api/users/", {
+            "username": "deptadmin", "password": "pass-Long1234",
+            "role": "admin", "departments": [self.seeded_registrar().id],
+        }, format="json")
+        self.assertEqual(scoped.status_code, 201, scoped.content)
+
+        super_created = self.client.post("/api/users/", {
+            "username": "newsuper", "password": "pass-Long1234",
+            "role": "admin", "is_super_admin": True,
+        }, format="json")
+        self.assertEqual(super_created.status_code, 201, super_created.content)
+
+    def seeded_registrar(self):
+        return Department.objects.get(code="REGISTRAR")
+
+    def test_demoting_an_administrator_clears_their_departments(self):
+        registrar = self.make_dept_admin("t_rbac_demote", REGISTRAR_KEYS)
+        self.login_as(self.admin)
+
+        response = self.client.patch(
+            f"/api/users/{registrar.id}/", {"role": "teacher"}, format="json"
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        registrar.refresh_from_db()
+        self.assertEqual(registrar.role, "teacher")
+        self.assertEqual(list(registrar.departments.all()), [])
+        self.assertEqual(registrar.permission_keys(), frozenset())
+
+    def test_the_last_active_super_administrator_cannot_be_demoted(self):
+        second_super = User.objects.create_user(
+            username="t_rbac_super2", password="pass-Dept1234",
+            role=User.Role.ADMIN, first_name="Sam", last_name="Super",
+            is_super_admin=True,
+        )
+        # Demoting one of two super administrators is legitimate; demoting the
+        # *last* one would lock the school out of its own permission system.
+        self.admin.is_active = False
+        self.admin.save(update_fields=["is_active"])
+        self.login_dept(second_super)
+
+        response = self.client.patch(
+            f"/api/users/{second_super.id}/", {"is_super_admin": False},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+        second_super.refresh_from_db()
+        self.assertTrue(second_super.is_super_admin)
+
+    def test_the_last_active_super_administrator_cannot_be_deleted(self):
+        self.login_as(self.admin)
+        response = self.client.delete(f"/api/users/{self.admin.id}/")
+
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertTrue(User.objects.filter(pk=self.admin.pk).exists())
+
+    # ── Department management ───────────────────────────────────────────────
+
+    def test_a_super_administrator_can_create_edit_and_deactivate(self):
+        self.login_as(self.admin)
+        created = self.client.post("/api/departments/", {
+            "name": "Guidance", "code": "GUIDANCE",
+            "description": "Counselling and referrals.",
+        }, format="json")
+        self.assertEqual(created.status_code, 201, created.content)
+        department_id = created.json()["id"]
+
+        renamed = self.client.patch(
+            f"/api/departments/{department_id}/",
+            {"name": "Guidance & Counselling"}, format="json",
+        )
+        self.assertEqual(renamed.status_code, 200, renamed.content)
+
+        deactivated = self.client.patch(
+            f"/api/departments/{department_id}/", {"is_active": False},
+            format="json",
+        )
+        self.assertEqual(deactivated.status_code, 200, deactivated.content)
+
+        for action in ("department.created", "department.updated"):
+            self.assertTrue(
+                AuditLog.objects.filter(action=action, actor=self.admin).exists(),
+                action,
+            )
+
+    def test_a_department_with_administrators_cannot_be_deleted(self):
+        registrar = self.make_dept_admin("t_rbac_del", REGISTRAR_KEYS)
+        department = registrar.departments.first()
+        self.login_as(self.admin)
+
+        denied = self.client.delete(f"/api/departments/{department.id}/")
+        self.assertEqual(denied.status_code, 400, denied.content)
+
+        registrar.departments.clear()
+        allowed = self.client.delete(f"/api/departments/{department.id}/")
+        self.assertEqual(allowed.status_code, 204, allowed.content)
+        self.assertFalse(Department.objects.filter(pk=department.id).exists())
+
+    def test_the_matrix_changes_what_its_adminitors_can_do(self):
+        department = Department.objects.create(
+            code="MATRIX", name="Matrix dept"
+        )
+        DepartmentPermission.objects.create(
+            department=department,
+            permission=PermissionDefinition.objects.get(key="students.view"),
+        )
+        clerk = User.objects.create_user(
+            username="t_rbac_matrix", password="pass-Dept1234",
+            role=User.Role.ADMIN, first_name="Mia", last_name="Matrix",
+        )
+        clerk.departments.add(department)
+
+        self.login_dept(clerk)
+        self.assertEqual(self.client.get("/api/students/").status_code, 200)
+        self.assertEqual(self.client.get("/api/users/").status_code, 403)
+
+        # Swap students.view for users.view through the matrix endpoint.
+        self.client.logout()
+        self.login_as(self.admin)
+        saved = self.client.put(
+            f"/api/departments/{department.id}/permissions/",
+            {"permissions": ["users.view"]}, format="json",
+        )
+        self.assertEqual(saved.status_code, 200, saved.content)
+
+        self.client.logout()
+        self.login_dept(clerk)
+        self.assertEqual(self.client.get("/api/users/").status_code, 200)
+        self.assertEqual(self.client.get("/api/students/").status_code, 403)
+
+    def test_the_matrix_rejects_unknown_keys(self):
+        department = Department.objects.create(code="BOGUS", name="Bogus dept")
+        self.login_as(self.admin)
+
+        response = self.client.put(
+            f"/api/departments/{department.id}/permissions/",
+            {"permissions": ["fees.everything"]}, format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+
+    def test_only_permission_holders_can_edit_the_matrix(self):
+        finance = self.make_dept_admin("t_rbac_mat2", FINANCE_KEYS)
+        target = Department.objects.create(code="VICTIM", name="Victim dept")
+        self.login_dept(finance)
+
+        response = self.client.put(
+            f"/api/departments/{target.id}/permissions/",
+            {"permissions": ["users.manage"]}, format="json",
+        )
+        self.assertEqual(response.status_code, 403, response.content)
+        self.assertEqual(target.permission_grants.count(), 0)
+
+    def test_matrix_changes_are_audited(self):
+        department = Department.objects.create(code="AUDITME", name="Audit dept")
+        self.login_as(self.admin)
+
+        self.client.put(
+            f"/api/departments/{department.id}/permissions/",
+            {"permissions": ["fees.view", "reports.view"]}, format="json",
+        )
+
+        entry = AuditLog.objects.filter(
+            action="permissions.department_updated", actor=self.admin
+        ).first()
+        self.assertIsNotNone(entry)
+        self.assertIn("fees.view", entry.description)
+
+    def test_personal_grants_extend_a_department_administrator(self):
+        registrar = self.make_dept_admin("t_rbac_extra", REGISTRAR_KEYS)
+        self.login_dept(registrar)
+        self.assertEqual(self.client.get("/api/fee-dashboard/").status_code, 403)
+
+        self.client.logout()
+        self.login_as(self.admin)
+        saved = self.client.put(
+            f"/api/users/{registrar.id}/permissions/",
+            {"permissions": ["fees.view"]}, format="json",
+        )
+        self.assertEqual(saved.status_code, 200, saved.content)
+        self.assertIn("fees.view", saved.json()["effective"])
+
+        self.client.logout()
+        self.login_dept(registrar)
+        self.assertEqual(self.client.get("/api/fee-dashboard/").status_code, 200)
+        # The personal grant does not unlock the rest of the fee module.
+        self.assertEqual(
+            self.client.post("/api/fee-categories/", {
+                "name": "Nope", "code": "NOPEXTRA",
+            }, format="json").status_code,
+            403,
+        )
+
+    # ── Audit log ───────────────────────────────────────────────────────────
+
+    def test_the_audit_log_is_super_admin_only_and_read_only(self):
+        self.login_as(self.admin)
+        listed = self.client.get("/api/audit-logs/")
+        self.assertEqual(listed.status_code, 200, listed.content)
+        self.assertIn("results", listed.json())
+        self.assertEqual(
+            self.client.post(
+                "/api/audit-logs/", {"action": "forged"}, format="json"
+            ).status_code,
+            405,
+        )
+
+        self.client.logout()
+        finance = self.make_dept_admin("t_rbac_aud", FINANCE_KEYS)
+        self.login_dept(finance)
+        self.assertEqual(self.client.get("/api/audit-logs/").status_code, 403)

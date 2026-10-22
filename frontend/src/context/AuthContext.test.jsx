@@ -51,6 +51,10 @@ function Probe() {
       <button type="button" onClick={() => auth.logout()}>
         sign out
       </button>
+      <p data-testid="permissions">{(auth.user?.permissions || []).join(',')}</p>
+      <p data-testid="super">{String(auth.user?.isSuperAdmin ?? false)}</p>
+      <p data-testid="can-audit">{String(auth.can('audit.view'))}</p>
+      <p data-testid="can-fees">{String(auth.can('fees.view'))}</p>
     </div>
   )
 }
@@ -202,5 +206,48 @@ describe('AuthProvider', () => {
     expect(keys).not.toContain('token')
     // The profile itself carries no credential fields.
     expect(screen.getByTestId('profile').textContent).not.toMatch(/password/i)
+  })
+})
+
+describe('permission helpers', () => {
+  it('normalizes administrator RBAC data and answers can() per key', async () => {
+    api.me.mockResolvedValue({
+      id: 9,
+      username: 'ada',
+      first_name: 'Ada',
+      last_name: 'Admin',
+      role: 'admin',
+      is_super_admin: true,
+      departments: [
+        { id: 1, name: 'Super Administration', code: 'SYSADMIN', is_active: true },
+      ],
+      permissions: ['users.view', 'audit.view'],
+    })
+    renderAuth()
+    await waitFor(() =>
+      expect(screen.getByTestId('status').textContent).toBe('authenticated')
+    )
+    expect(screen.getByTestId('super').textContent).toBe('true')
+    expect(screen.getByTestId('permissions').textContent).toBe('users.view,audit.view')
+    expect(screen.getByTestId('can-audit').textContent).toBe('true')
+    expect(screen.getByTestId('can-fees').textContent).toBe('false')
+  })
+
+  it('holds no keys for non-administrators, even if the payload sent some', async () => {
+    api.me.mockResolvedValue({
+      id: 3,
+      username: 'tina',
+      first_name: 'Tina',
+      last_name: 'Teacher',
+      role: 'teacher',
+      permissions: ['users.view'],
+    })
+    renderAuth()
+    await waitFor(() =>
+      expect(screen.getByTestId('role').textContent).toBe('teacher')
+    )
+    expect(screen.getByTestId('permissions').textContent).toBe('')
+    expect(screen.getByTestId('can-audit').textContent).toBe('false')
+    expect(screen.getByTestId('can-fees').textContent).toBe('false')
   })
 })

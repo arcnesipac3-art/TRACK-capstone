@@ -31,6 +31,11 @@ function normalizeRole(role) {
 
 function normalizeUser(raw) {
   if (!raw) return null
+  const role = normalizeRole(raw.role)
+  // Backend-provided RBAC data (see core/rbac.py). Only administrators have
+  // departments or permission keys; everything here is read-only.
+  const permissions = Array.isArray(raw.permissions) ? raw.permissions : []
+  const departments = Array.isArray(raw.departments) ? raw.departments : []
   return {
     id: raw.id,
     username: raw.username,
@@ -44,8 +49,11 @@ function normalizeUser(raw) {
         .filter(Boolean)
         .join(' ') ||
       raw.username,
-    role: normalizeRole(raw.role),
+    role,
     isActive: raw.is_active !== false,
+    isSuperAdmin: raw.is_super_admin === true && role === 'admin',
+    departments: role === 'admin' ? departments : [],
+    permissions: role === 'admin' ? permissions : [],
   }
 }
 
@@ -106,6 +114,17 @@ export function AuthProvider({ children }) {
     setStatus('anonymous')
   }, [])
 
+  const can = useCallback(
+    /**
+     * True when the signed-in administrator holds a permission key.
+     * Django enforces this again on every request — this only decides what
+     * the interface offers. Everyone who is not an administrator has none.
+     */
+    (permission) =>
+      !!user && user.role === 'admin' && user.permissions.includes(permission),
+    [user]
+  )
+
   const value = useMemo(
     () => ({
       user,
@@ -113,11 +132,12 @@ export function AuthProvider({ children }) {
       isAuthenticated: status === 'authenticated' && !!user,
       isLoading: status === 'loading',
       bootstrapError,
+      can,
       login,
       logout,
       refreshUser: loadSession,
     }),
-    [user, status, bootstrapError, login, logout, loadSession]
+    [user, status, bootstrapError, can, login, logout, loadSession]
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

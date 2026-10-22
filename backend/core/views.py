@@ -3,11 +3,13 @@ TRACK — API Views
 """
 
 from django.contrib.auth import login, logout
+from functools import partial
 from django.db import transaction
 from django.db.models import Count, ProtectedError, Q
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
 from django.utils import timezone
+from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
@@ -26,6 +28,8 @@ from .models import (
     AttendanceRecord,
     AttendanceSession,
     ClassSchedule,
+    Department,
+    DepartmentPermission,
     FeeAssessment,
     FeeCategory,
     FeePayment,
@@ -33,6 +37,7 @@ from .models import (
     GradeLevel,
     Notification,
     ParentProfile,
+    PermissionDefinition,
     Requirement,
     SchoolYear,
     Section,
@@ -42,6 +47,7 @@ from .models import (
     SubmissionHistory,
     TeacherAssignment,
     User,
+    UserPermission,
 )
 from .notifications import (
     notify_announcement,
@@ -50,14 +56,24 @@ from .notifications import (
     notify_submission_received,
     notify_submission_reviewed,
 )
-from .permissions import IsAdmin, IsAdminOrReadOnly, IsAdminOrTeacher, IsTeacher
+from .permissions import (
+    SAFE_METHODS,
+    AdminCan,
+    AdminKeyOrReadOnly,
+    AdminKeyOrTeacher,
+    IsAdmin,
+    require_key,
+)
+from .rbac import MODULES
 from .serializers import (
     AdminUserSerializer,
     AnnouncementSerializer,
     AttendanceRecordSerializer,
     AttendanceSessionSerializer,
+    AuditLogSerializer,
     ChangePasswordSerializer,
     ClassScheduleSerializer,
+    DepartmentSerializer,
     FeeAssessmentSerializer,
     FeeAssessmentDetailSerializer,
     FeeCategorySerializer,
@@ -68,6 +84,8 @@ from .serializers import (
     GradeLevelSerializer,
     LoginSerializer,
     NotificationSerializer,
+    PermissionDefinitionSerializer,
+    PermissionMatrixSerializer,
     RequirementSerializer,
     ResetPasswordSerializer,
     SchoolYearSerializer,
@@ -259,13 +277,21 @@ class ResetPasswordView(APIView):
     SMTP configured. Every reset is written to the audit log.
     """
 
-    permission_classes = [IsAdmin]
+    def get_permissions(self):
+        return [AdminCan("users.manage")]
 
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         user = User.objects.get(pk=serializer.validated_data["user_id"])
+        # Recovering an administrator's password is administrator management.
+        if user.is_admin and not request.user.has_perm_key("users.manage_admins"):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied(
+                "Only administrators with the 'Manage administrators' "
+                "permission can reset an administrator's password."
+            )
         user.set_password(serializer.validated_data["new_password"])
         user.save(update_fields=["password"])
 
@@ -294,13 +320,23 @@ class ResetPasswordView(APIView):
 # ---------------------------------------------------------------------------
 
 class UserListCreateView(generics.ListCreateAPIView):
-    """Admin: list all users or create a new account (with its profile)."""
-    permission_classes = [IsAdmin]
+    """
+    Admin: list all users or create a new account (with its profile).
+
+    Reading the account directory needs `users.view`; writing needs
+    `users.manage`, and touching an administrator account or a student record
+    needs the extra keys checked in AdminUserSerializer.
+    """
+    def get_permissions(self):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [AdminCan("users.view")]
+        return [AdminCan("users.manage")]
+
     serializer_class = AdminUserSerializer
 
     def get_queryset(self):
         qs = User.objects.select_related("student_profile", "parent_profile").prefetch_related(
-            "parent_profile__children__user"
+            "parent_profile__children__user", "departments"
         )
         role = self.request.query_params.get("role")
         if role:
@@ -319,30 +355,112 @@ class UserListCreateView(generics.ListCreateAPIView):
             action="user.created",
             target_model="User",
             target_id=str(user.pk),
-            description=f"Created account '{user.username}' with role '{user.role}'.",
+            description=(
+                f"Created account '{user.username}' with role '{user.role}'."
+                + (
+                    f" Super administrator: yes."
+                    if user.is_super_admin else ""
+                )
+                + (
+                    " Departments: "
+                    + ", ".join(user.departments.values_list("name", flat=True)) + "."
+                    if user.is_admin and user.departments.exists() else ""
+                )
+            ),
             ip_address=_client_ip(self.request),
         )
 
 
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Admin: retrieve, update, or deactivate a user."""
-    permission_classes = [IsAdmin]
+    """
+    Admin: retrieve, update, or deactivate a user.
+
+    Same key rules as the list view; role, department and super-administrator
+    changes are validated in AdminUserSerializer and recorded in the audit log.
+    """
     queryset = User.objects.all()
     serializer_class = AdminUserSerializer
 
+    def get_permissions(self):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [AdminCan("users.view")]
+        return [AdminCan("users.manage")]
+
     def get_queryset(self):
         return User.objects.select_related("student_profile", "parent_profile").prefetch_related(
-            "parent_profile__children__user"
+            "parent_profile__children__user", "departments"
         )
 
     def perform_update(self, serializer):
+        # Captured before save(): serializer.instance is still the old row.
+        old = {
+            "role": serializer.instance.role,
+            "is_active": serializer.instance.is_active,
+            "is_super_admin": serializer.instance.is_super_admin,
+        }
+        old_departments = set(
+            serializer.instance.departments.values_list("id", flat=True)
+        )
+
         user = serializer.save()
+
+        changes = []
+        if old["role"] != user.role:
+            changes.append(f"role {old['role']} → {user.role}")
+        if old["is_active"] != user.is_active:
+            changes.append(
+                "account activated" if user.is_active else "account deactivated"
+            )
+        if old["is_super_admin"] != user.is_super_admin:
+            changes.append(
+                "super administrator granted"
+                if user.is_super_admin else "super administrator revoked"
+            )
+        new_departments = set(user.departments.values_list("id", flat=True))
+        if old_departments != new_departments:
+            added = user.departments.filter(id__in=new_departments - old_departments)
+            removed_ids = old_departments - new_departments
+            removed = Department.objects.filter(id__in=removed_ids)
+            parts = []
+            if added:
+                parts.append("added " + ", ".join(d.name for d in added))
+            if removed:
+                parts.append("removed " + ", ".join(d.name for d in removed))
+            changes.append("departments " + " and ".join(parts))
+
         AuditLog.objects.create(
             actor=self.request.user,
             action="user.updated",
             target_model="User",
             target_id=str(user.pk),
-            description=f"Updated account '{user.username}'.",
+            description=(
+                f"Updated account '{user.username}'."
+                + (f" Changes: {'; '.join(changes)}." if changes else "")
+            ),
+            ip_address=_client_ip(self.request),
+        )
+
+    def perform_destroy(self, instance):
+        # The last active super administrator cannot be deleted — the school
+        # would lose control of its own permission system.
+        if instance.is_super_admin:
+            others = User.objects.filter(
+                role=User.Role.ADMIN, is_super_admin=True, is_active=True
+            ).exclude(pk=instance.pk)
+            if not others.exists():
+                from rest_framework.exceptions import ValidationError
+                raise ValidationError({"detail": (
+                    "This is the last active Super Administrator. Promote "
+                    "another administrator before deleting this account."
+                )})
+        username = instance.username
+        instance.delete()
+        AuditLog.objects.create(
+            actor=self.request.user,
+            action="user.deleted",
+            target_model="User",
+            target_id=str(instance.pk),
+            description=f"Deleted account '{username}'.",
             ip_address=_client_ip(self.request),
         )
 
@@ -361,7 +479,8 @@ class SchoolYearPagination(PageNumberPagination):
 
 
 class SchoolYearListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrReadOnly]
+    # The school calendar is a school-wide setting: reading stays open,
+    # writing needs `settings.manage` (super administrators by default).
     queryset = SchoolYear.objects.all().annotate(
         section_count=Count('sections'),
         subject_count=Count('subjects')
@@ -370,6 +489,9 @@ class SchoolYearListCreateView(generics.ListCreateAPIView):
     pagination_class = SchoolYearPagination
     ordering_fields = ['label', 'start_date', 'end_date', 'is_active']
     ordering = ['-start_date']
+
+    def get_permissions(self):
+        return [AdminKeyOrReadOnly("settings.manage")]
 
     def get_queryset(self):
         # Annotate() drops Meta.ordering, and no OrderingFilter is enabled, so
@@ -387,12 +509,18 @@ class SchoolYearListCreateView(generics.ListCreateAPIView):
 
 
 class SchoolYearDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdmin]
     queryset = SchoolYear.objects.all().annotate(
         section_count=Count('sections'),
         subject_count=Count('subjects')
     )
     serializer_class = SchoolYearSerializer
+
+    def get_permissions(self):
+        # Reads stay administrator-only as before; writes are a school-wide
+        # setting.
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [IsAdmin()]
+        return [AdminCan("settings.manage")]
 
     def perform_destroy(self, instance):
         # Section.school_year and Subject.school_year are CASCADE, so deleting
@@ -424,7 +552,7 @@ class GradeLevelPagination(PageNumberPagination):
 
 
 class GradeLevelListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrReadOnly]
+    # Reads stay open; writes are school-structure management.
     queryset = GradeLevel.objects.all().annotate(
         section_count=Count('sections'),
         subject_count=Count('subjects')
@@ -433,6 +561,9 @@ class GradeLevelListCreateView(generics.ListCreateAPIView):
     pagination_class = GradeLevelPagination
     ordering_fields = ['name', 'order']
     ordering = ['order']
+
+    def get_permissions(self):
+        return [AdminKeyOrReadOnly("structure.manage")]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -443,12 +574,16 @@ class GradeLevelListCreateView(generics.ListCreateAPIView):
 
 
 class GradeLevelDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdmin]
     queryset = GradeLevel.objects.all().annotate(
         section_count=Count('sections'),
         subject_count=Count('subjects')
     )
     serializer_class = GradeLevelSerializer
+
+    def get_permissions(self):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [IsAdmin()]
+        return [AdminCan(write_key="structure.manage")]
 
     def perform_destroy(self, instance):
         # Section.grade_level and Subject.grade_level are PROTECT, so Django
@@ -470,11 +605,13 @@ class SectionPagination(PageNumberPagination):
 
 
 class SectionListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrReadOnly]
     serializer_class = SectionSerializer
     pagination_class = SectionPagination
     ordering_fields = ['name', 'grade_level__order', 'school_year__label', 'adviser__last_name']
     ordering = ['grade_level__order', 'name']
+
+    def get_permissions(self):
+        return [AdminKeyOrReadOnly("structure.manage")]
 
     def get_queryset(self):
         # annotate() drops Meta.ordering and no OrderingFilter is enabled, so
@@ -500,11 +637,15 @@ class SectionListCreateView(generics.ListCreateAPIView):
 
 
 class SectionDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdmin]
     queryset = Section.objects.select_related("grade_level", "school_year", "adviser").annotate(
         student_count=Count('students')
     )
     serializer_class = SectionSerializer
+
+    def get_permissions(self):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [IsAdmin()]
+        return [AdminCan(write_key="structure.manage")]
 
     def perform_destroy(self, instance):
         # StudentProfile.section is SET_NULL, so deleting a section in use
@@ -529,11 +670,13 @@ class SubjectPagination(PageNumberPagination):
 
 
 class SubjectListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrReadOnly]
     serializer_class = SubjectSerializer
     pagination_class = SubjectPagination
     ordering_fields = ['name', 'code', 'grade_level__order', 'school_year__label']
     ordering = ['grade_level__order', 'name']
+
+    def get_permissions(self):
+        return [AdminKeyOrReadOnly("structure.manage")]
 
     def get_queryset(self):
         # annotate() drops Meta.ordering and no OrderingFilter is enabled, so
@@ -554,11 +697,15 @@ class SubjectListCreateView(generics.ListCreateAPIView):
 
 
 class SubjectDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdmin]
     queryset = Subject.objects.select_related("grade_level", "school_year").annotate(
         assignment_count=Count('assignments')
     )
     serializer_class = SubjectSerializer
+
+    def get_permissions(self):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [IsAdmin()]
+        return [AdminCan(write_key="structure.manage")]
 
     def perform_destroy(self, instance):
         # Requirements hang off an assignment of this subject; deleting the
@@ -572,8 +719,10 @@ class SubjectDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class TeacherAssignmentListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrReadOnly]
     serializer_class = TeacherAssignmentSerializer
+
+    def get_permissions(self):
+        return [AdminKeyOrReadOnly("structure.manage")]
 
     def get_queryset(self):
         qs = TeacherAssignment.objects.select_related(
@@ -589,9 +738,13 @@ class TeacherAssignmentListCreateView(generics.ListCreateAPIView):
 
 
 class TeacherAssignmentDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAdmin]
     queryset = TeacherAssignment.objects.all()
     serializer_class = TeacherAssignmentSerializer
+
+    def get_permissions(self):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [IsAdmin()]
+        return [AdminCan(write_key="structure.manage")]
 
 
 # ---------------------------------------------------------------------------
@@ -606,6 +759,9 @@ class StudentProfileListView(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         if user.is_admin:
+            # The student directory is personal data: an administrator needs
+            # `students.view` (registrar, finance for assessments, attendance).
+            require_key(user, "students.view")
             return StudentProfile.objects.select_related("user", "section")
         if user.is_teacher:
             # Teachers see students in their assigned sections
@@ -641,6 +797,8 @@ def _requirement_queryset_for(user, query_params=None):
     query_params = query_params or {}
 
     if user.is_admin:
+        # Admins see every requirement — but only with `requirements.view`.
+        require_key(user, "requirements.view")
         qs = Requirement.objects.select_related(
             "teacher_assignment__subject",
             "teacher_assignment__section",
@@ -714,6 +872,8 @@ class RequirementListCreateView(generics.ListCreateAPIView):
         if not (user.is_admin or user.is_teacher):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("Only teachers can create requirements.")
+        if user.is_admin:
+            require_key(user, "requirements.manage")
         assignment = serializer.validated_data.get("teacher_assignment")
         if user.is_teacher:
             if assignment is None or assignment.teacher_id != user.pk:
@@ -732,9 +892,11 @@ class RequirementDetailView(generics.RetrieveUpdateDestroyAPIView):
         # Reads follow the list scoping (student: own section, parent: linked
         # children). Writes stay staff-only — widening `get_queryset` to those
         # roles must not hand them an edit/delete route they never had.
+        # Teachers keep the route they always had; administrators need
+        # `requirements.manage`.
         if self.request.method in ("GET", "HEAD", "OPTIONS"):
             return [IsAuthenticated()]
-        return [IsAdminOrTeacher()]
+        return [AdminKeyOrTeacher("requirements.manage")]
 
     def get_queryset(self):
         # Same scoping as the list view. Returning `none()` here (the old
@@ -765,6 +927,8 @@ class SubmissionListCreateView(generics.ListCreateAPIView):
         status_param = self.request.query_params.get("status")
 
         if user.is_admin:
+            # Submissions belong to the requirements module.
+            require_key(user, "requirements.view")
             if child_id:
                 qs = qs.filter(student_id=child_id)
             if requirement_id:
@@ -909,6 +1073,7 @@ class SubmissionDetailView(generics.RetrieveUpdateAPIView):
     def get_queryset(self):
         user = self.request.user
         if user.is_admin:
+            require_key(user, "requirements.view")
             return Submission.objects.all()
         if user.is_teacher:
             assignments = TeacherAssignment.objects.filter(teacher=user)
@@ -937,6 +1102,10 @@ class SubmissionDetailView(generics.RetrieveUpdateAPIView):
             raise PermissionDenied(
                 "Parents have read-only access to submissions."
             )
+        if user.is_admin:
+            # Reviewing submissions is the requirements module's "verify"
+            # permission — not every administrator gets it.
+            require_key(user, "requirements.verify")
         old_status = serializer.instance.status
         submission = serializer.save()
         if submission.status != old_status:
@@ -981,14 +1150,20 @@ class ClassScheduleListCreateView(generics.ListCreateAPIView):
         if not self.request.user.is_admin:
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("Only administrators can create schedules.")
+        # Class scheduling is part of the school structure.
+        require_key(self.request.user, "structure.manage")
         serializer.save()
 
 
 class ClassScheduleDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Admin only for schedule management."""
-    permission_classes = [IsAdmin]
     queryset = ClassSchedule.objects.all()
     serializer_class = ClassScheduleSerializer
+
+    def get_permissions(self):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [IsAdmin()]
+        return [AdminCan(write_key="structure.manage")]
 
 
 @api_view(["POST"])
@@ -1048,6 +1223,8 @@ def generate_attendance_sessions(request):
     
     # Get teacher assignments
     if user.is_admin:
+        # Generating sessions for every class is an attendance action.
+        require_key(user, "attendance.manage")
         # Admin can generate for all teachers
         teacher_param = request.data.get("teacher_id")
         if teacher_param:
@@ -1124,8 +1301,12 @@ def generate_attendance_sessions(request):
 
 
 class AttendanceSessionListCreateView(generics.ListCreateAPIView):
-    permission_classes = [IsAdminOrTeacher]
     serializer_class = AttendanceSessionSerializer
+
+    def get_permissions(self):
+        # Teachers keep their existing route; administrators are
+        # department-scoped (attendance department / super administrator).
+        return [AdminKeyOrTeacher("attendance.view", "attendance.manage")]
 
     def get_queryset(self):
         user = self.request.user
@@ -1148,8 +1329,10 @@ class AttendanceSessionListCreateView(generics.ListCreateAPIView):
 
 
 class AttendanceSessionDetailView(generics.RetrieveUpdateAPIView):
-    permission_classes = [IsAdminOrTeacher]
     serializer_class = AttendanceSessionSerializer
+
+    def get_permissions(self):
+        return [AdminKeyOrTeacher("attendance.view", "attendance.manage")]
 
     def get_queryset(self):
         user = self.request.user
@@ -1172,6 +1355,9 @@ class AttendanceRecordListCreateView(generics.ListCreateAPIView):
         student_id = self.request.query_params.get("student")
 
         if user.is_admin:
+            # Reading school-wide attendance is the attendance module's
+            # "view" permission; students and parents keep their own rows.
+            require_key(user, "attendance.view")
             if student_id:
                 qs = qs.filter(student_id=student_id)
             return qs
@@ -1230,6 +1416,8 @@ class AttendanceRecordListCreateView(generics.ListCreateAPIView):
             raise PermissionDenied(
                 "Only teachers and administrators can record attendance."
             )
+        if user.is_admin:
+            require_key(user, "attendance.manage")
         session = serializer.validated_data.get("session")
         student = serializer.validated_data.get("student")
         if user.is_teacher:
@@ -1252,8 +1440,10 @@ class AttendanceRecordListCreateView(generics.ListCreateAPIView):
 
 
 class AttendanceRecordDetailView(generics.RetrieveUpdateAPIView):
-    permission_classes = [IsAdminOrTeacher]
     serializer_class = AttendanceRecordSerializer
+
+    def get_permissions(self):
+        return [AdminKeyOrTeacher("attendance.view", "attendance.manage")]
 
     def get_queryset(self):
         user = self.request.user
@@ -1327,6 +1517,9 @@ class AnnouncementListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        if user.is_admin:
+            # Admins see every announcement — with `announcements.view`.
+            require_key(user, "announcements.view")
         # Build audience filter
         qs = Announcement.objects.select_related("author")
         from .models import Announcement as A
@@ -1399,6 +1592,9 @@ class AnnouncementListCreateView(generics.ListCreateAPIView):
         if not (self.request.user.is_admin or self.request.user.is_teacher):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("Only teachers and admins can post announcements.")
+        if self.request.user.is_admin:
+            # Publishing announcements is the communications department's job.
+            require_key(self.request.user, "announcements.publish")
         announcement = serializer.save(author=self.request.user)
         # Fan out to everyone in the target audience.
         notify_announcement(announcement)
@@ -1411,11 +1607,22 @@ class AnnouncementDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_queryset(self):
         user = self.request.user
         if user.is_admin:
+            require_key(user, "announcements.view")
             return Announcement.objects.all()
         # Teachers can only edit their own
         if user.is_teacher:
             return Announcement.objects.filter(author=user)
         return Announcement.objects.none()
+
+    def perform_update(self, serializer):
+        if self.request.user.is_admin:
+            require_key(self.request.user, "announcements.publish")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        if self.request.user.is_admin:
+            require_key(self.request.user, "announcements.publish")
+        instance.delete()
 
 
 # ---------------------------------------------------------------------------
@@ -1468,6 +1675,145 @@ def _submission_summary(submissions_qs, requirements_qs=None):
 
 def _section_label(assignment_section):
     return f"{assignment_section.grade_level.name} — {assignment_section.name}"
+
+
+def _admin_dashboard_payload(user, now):
+    """
+    The administrator dashboard, scoped by permission.
+
+    The legacy top-level figures stay for anyone holding `users.view` (the
+    full-administrator dashboard), and every administrator additionally gets a
+    `blocks` object containing only the modules they are authorized for — a
+    department administrator never receives school-wide numbers for modules
+    outside their department. Every figure is a real count; a missing block
+    means "not authorized", never "no data".
+    """
+    perms = user.permission_keys()
+    payload = {
+        "role": "admin",
+        "is_super_admin": user.is_super_admin,
+        "departments": [
+            {"id": d.id, "name": d.name, "code": d.code, "is_active": d.is_active}
+            for d in user.departments.all()
+        ],
+        "permissions": sorted(perms),
+        "unread_notifications": user.notifications.filter(is_read=False).count(),
+        "blocks": {},
+    }
+    blocks = payload["blocks"]
+
+    if "users.view" in perms:
+        accounts = {
+            "total_users": User.objects.count(),
+            "total_students": User.objects.filter(role=User.Role.STUDENT).count(),
+            "total_teachers": User.objects.filter(role=User.Role.TEACHER).count(),
+            "total_parents": User.objects.filter(role=User.Role.PARENT).count(),
+        }
+        blocks["accounts"] = accounts
+        payload.update(accounts)
+
+    if "structure.manage" in perms:
+        active_year = SchoolYear.objects.filter(is_active=True).first()
+        blocks["structure"] = {
+            "total_sections": Section.objects.count(),
+            "total_grade_levels": GradeLevel.objects.count(),
+            "total_subjects": Subject.objects.count(),
+            "active_school_year": active_year.label if active_year else None,
+        }
+        if "users.view" in perms:
+            payload["total_sections"] = blocks["structure"]["total_sections"]
+
+    if "requirements.view" in perms:
+        requirements = Requirement.objects.all()
+        blocks["requirements"] = {
+            "total_requirements": requirements.count(),
+            "active_requirements": requirements.filter(deadline__gte=now).count(),
+            "total_submissions": Submission.objects.count(),
+            "awaiting_verification": Submission.objects.filter(
+                status=Submission.Status.SUBMITTED
+            ).count(),
+            "submission_status": _submission_summary(
+                Submission.objects.all(), requirements
+            ),
+        }
+        if "users.view" in perms:
+            payload["total_requirements"] = blocks["requirements"]["total_requirements"]
+            payload["active_requirements"] = blocks["requirements"]["active_requirements"]
+            payload["total_submissions"] = blocks["requirements"]["total_submissions"]
+            payload["submission_status"] = blocks["requirements"]["submission_status"]
+
+    if "attendance.view" in perms:
+        blocks["attendance"] = _attendance_summary(AttendanceRecord.objects.all())
+        if "users.view" in perms:
+            payload["attendance"] = blocks["attendance"]
+
+    if "fees.view" in perms:
+        from decimal import Decimal
+
+        from django.db.models import Sum
+
+        active_year = SchoolYear.objects.filter(is_active=True).first()
+        assessments = FeeAssessment.objects.filter(
+            status=FeeAssessment.Status.PUBLISHED
+        )
+        if active_year:
+            assessments = assessments.filter(school_year=active_year)
+        total_assessed = 0
+        for assessment in assessments:
+            total_assessed += assessment.amount * assessment.get_applicable_students().count()
+        total_collected = FeePayment.objects.filter(
+            assessment__in=assessments, status=FeePayment.Status.COMPLETED
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+        blocks["fees"] = {
+            "total_assessed": float(total_assessed),
+            "total_collected": float(total_collected),
+            "total_outstanding": float(total_assessed - total_collected),
+            "active_school_year": active_year.label if active_year else None,
+        }
+
+    if "announcements.view" in perms:
+        announcements = Announcement.objects.all()
+        blocks["announcements"] = {
+            "total": announcements.count(),
+            "pinned": announcements.filter(is_pinned=True).count(),
+            "latest": [
+                {
+                    "id": a.id,
+                    "title": a.title,
+                    "audience": a.audience,
+                    "published_at": a.published_at.isoformat() if a.published_at else None,
+                }
+                for a in announcements.order_by("-is_pinned", "-published_at")[:3]
+            ],
+        }
+
+    if "audit.view" in perms:
+        blocks["audit"] = {
+            "recent_activity": [
+                {
+                    "id": entry.id,
+                    "action": entry.action,
+                    "description": entry.description,
+                    "actor": entry.actor.get_full_name() or entry.actor.username
+                    if entry.actor else None,
+                    "timestamp": entry.timestamp.isoformat(),
+                }
+                for entry in AuditLog.objects.select_related("actor")[:5]
+            ],
+        }
+        if "users.view" in perms:
+            payload["recent_activity"] = blocks["audit"]["recent_activity"]
+
+    if "departments.view" in perms:
+        blocks["departments"] = {
+            "total": Department.objects.count(),
+            "active": Department.objects.filter(is_active=True).count(),
+            "super_admins": User.objects.filter(
+                role=User.Role.ADMIN, is_super_admin=True, is_active=True
+            ).count(),
+        }
+
+    return payload
 
 
 @api_view(["GET"])
@@ -1633,36 +1979,7 @@ def dashboard_summary(request):
         })
 
     if user.is_admin:
-        recent_activity = [
-            {
-                "id": entry.id,
-                "action": entry.action,
-                "description": entry.description,
-                "actor": entry.actor.get_full_name() or entry.actor.username
-                if entry.actor else None,
-                "timestamp": entry.timestamp.isoformat(),
-            }
-            for entry in AuditLog.objects.select_related("actor")[:8]
-        ]
-        return Response({
-            "role": "admin",
-            "total_users": User.objects.count(),
-            "total_students": User.objects.filter(role=User.Role.STUDENT).count(),
-            "total_teachers": User.objects.filter(role=User.Role.TEACHER).count(),
-            "total_parents": User.objects.filter(role=User.Role.PARENT).count(),
-            "total_sections": Section.objects.count(),
-            "total_requirements": Requirement.objects.count(),
-            "active_requirements": Requirement.objects.filter(
-                deadline__gte=now
-            ).count(),
-            "total_submissions": Submission.objects.count(),
-            "submission_status": _submission_summary(
-                Submission.objects.all(), Requirement.objects.all()
-            ),
-            "attendance": _attendance_summary(AttendanceRecord.objects.all()),
-            "recent_activity": recent_activity,
-            "unread_notifications": user.notifications.filter(is_read=False).count(),
-        })
+        return Response(_admin_dashboard_payload(user, now))
 
     return Response({"error": "Unknown role."}, status=400)
 
@@ -1679,12 +1996,14 @@ class FeePagination(PageNumberPagination):
 
 class FeeCategoryListCreateView(generics.ListCreateAPIView):
     """Admin: list and create fee categories."""
-    permission_classes = [IsAdminOrReadOnly]
     queryset = FeeCategory.objects.all().annotate(
         assessment_count=Count('assessments')
     ).order_by('name')
     serializer_class = FeeCategorySerializer
     pagination_class = FeePagination
+
+    def get_permissions(self):
+        return [AdminKeyOrReadOnly("fees.manage")]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -1705,9 +2024,11 @@ class FeeCategoryListCreateView(generics.ListCreateAPIView):
 
 class FeeCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Admin: retrieve, update, or delete a fee category."""
-    permission_classes = [IsAdmin]
     queryset = FeeCategory.objects.all()
     serializer_class = FeeCategorySerializer
+
+    def get_permissions(self):
+        return [AdminCan("fees.view", "fees.manage")]
 
     def perform_destroy(self, instance):
         # Prevent deletion if assessments exist
@@ -1721,9 +2042,11 @@ class FeeCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class FeeAssessmentListCreateView(generics.ListCreateAPIView):
     """Admin: list and create fee assessments."""
-    permission_classes = [IsAdminOrReadOnly]
     serializer_class = FeeAssessmentSerializer
     pagination_class = FeePagination
+
+    def get_permissions(self):
+        return [AdminKeyOrReadOnly("fees.manage")]
 
     def get_queryset(self):
         qs = FeeAssessment.objects.select_related(
@@ -1769,11 +2092,13 @@ class FeeAssessmentListCreateView(generics.ListCreateAPIView):
 
 class FeeAssessmentDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Admin: retrieve, update, or archive a fee assessment."""
-    permission_classes = [IsAdmin]
     queryset = FeeAssessment.objects.select_related(
         "category", "school_year", "grade_level", "section", "student__user", "created_by"
     )
     serializer_class = FeeAssessmentDetailSerializer
+
+    def get_permissions(self):
+        return [AdminCan("fees.view", "fees.manage")]
 
     def perform_update(self, serializer):
         instance = serializer.save()
@@ -1804,9 +2129,13 @@ class FeeAssessmentDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class FeePaymentListCreateView(generics.ListCreateAPIView):
     """Admin/staff: list and record fee payments."""
-    permission_classes = [IsAdminOrTeacher]
     serializer_class = FeePaymentSerializer
     pagination_class = FeePagination
+
+    def get_permissions(self):
+        # Teachers keep their existing route; administrators need the finance
+        # department's keys — recording a payment is not viewing one.
+        return [AdminKeyOrTeacher("fees.view", "fees.record_payment")]
 
     def get_queryset(self):
         user = self.request.user
@@ -1907,13 +2236,16 @@ class FeePaymentListCreateView(generics.ListCreateAPIView):
 
 class FeePaymentDetailView(generics.RetrieveUpdateAPIView):
     """Admin: retrieve or update a fee payment (void/refund)."""
-    permission_classes = [IsAdmin]
     queryset = FeePayment.objects.select_related(
         "assessment__category", "assessment__school_year",
         "student__user", "student__section__grade_level",
         "recorded_by", "voided_by"
     )
     serializer_class = FeePaymentSerializer
+
+    def get_permissions(self):
+        # Reads need fees.view; every write here is a reversal.
+        return [AdminCan("fees.view", "fees.reverse")]
 
     def perform_update(self, serializer):
         old_status = serializer.instance.status
@@ -1943,8 +2275,10 @@ class FeePaymentDetailView(generics.RetrieveUpdateAPIView):
 
 class FeePaymentHistoryView(generics.ListAPIView):
     """View payment history for a specific payment."""
-    permission_classes = [IsAdminOrTeacher]
     serializer_class = FeePaymentHistorySerializer
+
+    def get_permissions(self):
+        return [AdminKeyOrTeacher("fees.view")]
 
     def get_queryset(self):
         payment_id = self.kwargs["payment_id"]
@@ -2061,9 +2395,11 @@ class StudentFeeSummaryView(generics.ListAPIView):
 
 
 @api_view(["GET"])
-@permission_classes([IsAdmin])
+# Function-based views instantiate their permission classes with no args, so
+# the keyed class is passed as a partial.
+@permission_classes([partial(AdminCan, "reports.view")])
 def fee_collection_report(request):
-    """Admin: Fee collection summary report."""
+    """Reports: fee collection summary report."""
     from django.db.models import Sum, Count, Q
     from decimal import Decimal
 
@@ -2161,9 +2497,9 @@ def fee_collection_report(request):
 
 
 @api_view(["GET"])
-@permission_classes([IsAdmin])
+@permission_classes([partial(AdminCan, "reports.view")])
 def fee_outstanding_report(request):
-    """Admin: Outstanding balance report."""
+    """Reports: outstanding balance report."""
     from django.db.models import Sum, Q
     from decimal import Decimal
 
@@ -2225,9 +2561,9 @@ def fee_outstanding_report(request):
 
 
 @api_view(["GET"])
-@permission_classes([IsAdmin])
+@permission_classes([partial(AdminCan, "fees.view")])
 def fee_dashboard_summary(request):
-    """Admin: Fee management dashboard summary."""
+    """Finance: fee management dashboard summary."""
     from django.db.models import Sum, Count, Q
     from decimal import Decimal
 
@@ -2326,3 +2662,332 @@ def fee_dashboard_summary(request):
         "category_breakdown": category_breakdown,
         "recent_payments": recent_data,
     })
+
+
+# ---------------------------------------------------------------------------
+# Departments, roles & permissions
+# ---------------------------------------------------------------------------
+
+class DepartmentPagination(PageNumberPagination):
+    page_size = 25
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+class DepartmentListCreateView(generics.ListCreateAPIView):
+    """
+    Admin: the department directory.
+
+    Reading needs `departments.view`; creating a department needs
+    `departments.manage`. Deactivating a department is the way to retire it —
+    it stops granting its permissions immediately.
+    """
+    serializer_class = DepartmentSerializer
+    pagination_class = DepartmentPagination
+
+    def get_permissions(self):
+        if self.request.method in SAFE_METHODS:
+            return [AdminCan("departments.view")]
+        return [AdminCan("departments.manage")]
+
+    def get_queryset(self):
+        qs = Department.objects.all()
+        search = self.request.query_params.get("search")
+        is_active = self.request.query_params.get("is_active")
+        if search:
+            qs = qs.filter(
+                Q(name__icontains=search) | Q(code__icontains=search)
+            )
+        if is_active is not None:
+            qs = qs.filter(is_active=is_active.lower() == "true")
+        return qs
+
+    def perform_create(self, serializer):
+        department = serializer.save()
+        AuditLog.objects.create(
+            actor=self.request.user,
+            action="department.created",
+            target_model="Department",
+            target_id=str(department.pk),
+            description=f"Created department '{department.name}' ({department.code}).",
+            ip_address=_client_ip(self.request),
+        )
+
+
+class DepartmentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    Admin: edit, rename, activate or deactivate a department.
+
+    A department that still has administrators cannot be deleted — reassign
+    them first, or deactivate the department instead.
+    """
+    queryset = Department.objects.all()
+    serializer_class = DepartmentSerializer
+
+    def get_permissions(self):
+        if self.request.method in SAFE_METHODS:
+            return [AdminCan("departments.view")]
+        return [AdminCan("departments.manage")]
+
+    def perform_update(self, serializer):
+        old_active = serializer.instance.is_active
+        old_name = serializer.instance.name
+        department = serializer.save()
+
+        changes = []
+        if old_name != department.name:
+            changes.append(f"renamed from '{old_name}'")
+        if old_active != department.is_active:
+            changes.append(
+                "activated" if department.is_active else "deactivated"
+            )
+
+        AuditLog.objects.create(
+            actor=self.request.user,
+            action="department.updated",
+            target_model="Department",
+            target_id=str(department.pk),
+            description=(
+                f"Updated department '{department.name}'."
+                + (f" Changes: {'; '.join(changes)}." if changes else "")
+            ),
+            ip_address=_client_ip(self.request),
+        )
+
+    def perform_destroy(self, instance):
+        assigned = instance.administrators.count()
+        if assigned:
+            raise ValidationError({"detail": (
+                f"'{instance}' still has {assigned} assigned administrator(s). "
+                "Reassign them to another department first, or deactivate the "
+                "department instead of deleting it."
+            )})
+        name = instance.name
+        instance.delete()
+        AuditLog.objects.create(
+            actor=self.request.user,
+            action="department.deleted",
+            target_model="Department",
+            target_id="",
+            description=f"Deleted department '{name}'.",
+            ip_address=_client_ip(self.request),
+        )
+
+
+class DepartmentPermissionsView(APIView):
+    """
+    The permission matrix for one department.
+
+    GET returns the granted keys; PUT replaces the whole set with the keys in
+    the body, so what the screen shows is exactly what the database holds.
+    """
+
+    def get_permissions(self):
+        return [AdminCan("departments.permissions")]
+
+    def get(self, request, pk):
+        department = get_object_or_404(Department, pk=pk)
+        return Response({
+            "department": {
+                "id": department.id,
+                "name": department.name,
+                "code": department.code,
+                "is_active": department.is_active,
+            },
+            "permissions": sorted(
+                department.permission_grants.values_list("permission__key", flat=True)
+            ),
+        })
+
+    def put(self, request, pk):
+        department = get_object_or_404(Department, pk=pk)
+        serializer = PermissionMatrixSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        keys = serializer.validated_data["permissions"]
+
+        old = set(
+            department.permission_grants.values_list("permission__key", flat=True)
+        )
+        new = set(keys)
+        permissions = list(
+            PermissionDefinition.objects.filter(key__in=keys)
+        )
+
+        with transaction.atomic():
+            department.permission_grants.all().delete()
+            DepartmentPermission.objects.bulk_create([
+                DepartmentPermission(
+                    department=department,
+                    permission=permission,
+                    granted_by=request.user,
+                )
+                for permission in permissions
+            ])
+
+        added = sorted(new - old)
+        removed = sorted(old - new)
+        summary = []
+        if added:
+            summary.append("granted " + ", ".join(added))
+        if removed:
+            summary.append("revoked " + ", ".join(removed))
+        AuditLog.objects.create(
+            actor=request.user,
+            action="permissions.department_updated",
+            target_model="Department",
+            target_id=str(department.pk),
+            description=(
+                f"Updated permissions for '{department.name}': "
+                + ("; ".join(summary) if summary else "no change") + "."
+            ),
+            ip_address=_client_ip(request),
+        )
+        return Response({"permissions": sorted(new)})
+
+
+class PermissionDefinitionListView(generics.ListAPIView):
+    """
+    The permission definitions the matrix is built from.
+
+    Read-only for every administrator: the keys are not secret, only *who
+    holds them* is. The registry in core/rbac.py is the source of truth.
+    """
+    serializer_class = PermissionDefinitionSerializer
+    queryset = PermissionDefinition.objects.all()
+    pagination_class = None
+
+    def get_permissions(self):
+        return [IsAdmin()]
+
+
+class UserPermissionsView(APIView):
+    """
+    Personal permission grants for one administrator.
+
+    Effective permissions = department grants + these personal grants. Only
+    administrators can hold grants; the super administrator flag is managed
+    on the account itself, not here.
+    """
+
+    def get_permissions(self):
+        return [AdminCan("departments.permissions")]
+
+    def _target(self, request, pk):
+        target = get_object_or_404(User, pk=pk)
+        if not target.is_admin:
+            raise ValidationError({
+                "detail": "Permission grants only apply to administrator accounts."
+            })
+        return target
+
+    def get(self, request, pk):
+        target = self._target(request, pk)
+        return Response({
+            "user": {
+                "id": target.id,
+                "username": target.username,
+                "full_name": target.get_full_name(),
+                "is_super_admin": target.is_super_admin,
+            },
+            "permissions": sorted(
+                target.direct_grants.values_list("permission__key", flat=True)
+            ),
+            "effective": sorted(target.permission_keys()),
+        })
+
+    def put(self, request, pk):
+        target = self._target(request, pk)
+        serializer = PermissionMatrixSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        keys = serializer.validated_data["permissions"]
+
+        old = set(target.direct_grants.values_list("permission__key", flat=True))
+        new = set(keys)
+        permissions = list(PermissionDefinition.objects.filter(key__in=keys))
+
+        with transaction.atomic():
+            target.direct_grants.all().delete()
+            UserPermission.objects.bulk_create([
+                UserPermission(
+                    user=target,
+                    permission=permission,
+                    granted_by=request.user,
+                )
+                for permission in permissions
+            ])
+        target.invalidate_permission_cache()
+
+        added = sorted(new - old)
+        removed = sorted(old - new)
+        summary = []
+        if added:
+            summary.append("granted " + ", ".join(added))
+        if removed:
+            summary.append("revoked " + ", ".join(removed))
+        AuditLog.objects.create(
+            actor=request.user,
+            action="permissions.user_updated",
+            target_model="User",
+            target_id=str(target.pk),
+            description=(
+                f"Updated personal permissions for '{target.username}': "
+                + ("; ".join(summary) if summary else "no change") + "."
+            ),
+            ip_address=_client_ip(request),
+        )
+        return Response({
+            "permissions": sorted(new),
+            "effective": sorted(target.permission_keys()),
+        })
+
+
+# ---------------------------------------------------------------------------
+# Audit log
+# ---------------------------------------------------------------------------
+
+class AuditLogPagination(PageNumberPagination):
+    page_size = 25
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
+
+class AuditLogListView(generics.ListAPIView):
+    """
+    The audit trail, newest first.
+
+    Read-only, and only for administrators holding `audit.view` (the super
+    administrator by default). Rows are written by the backend at the moment
+    of the action — nothing here can be edited or deleted through the API.
+    """
+    serializer_class = AuditLogSerializer
+    pagination_class = AuditLogPagination
+
+    def get_permissions(self):
+        return [AdminCan("audit.view")]
+
+    def get_queryset(self):
+        qs = AuditLog.objects.select_related("actor")
+        action = self.request.query_params.get("action")
+        actor = self.request.query_params.get("actor")
+        target_model = self.request.query_params.get("target_model")
+        target_id = self.request.query_params.get("target_id")
+        search = self.request.query_params.get("search")
+        date_from = self.request.query_params.get("date_from")
+        date_to = self.request.query_params.get("date_to")
+        if action:
+            qs = qs.filter(action__icontains=action)
+        if actor:
+            qs = qs.filter(actor_id=actor)
+        if target_model:
+            qs = qs.filter(target_model=target_model)
+        if target_id:
+            qs = qs.filter(target_id=target_id)
+        if search:
+            qs = qs.filter(
+                Q(description__icontains=search) | Q(action__icontains=search)
+            )
+        if date_from:
+            qs = qs.filter(timestamp__date__gte=date_from)
+        if date_to:
+            qs = qs.filter(timestamp__date__lte=date_to)
+        return qs

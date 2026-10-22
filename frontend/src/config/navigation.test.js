@@ -4,6 +4,7 @@ import {
   NAVIGATION,
   mobileItemsForRole,
   navForRole,
+  navForUser,
   titleForPath,
 } from './navigation'
 
@@ -58,6 +59,52 @@ describe('navForRole', () => {
   it('returns an empty list for an unknown role instead of throwing', () => {
     expect(navForRole('robot')).toEqual([])
     expect(navForRole(undefined)).toEqual([])
+  })
+})
+
+describe('navForUser', () => {
+  const adminWith = (permissions) => ({ role: 'admin', permissions })
+
+  it('shows an administrator only the pages their permissions unlock', () => {
+    const tos = navForUser(adminWith(['users.view'])).map((i) => i.to)
+    expect(tos).toContain('/admin/users')
+    expect(tos).not.toContain('/admin/fees')
+    expect(tos).not.toContain('/admin/departments')
+    expect(tos).not.toContain('/admin/audit-logs')
+  })
+
+  it('keeps Dashboard and Notifications visible for every administrator', () => {
+    expect(navForUser(adminWith([])).map((i) => i.to)).toEqual([
+      '/admin/dashboard',
+      '/notifications',
+    ])
+  })
+
+  it('shows every page to a super administrator, who holds every key', () => {
+    const allAdminKeys = [
+      'users.view',
+      'structure.manage',
+      'fees.view',
+      'requirements.view',
+      'attendance.view',
+      'announcements.view',
+      'reports.view',
+      'departments.view',
+      'audit.view',
+      'settings.manage',
+    ]
+    expect(new Set(navForUser(adminWith(allAdminKeys)).map((i) => i.to))).
+      toEqual(new Set(NAVIGATION.admin.map((i) => i.to)))
+  })
+
+  it('leaves non-administrator roles untouched — their nav is role-scoped', () => {
+    expect(navForUser({ role: 'teacher', permissions: [] })).toBe(NAVIGATION.teacher)
+    expect(navForUser({ role: 'student' })).toBe(NAVIGATION.student)
+  })
+
+  it('falls back to an empty list for unknown users instead of throwing', () => {
+    expect(navForUser(undefined)).toEqual([])
+    expect(navForUser({})).toEqual([])
   })
 })
 

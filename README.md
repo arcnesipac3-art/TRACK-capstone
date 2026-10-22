@@ -193,14 +193,14 @@ The mobile dev environment reads `mobile/.env.development` which points to `http
 
 ## Running tests
 
-### Backend (197 tests)
+### Backend (227 tests)
 
 ```bash
 # From project root, with .venv activated
 python backend/manage.py test core
 ```
 
-### Frontend (202 tests)
+### Frontend (227 tests)
 
 ```bash
 cd frontend
@@ -219,14 +219,18 @@ All endpoints are prefixed with `/api/`. Key groups:
 
 - `GET /api/health/` — public health check
 - `/api/auth/` — login, logout, token (mobile), me, change-password, reset-password
-- `/api/users/` — admin: user CRUD
+- `/api/users/` — admin: user CRUD (writes gated by permission keys)
+- `/api/departments/`, `/api/permissions/`, `/api/users/<id>/permissions/` — department & permission management
+- `/api/audit-logs/` — audit trail of administrative actions
 - `/api/school-years/`, `/api/grade-levels/`, `/api/sections/`, `/api/subjects/`, `/api/teacher-assignments/` — school structure
 - `/api/requirements/`, `/api/submissions/` — requirements and student submissions
 - `/api/schedules/`, `/api/attendance/sessions/`, `/api/attendance/records/` — attendance
 - `/api/notifications/`, `/api/announcements/` — communications
 - `/api/dashboard/` — role-specific dashboard metrics
 
-See `backend/core/urls.py` for the complete route list.
+See `backend/core/urls.py` for the complete route list, and
+`docs/DEPARTMENTS_ROLES.md` for how departments, permissions and the Super
+Administrator role work.
 
 ---
 

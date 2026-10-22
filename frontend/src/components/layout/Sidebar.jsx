@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import Icon from '../Icon'
 import Logo from '../Logo'
-import { navForRole } from '../../config/navigation'
+import { navForUser } from '../../config/navigation'
 import { useAuth } from '../../context/AuthContext'
 import { roleLabel } from '../../utils/format'
 
@@ -44,7 +44,7 @@ function NavItem({ item, onNavigate }) {
  */
 export default function Sidebar({ onNavigate, variant = 'fixed' }) {
   const { user } = useAuth()
-  const items = navForRole(user?.role)
+  const items = navForUser(user)
 
   return (
     <nav
