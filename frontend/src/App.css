@@ -2101,3 +2101,38 @@
 .badge-info { background: var(--blue-100); color: var(--blue-700); }
 .badge-secondary { background: var(--gray-100); color: var(--text-muted); }
 .badge-neutral { background: var(--gray-100); color: var(--text); }
+
+/* ---------------------------------------------------------------------------
+ * Fee receipt (printable)
+ * ------------------------------------------------------------------------- */
+.receipt-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+.receipt-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9rem;
+  vertical-align: top;
+}
+.receipt-table td:first-child {
+  color: var(--text-muted);
+  white-space: nowrap;
+  width: 40%;
+}
+
+@media print {
+  /* Hide everything except the receipt being printed. */
+  body * { visibility: hidden; }
+  .receipt-print, .receipt-print * { visibility: visible; }
+  .receipt-print {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    padding: 24px;
+    background: #fff;
+  }
+  .receipt-print .form-actions { display: none; }
+}
