@@ -1,5 +1,7 @@
 # TRACK — School Requirements & Attendance Monitoring
 
+[![CI](https://github.com/arcnesipac3-art/TRACK-capstone/actions/workflows/ci.yml/badge.svg)](https://github.com/arcnesipac3-art/TRACK-capstone/actions/workflows/ci.yml)
+
 **Kiwalan National High School, Iligan City, Philippines**
 
 TRACK is a role-based school monitoring system that lets administrators, teachers, students, and parents manage academic requirements and attendance records. It runs as a Django REST API backend with a React web frontend and a React Native (Expo) mobile app.
