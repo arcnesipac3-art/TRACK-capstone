@@ -3,13 +3,16 @@ export function SummaryRows({ rows }) {
   return (
     <div>
       {rows.map((row) => {
+        // Percentages always use the raw numeric `value`; `display` (when
+        // given) only changes what is rendered, so comma-formatted counts
+        // like "1,234" never poison the maths.
         const pct = row.total > 0 ? Math.round((row.value / row.total) * 100) : 0
         return (
           <div className="progress-row" key={row.label}>
             <div className="pr-top">
               <span className="pr-label">{row.label}</span>
               <span className="pr-value">
-                {row.value}
+                {row.display ?? row.value}
                 {row.showPercent ? ` · ${pct}%` : ''}
               </span>
             </div>

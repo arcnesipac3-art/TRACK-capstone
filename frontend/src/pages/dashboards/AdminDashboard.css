@@ -1,0 +1,209 @@
+/* ==========================================================================
+   Admin dashboard — hero header, stat grid and panel rows.
+   Everything here is scoped to .dash-admin so the shared components
+   (StatCard, Card, QuickActions, EmptyState) keep their global styling on
+   the teacher, student and parent dashboards.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------------
+   Hero header
+   --------------------------------------------------------------------- */
+
+.dash-hero {
+  align-items: flex-start;
+  margin-bottom: 2px;
+}
+
+.dash-hero .page-title {
+  font-size: 1.65rem;
+  letter-spacing: -0.015em;
+}
+
+.dash-hero .page-subtitle {
+  font-size: 0.95rem;
+  margin-top: 3px;
+}
+
+.dash-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Subtle, professional role indicator — replaces the oversized warning-style
+   badge that used to dominate the header. */
+.role-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--navy-700);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.dept-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--blue-50);
+  border: 1px solid var(--blue-200);
+  color: var(--blue-700);
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.dept-chip-more {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+.dash-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.83rem;
+  color: var(--text-muted);
+}
+.dash-meta-item svg {
+  color: var(--text-subtle);
+  flex: 0 0 auto;
+}
+
+/* Notification shortcut in the header actions slot. */
+.dash-notif-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--navy-700);
+  font-size: 0.88rem;
+  font-weight: 650;
+  text-decoration: none;
+  transition: border-color var(--ease), background var(--ease),
+    box-shadow var(--ease);
+}
+.dash-notif-btn:hover {
+  border-color: var(--navy-700);
+  background: var(--surface-alt);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+}
+
+/* Unread count — red here is a genuine status signal. */
+.dash-notif-count {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--red-600);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------
+   Statistic grid
+   --------------------------------------------------------------------- */
+
+/* auto-fit (not fixed columns): a department admin holding three blocks
+   gets three full-width cards instead of a trailing empty column, and the
+   grid steps down to 2 / 1 columns naturally on smaller screens. */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+/* ---------------------------------------------------------------------
+   Requirements status stack
+   --------------------------------------------------------------------- */
+
+.status-stack {
+  display: flex;
+  gap: 2px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--gray-100);
+  overflow: hidden;
+  margin: 2px 0 8px;
+}
+
+.ss-seg {
+  min-width: 8px;
+  height: 100%;
+  border-radius: 3px;
+}
+.ss-none { background: var(--navy-700); }
+.ss-submitted { background: var(--amber-700); }
+.ss-verified { background: var(--green-700); }
+.ss-returned { background: var(--red-600); }
+.ss-overdue { background: var(--red-700); }
+
+/* ---------------------------------------------------------------------
+   Activity / announcement rows
+   --------------------------------------------------------------------- */
+
+/* Inside .card-body the shared 20px horizontal padding would double up. */
+.dash-admin .activity-item {
+  padding: 11px 0;
+  gap: 12px;
+}
+
+.act-icon {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  margin-top: 1px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--navy-700);
+}
+.act-icon.blue { background: var(--blue-50); color: var(--blue-700); }
+.act-icon.amber { background: var(--amber-100); color: var(--amber-700); }
+.act-icon.green { background: var(--green-100); color: var(--green-700); }
+.act-icon.red { background: var(--red-100); color: var(--red-700); }
+
+.dash-admin .ai-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.dash-admin .ai-meta {
+  font-size: 0.79rem;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+/* ---------------------------------------------------------------------
+   Loading skeleton
+   --------------------------------------------------------------------- */
+
+.skeleton-hero { height: 92px; }
+
+/* ---------------------------------------------------------------------
+   Responsive
+   --------------------------------------------------------------------- */
+
+@media (max-width: 767px) {
+  .dash-hero .page-title { font-size: 1.38rem; }
+  /* Two comfortable columns on phones (200px tracks collapse to one). */
+  .stat-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .stat-grid .stat-card { min-height: 104px; }
+  .dash-meta { gap: 6px 10px; }
+}

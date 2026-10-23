@@ -73,7 +73,10 @@
   /* Layout */
   --sidebar-w: 256px;
   --topbar-h: 64px;
-  --content-max: 1200px;
+  /* Wide-desktop cap: 1200px left large empty margins on 1440px+ monitors
+     (dashboard content sat in a narrow band). 1440px matches the ≥1440
+     breakpoint in App.css while keeping text lines readable. */
+  --content-max: 1440px;
 
   /* Motion */
   --ease: 160ms ease;
@@ -367,6 +370,27 @@ img, svg { display: block; }
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
   min-width: 0;
+  min-height: 112px;
+}
+
+/* Optional icon chip sits beside the label; screens without icons are
+   unchanged. */
+.stat-card .stat-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.stat-card .stat-icon {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--blue-50);
+  color: var(--navy-700);
 }
 
 .stat-card .stat-label {
@@ -383,6 +407,14 @@ img, svg { display: block; }
   letter-spacing: -0.02em;
   color: var(--navy-800);
   line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Formatted currency ("₱1,234,567.89") needs a smaller step to stay on one
+   line inside a grid card. */
+.stat-card .stat-value.is-long {
+  font-size: 1.32rem;
+  letter-spacing: -0.01em;
 }
 
 .stat-card .stat-hint {
@@ -393,6 +425,10 @@ img, svg { display: block; }
 .stat-card.tone-green .stat-value { color: var(--green-700); }
 .stat-card.tone-amber .stat-value { color: var(--amber-700); }
 .stat-card.tone-red .stat-value { color: var(--red-700); }
+/* The tone cascades to the icon chip so cards stay visually consistent. */
+.stat-card.tone-green .stat-icon { background: var(--green-100); color: var(--green-700); }
+.stat-card.tone-amber .stat-icon { background: var(--amber-100); color: var(--amber-700); }
+.stat-card.tone-red .stat-icon { background: var(--red-100); color: var(--red-700); }
 
 /* ---------------------------------------------------------------------
    Status badges

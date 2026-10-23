@@ -750,42 +750,50 @@
 
 .quick-actions {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
 }
 
 .quick-action {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 13px 14px;
+  gap: 12px;
+  padding: 14px 16px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   font: inherit;
-  font-size: 0.89rem;
+  font-size: 0.92rem;
   font-weight: 600;
   color: var(--text);
   text-align: left;
+  min-height: 58px;
   cursor: pointer;
   transition: border-color var(--ease), box-shadow var(--ease),
-    transform var(--ease);
+    background var(--ease);
   text-decoration: none;
 }
 .quick-action:hover {
-  border-color: var(--navy-800);
-  box-shadow: var(--shadow-sm);
+  border-color: var(--navy-700);
+  background: var(--surface-alt);
+  box-shadow: var(--shadow);
   text-decoration: none;
 }
+.quick-action .qa-label { min-width: 0; overflow-wrap: anywhere; }
 .quick-action .qa-icon {
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--blue-50);
   color: var(--navy-800);
   flex: 0 0 auto;
+  transition: background var(--ease), color var(--ease);
+}
+.quick-action:hover .qa-icon {
+  background: var(--navy-800);
+  color: #fff;
 }
 
 /* Requirement / record cards */
@@ -1846,7 +1854,11 @@
   .popover { position: fixed; top: var(--topbar-h); right: 8px; left: 8px; width: auto; }
 
   .btn { min-height: 42px; }
-  .quick-action { padding: 12px; }
+  /* Phones: two comfortable columns instead of one long single-column list
+     (auto-fit at 200px would collapse to a single track at 375–390px). */
+  .quick-actions { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .quick-action { padding: 12px; min-height: 54px; gap: 10px; }
+  .quick-action .qa-icon { width: 30px; height: 30px; }
 }
 
 /* Landing page: the feature cards drop to one column a little before the rest

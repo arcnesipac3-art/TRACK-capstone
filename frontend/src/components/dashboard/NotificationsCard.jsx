@@ -12,6 +12,7 @@ export default function NotificationsCard({ limit = 5 }) {
   })
 
   const items = (data || []).slice(0, limit)
+  const unread = (data || []).filter((item) => !item.is_read).length
 
   return (
     <Card
@@ -29,9 +30,16 @@ export default function NotificationsCard({ limit = 5 }) {
         ) : null
       }
       action={
-        <Link className="btn btn-sm btn-ghost" to="/notifications">
-          View all
-        </Link>
+        <div className="row row-wrap" style={{ gap: 6 }}>
+          {unread > 0 && (
+            <span className="badge badge-blue" title={`${unread} unread notifications`}>
+              {unread} new
+            </span>
+          )}
+          <Link className="btn btn-sm btn-ghost" to="/notifications">
+            View all
+          </Link>
+        </div>
       }
     >
       <div className="activity-list">

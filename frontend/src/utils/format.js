@@ -12,6 +12,22 @@ const DATETIME_OPTS = {
 /** Today's date label, resolved once when the app bundle loads. */
 export const TODAY_LABEL = new Date().toLocaleDateString('en-PH', DATE_OPTS)
 
+/** Long-form date for dashboard headers: "Friday, October 23, 2026". */
+export const TODAY_FULL_LABEL = new Date().toLocaleDateString('en-PH', {
+  weekday: 'long',
+  month: 'long',
+  day: 'numeric',
+  year: 'numeric',
+})
+
+/** Announcement audience values → display labels. */
+export const AUDIENCE_LABELS = {
+  all: 'Everyone',
+  students: 'Students',
+  parents: 'Parents',
+  teachers: 'Teachers',
+}
+
 function toDate(value) {
   if (!value) return null
   const date = value instanceof Date ? value : new Date(value)

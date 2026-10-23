@@ -1,17 +1,28 @@
 import Card, { SummaryRows } from './Card'
+import EmptyState from '../EmptyState'
 
 /**
  * Attendance summary card built from the backend's attendance aggregate:
  * `{ total_records, by_status: {present, absent, late, excused}, present_rate }`
+ *
+ * Zero records is an honest "not recorded yet" state — never zero absences
+ * or a fabricated perfect rate (the backend sends `present_rate: null`).
+ * `emptyAction` lets callers add a permission-aware shortcut.
  */
-export default function AttendanceSummaryCard({ attendance, title = 'Attendance summary' }) {
+export default function AttendanceSummaryCard({
+  attendance,
+  title = 'Attendance summary',
+  emptyAction,
+}) {
   if (!attendance || attendance.total_records === 0) {
     return (
       <Card title={title}>
-        <p className="muted" style={{ fontSize: '0.9rem' }}>
-          No attendance has been recorded yet. Records will appear after
-          teachers take attendance in class.
-        </p>
+        <EmptyState
+          icon="calendar"
+          title="No attendance recorded yet"
+          message="Attendance information will appear here after teachers record it in class."
+          action={emptyAction}
+        />
       </Card>
     )
   }

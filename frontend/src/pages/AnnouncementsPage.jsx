@@ -8,15 +8,8 @@ import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
-import { formatDateTime, formatRelative } from '../utils/format'
+import { AUDIENCE_LABELS, formatDateTime, formatRelative } from '../utils/format'
 import './AnnouncementsPage.css'
-
-const AUDIENCE_LABELS = {
-  all: 'Everyone',
-  students: 'Students',
-  parents: 'Parents',
-  teachers: 'Teachers',
-}
 
 const AUDIENCE_OPTIONS = [
   { value: 'all', label: 'Everyone' },
