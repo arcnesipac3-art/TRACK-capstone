@@ -728,6 +728,39 @@
 .progress-fill.red { background: var(--red-700); }
 .progress-fill.blue { background: var(--blue-600); }
 
+/* "Today" strip inside the attendance summary card (date-scoped figures). */
+.att-today {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-alt);
+}
+.att-today-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-subtle);
+}
+.att-today-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.att-today-counts .att-present { color: var(--green-700); }
+.att-today-counts .att-absent { color: var(--red-700); }
+.att-today-counts .att-late { color: var(--amber-700); }
+.att-today-counts .att-excused { color: var(--blue-600); }
+.att-today-empty { margin: 0 0 12px; }
+
 .activity-list { display: flex; flex-direction: column; }
 
 .activity-item {

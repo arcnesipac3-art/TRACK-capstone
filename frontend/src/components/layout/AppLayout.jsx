@@ -4,6 +4,7 @@ import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import MobileNavigation from './MobileNavigation'
 import useFetch from '../../hooks/useFetch'
+import { NotificationsContext } from '../../context/NotificationsContext'
 
 /**
  * Authenticated application shell:
@@ -40,35 +41,37 @@ export default function AppLayout() {
   const unreadCount = (notifications.data || []).filter((n) => !n.is_read).length
 
   return (
-    <div className="app-shell">
-      <Sidebar />
+    <NotificationsContext.Provider value={notifications}>
+      <div className="app-shell">
+        <Sidebar />
 
-      {drawerOpen && (
-        <>
-          <button
-            type="button"
-            className="drawer-overlay"
-            aria-label="Close menu"
-            onClick={() => setDrawerOpen(false)}
+        {drawerOpen && (
+          <>
+            <button
+              type="button"
+              className="drawer-overlay"
+              aria-label="Close menu"
+              onClick={() => setDrawerOpen(false)}
+            />
+            <Sidebar variant="drawer" onNavigate={() => setDrawerOpen(false)} />
+          </>
+        )}
+
+        <div className="app-main">
+          <Topbar
+            onOpenMenu={() => setDrawerOpen(true)}
+            notifications={notifications}
           />
-          <Sidebar variant="drawer" onNavigate={() => setDrawerOpen(false)} />
-        </>
-      )}
+          <main className="app-content" id="main-content">
+            <Outlet />
+          </main>
+        </div>
 
-      <div className="app-main">
-        <Topbar
+        <MobileNavigation
+          unreadCount={unreadCount}
           onOpenMenu={() => setDrawerOpen(true)}
-          notifications={notifications}
         />
-        <main className="app-content" id="main-content">
-          <Outlet />
-        </main>
       </div>
-
-      <MobileNavigation
-        unreadCount={unreadCount}
-        onOpenMenu={() => setDrawerOpen(true)}
-      />
-    </div>
+    </NotificationsContext.Provider>
   )
 }

@@ -6,9 +6,12 @@ Run from the backend folder:
 """
 
 from datetime import timedelta
+from decimal import Decimal
 from io import StringIO
 
 from django.core.cache import cache
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -620,9 +623,214 @@ class DashboardTests(TrackTestCase):
         # is still bare, so exactly one remains.
         self.assertEqual(statuses["none"], 1)
 
+    def test_admin_dashboard_separates_todays_attendance(self):
+        # Records taken on an earlier day must not leak into the
+        # date-scoped "today" block.
+        yesterday = timezone.localdate() - timedelta(days=1)
+        old_session = AttendanceSession.objects.create(
+            teacher_assignment=self.assignment1, date=yesterday,
+        )
+        AttendanceRecord.objects.create(
+            session=old_session, student=self.student1,
+            status=AttendanceRecord.Status.ABSENT, recorded_by=self.teacher1,
+        )
+        today_a = AttendanceSession.objects.create(
+            teacher_assignment=self.assignment1, date=timezone.localdate(),
+        )
+        AttendanceRecord.objects.create(
+            session=today_a, student=self.student1,
+            status=AttendanceRecord.Status.PRESENT, recorded_by=self.teacher1,
+        )
+        today_b = AttendanceSession.objects.create(
+            teacher_assignment=self.assignment2, date=timezone.localdate(),
+        )
+        AttendanceRecord.objects.create(
+            session=today_b, student=self.student2,
+            status=AttendanceRecord.Status.ABSENT, recorded_by=self.teacher2,
+        )
+
+        self.login_as(self.admin)
+        blocks = self.client.get("/api/dashboard/").json()["blocks"]
+        today = blocks["attendance_today"]
+        self.assertEqual(today["total_records"], 2)
+        self.assertEqual(today["by_status"]["present"], 1)
+        self.assertEqual(today["by_status"]["absent"], 1)
+        self.assertEqual(blocks["attendance"]["total_records"], 3)
+
+    def test_admin_dashboard_todays_attendance_is_zero_not_fabricated(self):
+        # No records today -> an honest empty block, never a made-up rate.
+        self.login_as(self.admin)
+        blocks = self.client.get("/api/dashboard/").json()["blocks"]
+        self.assertEqual(blocks["attendance_today"]["total_records"], 0)
+        self.assertIsNone(blocks["attendance_today"]["present_rate"])
+
+    def test_todays_attendance_needs_the_attendance_view_permission(self):
+        # A department administrator without attendance.view gets neither
+        # attendance block — never a school-wide "0 of 0 today" either.
+        finance = User.objects.create_user(
+            username="t_dash_fin", password="pass-Admin123", role=User.Role.ADMIN,
+        )
+        dept = Department.objects.create(name="Finance desk", code="FIN-DASH")
+        DepartmentPermission.objects.create(
+            department=dept,
+            permission=PermissionDefinition.objects.get(key="fees.view"),
+        )
+        finance.departments.add(dept)
+
+        assert self.client.login(username=finance.username, password="pass-Admin123")
+        blocks = self.client.get("/api/dashboard/").json()["blocks"]
+        self.assertIn("fees", blocks)
+        self.assertNotIn("attendance", blocks)
+        self.assertNotIn("attendance_today", blocks)
+
     def test_dashboard_requires_auth(self):
         response = self.client.get("/api/dashboard/")
         self.assertIn(response.status_code, (401, 403))
+
+
+class FeeAggregationEfficiencyTests(TrackTestCase):
+    """
+    The fee dashboard and reports used to run one COUNT query per
+    assessment plus a handful of queries per student. These tests pin both
+    the totals and the query budget: identical numbers, query counts that
+    no longer scale with assessments or students.
+
+    Fixture (6 students: 3 in Sampaguita, 3 in Gumamela):
+
+        Tuition  school-wide  1000 x6 = 6000      student1 pays 1800 (paid)
+                 grade 7       500 x6 = 3000      student2 pays  700 (partial)
+                 section A     300 x3 =  900      everyone else   0 (unpaid x4)
+                 student 2     200 x1 =  200
+        Misc     6 x school-wide 0     =    0      (same scope, repeated:
+                                                   the old code paid one
+                                                   COUNT query per row; the
+                                                   zero amount keeps every
+                                                   total hand-computable)
+        Draft    999 -> excluded everywhere
+
+    Per-student assessed/paid follow the reports' original Q-filter
+    semantics: a section-scoped assessment whose grade_level is also set
+    counts for the whole grade (the old code deduped that per row; the
+    batched helper must dedupe it per student instead).
+    """
+
+    def make_assessment(self, amount, category=None, **kwargs):
+        return FeeAssessment.objects.create(
+            category=category or self.category,
+            school_year=self.school_year,
+            amount=Decimal(amount),
+            due_date=timezone.now().date() + timedelta(days=30),
+            status=FeeAssessment.Status.PUBLISHED,
+            created_by=self.admin,
+            **kwargs,
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.category = FeeCategory.objects.create(name="Tuition", code="TUIT-EFF")
+        misc = FeeCategory.objects.create(name="Misc", code="MISC-EFF")
+
+        for i, section in enumerate(
+            [self.section_a, self.section_a, self.section_b, self.section_b],
+            start=3,
+        ):
+            user = User.objects.create_user(
+                username=f"t_eff_student{i}", password="pass-Stud123",
+                role=User.Role.STUDENT, first_name="Eff",
+                last_name=f"Student{i}",
+            )
+            StudentProfile.objects.create(
+                user=user, section=section, lrn=f"1000000000{i:02d}"
+            )
+
+        self.school_wide = self.make_assessment("1000")
+        self.grade_wide = self.make_assessment("500", grade_level=self.grade7)
+        self.section_scoped = self.make_assessment(
+            "300", grade_level=self.grade7, section=self.section_a
+        )
+        self.individual = self.make_assessment("200", student=self.student2)
+        for _ in range(6):
+            self.make_assessment("0", category=misc)
+
+        FeeAssessment.objects.create(
+            category=self.category, school_year=self.school_year,
+            amount=Decimal("999"),
+            due_date=timezone.now().date() + timedelta(days=30),
+            status=FeeAssessment.Status.DRAFT, created_by=self.admin,
+        )
+
+        receipt = iter(range(1, 20))
+
+        def pay(student, assessment, amount, status=FeePayment.Status.COMPLETED):
+            return FeePayment.objects.create(
+                assessment=assessment, student=student, amount=Decimal(amount),
+                payment_date=timezone.now().date(), status=status,
+                recorded_by=self.admin,
+                receipt_number=f"RCPT-EFF-{next(receipt)}",
+            )
+
+        pay(self.student1, self.school_wide, "1000")
+        pay(self.student1, self.grade_wide, "500")
+        pay(self.student1, self.section_scoped, "300")
+        pay(self.student2, self.school_wide, "700")
+        pay(self.student2, self.individual, "1800", status=FeePayment.Status.PENDING)
+
+    def test_fee_dashboard_totals_and_query_budget(self):
+        self.login_as(self.admin)
+        with CaptureQueriesContext(connection) as ctx:
+            data = self.client.get("/api/fee-dashboard/").json()
+
+        self.assertEqual(data["total_assessed"], 10100.0)
+        self.assertEqual(data["total_collected"], 2500.0)
+        self.assertEqual(data["total_outstanding"], 7600.0)
+        self.assertEqual(data["students_with_balance"], 5)
+        self.assertEqual(data["total_students_assessed"], 6)
+        breakdown = {row["code"]: row for row in data["category_breakdown"]}
+        self.assertEqual(breakdown["TUIT-EFF"]["assessed"], 10100.0)
+        self.assertEqual(breakdown["TUIT-EFF"]["collected"], 2500.0)
+        self.assertEqual(breakdown["MISC-EFF"]["assessed"], 0.0)
+        # The old implementation ran one COUNT per assessment and roughly
+        # five queries per student; this ceiling fails loudly if they return.
+        self.assertLess(len(ctx.captured_queries), 35)
+
+    def test_collection_report_totals_and_query_budget(self):
+        self.login_as(self.admin)
+        with CaptureQueriesContext(connection) as ctx:
+            rows = self.client.get("/api/fee-reports/collection/").json()
+
+        self.assertEqual(len(rows), 2)
+        tuition = next(row for row in rows if row["category"] == "Tuition")
+        self.assertEqual(tuition["student_count"], 6)
+        self.assertEqual(tuition["paid_count"], 1)
+        self.assertEqual(tuition["partial_count"], 1)
+        self.assertEqual(tuition["unpaid_count"], 4)
+        self.assertEqual(tuition["total_assessed"], "10100.00")
+        self.assertEqual(tuition["total_collected"], "2500.00")
+        self.assertEqual(tuition["collection_rate"], "24.75")
+        self.assertLess(len(ctx.captured_queries), 30)
+
+    def test_outstanding_report_rows_and_query_budget(self):
+        self.login_as(self.admin)
+        with CaptureQueriesContext(connection) as ctx:
+            rows = self.client.get(
+                f"/api/fee-reports/outstanding/?category={self.category.id}"
+            ).json()
+
+        # 6 + 6 + 3 + 1 rows across the four Tuition scopes.
+        self.assertEqual(len(rows), 16)
+        student1_rows = [r for r in rows if r["student_id"] == self.student1.id]
+        self.assertEqual(len(student1_rows), 3)
+        self.assertTrue(
+            all(r["payment_status"] == "paid" for r in student1_rows)
+        )
+        student2_wide = next(
+            r for r in rows
+            if r["student_id"] == self.student2.id and r["assessed"] == "1000.00"
+        )
+        self.assertEqual(student2_wide["paid"], "700.00")
+        self.assertEqual(student2_wide["outstanding"], "300.00")
+        self.assertEqual(student2_wide["payment_status"], "partial")
+        self.assertLess(len(ctx.captured_queries), 30)
 
 
 class AttendanceWriteTests(TrackTestCase):

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useContext, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -6,6 +6,7 @@ import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
 import api from '../services/api'
 import useFetch from '../hooks/useFetch'
+import { NotificationsContext } from '../context/NotificationsContext'
 import { formatDateTime } from '../utils/format'
 
 const TYPE_LABELS = {
@@ -20,12 +21,27 @@ const TYPE_LABELS = {
 }
 
 export default function NotificationsPage() {
-  const [busyId, setBusyId] = useState(null)
-  const [allBusy, setAllBusy] = useState(false)
-  const { data, loading, error, reload } = useFetch('/notifications/', {
+  // Inside the shell the list is the shared fetch (mark-as-read then keeps
+  // the bell, dashboard card and this page coherent in one reload).
+  const shared = useContext(NotificationsContext)
+  return shared ? (
+    <NotificationsView {...shared} />
+  ) : (
+    <SelfFetchingNotificationsView />
+  )
+}
+
+function SelfFetchingNotificationsView() {
+  const fetchResult = useFetch('/notifications/', {
     list: true,
     params: { page_size: 100 },
   })
+  return <NotificationsView {...fetchResult} />
+}
+
+function NotificationsView({ data, loading, error, reload }) {
+  const [busyId, setBusyId] = useState(null)
+  const [allBusy, setAllBusy] = useState(false)
 
   const items = data || []
   const unread = items.filter((item) => !item.is_read).length

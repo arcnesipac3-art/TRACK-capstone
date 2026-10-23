@@ -1,16 +1,36 @@
+import { useContext } from 'react'
 import { Link } from 'react-router-dom'
 import Card from './Card'
 import EmptyState from '../EmptyState'
 import useFetch from '../../hooks/useFetch'
+import { NotificationsContext } from '../../context/NotificationsContext'
 import { formatRelative } from '../../utils/format'
 
-/** Recent notifications for the signed-in user (newest five). */
+/**
+ * Recent notifications for the signed-in user (newest five).
+ *
+ * Inside the app shell the data comes from the layout's shared fetch
+ * (one request for the bell, this card and the notifications page);
+ * rendered standalone, it fetches for itself.
+ */
 export default function NotificationsCard({ limit = 5 }) {
-  const { data, loading, error, reload } = useFetch('/notifications/', {
+  const shared = useContext(NotificationsContext)
+  return shared ? (
+    <NotificationsFeed {...shared} limit={limit} />
+  ) : (
+    <SelfFetchingFeed limit={limit} />
+  )
+}
+
+function SelfFetchingFeed({ limit }) {
+  const fetchResult = useFetch('/notifications/', {
     list: true,
     params: { page_size: 100 },
   })
+  return <NotificationsFeed {...fetchResult} limit={limit} />
+}
 
+function NotificationsFeed({ data, loading, error, reload, limit }) {
   const items = (data || []).slice(0, limit)
   const unread = (data || []).filter((item) => !item.is_read).length
 

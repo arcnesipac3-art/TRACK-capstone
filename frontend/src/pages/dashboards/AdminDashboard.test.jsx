@@ -63,6 +63,11 @@ const SUPER_PAYLOAD = {
       by_status: { present: 8, absent: 1, late: 1, excused: 0 },
       present_rate: 80,
     },
+    attendance_today: {
+      total_records: 8,
+      by_status: { present: 6, absent: 1, late: 1, excused: 0 },
+      present_rate: 75,
+    },
     fees: {
       total_assessed: 125000,
       total_collected: 75000,
@@ -287,6 +292,65 @@ describe('AdminDashboard — content panels', () => {
     // 1369 − 1234 − 42 − 89 = 4 administrators (User has exactly four roles).
     expect(within(card).getByText('4 · 0%')).toBeInTheDocument()
     expect(within(card).getByText('1,369 user accounts in total.')).toBeInTheDocument()
+  })
+})
+
+describe('AdminDashboard — today at school', () => {
+  it("shows today's figures as a strip in the attendance card", () => {
+    mockFetch({ dashboard: { data: SUPER_PAYLOAD, loading: false, error: null } })
+    renderDash()
+
+    const strip = document.querySelector('.att-today')
+    expect(strip).not.toBeNull()
+    expect(strip).toHaveTextContent('Today')
+    expect(strip).toHaveTextContent('6 present')
+    expect(strip).toHaveTextContent('1 absent')
+    expect(strip).toHaveTextContent('1 late')
+    // Only non-zero statuses are shown — no "0 excused" noise.
+    expect(strip.textContent).not.toContain('excused')
+  })
+
+  it('says so honestly when the school day has no records yet', () => {
+    mockFetch({
+      dashboard: {
+        data: {
+          role: 'admin',
+          is_super_admin: false,
+          unread_notifications: 0,
+          blocks: {
+            attendance: {
+              total_records: 10,
+              by_status: { present: 8, absent: 1, late: 1, excused: 0 },
+              present_rate: 80,
+            },
+            attendance_today: {
+              total_records: 0,
+              by_status: { present: 0, absent: 0, late: 0, excused: 0 },
+              present_rate: null,
+            },
+          },
+        },
+        loading: false,
+        error: null,
+      },
+    })
+    renderDash()
+
+    expect(
+      screen.getByText('No attendance recorded today yet.')
+    ).toBeInTheDocument()
+    expect(document.querySelector('.att-today')).toBeNull()
+  })
+
+  it('never shows a today strip without the attendance permission', () => {
+    mockAuth.can = (key) => key === 'fees.view'
+    mockFetch({ dashboard: { data: FINANCE_PAYLOAD, loading: false, error: null } })
+    renderDash()
+
+    expect(document.querySelector('.att-today')).toBeNull()
+    expect(
+      screen.queryByText('No attendance recorded today yet.')
+    ).not.toBeInTheDocument()
   })
 })
 

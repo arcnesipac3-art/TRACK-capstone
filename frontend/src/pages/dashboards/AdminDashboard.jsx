@@ -122,6 +122,7 @@ export default function AdminDashboard() {
   const structure = blocks.structure
   const requirements = blocks.requirements
   const attendance = blocks.attendance
+  const attendanceToday = blocks.attendance_today
   const fees = blocks.fees
   const announcements = blocks.announcements
   const audit = blocks.audit
@@ -447,6 +448,7 @@ export default function AdminDashboard() {
       <AttendanceSummaryCard
         key="attendance"
         attendance={attendance}
+        today={attendanceToday}
         title="School attendance summary"
         emptyAction={
           <Link className="btn btn-sm btn-secondary" to="/admin/attendance">

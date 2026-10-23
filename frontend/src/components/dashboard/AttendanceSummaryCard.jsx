@@ -8,11 +8,16 @@ import EmptyState from '../EmptyState'
  * Zero records is an honest "not recorded yet" state — never zero absences
  * or a fabricated perfect rate (the backend sends `present_rate: null`).
  * `emptyAction` lets callers add a permission-aware shortcut.
+ *
+ * `today` (optional, same shape, date-scoped by the backend) renders a
+ * "Today" strip above the summary — the morning-check figures — including
+ * an honest "nothing recorded today yet" line when the day is still bare.
  */
 export default function AttendanceSummaryCard({
   attendance,
   title = 'Attendance summary',
   emptyAction,
+  today,
 }) {
   if (!attendance || attendance.total_records === 0) {
     return (
@@ -45,6 +50,34 @@ export default function AttendanceSummaryCard({
         </span>
       }
     >
+      {today && today.total_records > 0 && (
+        <div className="att-today">
+          <span className="att-today-label">Today</span>
+          <span className="att-today-counts">
+            <span className="att-present">
+              {today.by_status.present.toLocaleString()} present
+            </span>
+            {today.by_status.absent > 0 && (
+              <span className="att-absent">
+                {today.by_status.absent.toLocaleString()} absent
+              </span>
+            )}
+            {today.by_status.late > 0 && (
+              <span className="att-late">
+                {today.by_status.late.toLocaleString()} late
+              </span>
+            )}
+            {today.by_status.excused > 0 && (
+              <span className="att-excused">
+                {today.by_status.excused.toLocaleString()} excused
+              </span>
+            )}
+          </span>
+        </div>
+      )}
+      {today && today.total_records === 0 && (
+        <p className="subtle att-today-empty">No attendance recorded today yet.</p>
+      )}
       <SummaryRows rows={rows} />
       <p className="subtle" style={{ marginTop: 10 }}>
         Based on {attendance.total_records} attendance record

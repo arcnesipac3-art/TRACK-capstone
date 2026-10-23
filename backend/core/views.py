@@ -2,10 +2,12 @@
 TRACK — API Views
 """
 
+from decimal import Decimal
+
 from django.contrib.auth import login, logout
 from functools import partial
 from django.db import transaction
-from django.db.models import Count, ProtectedError, Q
+from django.db.models import Count, ProtectedError, Q, Sum
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
 from django.utils import timezone
@@ -1673,6 +1675,95 @@ def _submission_summary(submissions_qs, requirements_qs=None):
     return counts
 
 
+def _fee_scope_ids(assessment, cache):
+    """
+    The student ids one assessment applies to, memoized by scope key.
+
+    `FeeAssessment.get_applicable_students()` depends only on the
+    (student, section, grade_level, school_year) scope, so assessments
+    sharing a scope share a single query instead of one each.
+    """
+    key = (
+        assessment.student_id,
+        assessment.section_id,
+        assessment.grade_level_id,
+        assessment.school_year_id,
+    )
+    if key not in cache:
+        cache[key] = list(
+            assessment.get_applicable_students().values_list("id", flat=True)
+        )
+    return cache[key]
+
+
+def _fee_assessed_total(assessments, cache=None):
+    """amount x applicable students, one query per distinct scope."""
+    if cache is None:
+        cache = {}
+    total = Decimal("0")
+    for assessment in assessments:
+        total += assessment.amount * len(_fee_scope_ids(assessment, cache))
+    return total
+
+
+def _fee_assessed_by_student(assessments, students):
+    """
+    {student id: total applicable amount}, computed in Python with exactly
+    the scope rules the fee reports' per-student Q filter applied
+    (individual / section / grade level / school-wide). The paid, partial
+    and unpaid counts derived from it are unchanged; only the
+    one-query-per-student cost is gone.
+    """
+    by_section = {}
+    by_grade = {}
+    by_year = {}
+    for student in students:
+        if student.section:
+            by_section.setdefault(student.section_id, []).append(student.id)
+            by_grade.setdefault(
+                (student.section.grade_level_id, student.section.school_year_id), []
+            ).append(student.id)
+            by_year.setdefault(student.section.school_year_id, []).append(student.id)
+
+    assessed = {student.id: Decimal("0") for student in students}
+    for assessment in assessments:
+        amount = assessment.amount
+        # The Q filter was an OR of scope branches; an assessment matching
+        # several of them (e.g. section + its grade level) still counts
+        # once per student, hence the set before adding.
+        matched = set()
+        if assessment.student_id and assessment.student_id in assessed:
+            matched.add(assessment.student_id)
+        if assessment.section_id:
+            matched.update(by_section.get(assessment.section_id, ()))
+        if assessment.grade_level_id:
+            matched.update(by_grade.get(
+                (assessment.grade_level_id, assessment.school_year_id), ()
+            ))
+        if (
+            not assessment.grade_level_id
+            and not assessment.section_id
+            and not assessment.student_id
+        ):
+            matched.update(by_year.get(assessment.school_year_id, ()))
+        for sid in matched:
+            assessed[sid] += amount
+    return assessed
+
+
+def _fee_paid_by_student(payments):
+    """{student id: completed amount} from one grouped query."""
+    return {
+        row["student"]: row["total"]
+        # .order_by() clears Meta.ordering, which would otherwise be pulled
+        # into the GROUP BY and return one row per payment instead of one
+        # per student.
+        for row in payments.order_by().values("student").annotate(
+            total=Sum("amount")
+        )
+    }
+
+
 def _section_label(assignment_section):
     return f"{assignment_section.grade_level.name} — {assignment_section.name}"
 
@@ -1744,6 +1835,11 @@ def _admin_dashboard_payload(user, now):
 
     if "attendance.view" in perms:
         blocks["attendance"] = _attendance_summary(AttendanceRecord.objects.all())
+        # Date-scoped so the dashboard can answer "who is here today?"
+        # without counting the whole school year.
+        blocks["attendance_today"] = _attendance_summary(
+            AttendanceRecord.objects.filter(session__date=timezone.localdate())
+        )
         if "users.view" in perms:
             payload["attendance"] = blocks["attendance"]
 
@@ -1758,9 +1854,7 @@ def _admin_dashboard_payload(user, now):
         )
         if active_year:
             assessments = assessments.filter(school_year=active_year)
-        total_assessed = 0
-        for assessment in assessments:
-            total_assessed += assessment.amount * assessment.get_applicable_students().count()
+        total_assessed = _fee_assessed_total(assessments)
         total_collected = FeePayment.objects.filter(
             assessment__in=assessments, status=FeePayment.Status.COMPLETED
         ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
@@ -2400,7 +2494,6 @@ class StudentFeeSummaryView(generics.ListAPIView):
 @permission_classes([partial(AdminCan, "reports.view")])
 def fee_collection_report(request):
     """Reports: fee collection summary report."""
-    from django.db.models import Sum, Count, Q
     from decimal import Decimal
 
     school_year_id = request.query_params.get("school_year")
@@ -2421,30 +2514,31 @@ def fee_collection_report(request):
     # Group by category
     categories = FeeCategory.objects.filter(is_active=True)
     report_data = []
+    scope_cache = {}
 
     for cat in categories:
         cat_assessments = assessments.filter(category=cat)
         if not cat_assessments.exists():
             continue
 
-        # Get all students covered by these assessments
+        # Students covered by these assessments, one query per distinct
+        # scope instead of one per assessment.
+        cat_list = list(cat_assessments.select_related("school_year"))
         student_ids = set()
-        for assessment in cat_assessments:
-            student_ids.update(assessment.get_applicable_students().values_list("id", flat=True))
+        for assessment in cat_list:
+            student_ids.update(_fee_scope_ids(assessment, scope_cache))
 
         if not student_ids:
             continue
 
         students = StudentProfile.objects.filter(id__in=student_ids)
-        total_assessed = sum(a.amount for a in cat_assessments for _ in range(assessment.get_applicable_students().count()))
-        
-        # More efficient calculation
-        total_assessed = 0
-        for assessment in cat_assessments:
-            total_assessed += assessment.amount * assessment.get_applicable_students().count()
+        student_list = list(
+            students.select_related("section__grade_level", "section__school_year")
+        )
+        total_assessed = _fee_assessed_total(cat_list, scope_cache)
 
         payments = FeePayment.objects.filter(
-            assessment__in=cat_assessments,
+            assessment__in=cat_list,
             student__in=students,
             status=FeePayment.Status.COMPLETED
         )
@@ -2452,27 +2546,20 @@ def fee_collection_report(request):
         total_outstanding = total_assessed - total_collected
         collection_rate = round(100 * total_collected / total_assessed, 2) if total_assessed > 0 else 0
 
-        # Count payment statuses
+        # Payment statuses per student, aggregated in Python from one
+        # grouped payments query instead of two queries per student.
+        assessed_by_student = _fee_assessed_by_student(cat_list, student_list)
+        paid_by_student = _fee_paid_by_student(payments)
+
         paid_count = 0
         partial_count = 0
         unpaid_count = 0
-        for student in students.select_related("section__grade_level", "section__school_year"):
-            student_payments = payments.filter(student=student)
-            
-            assessment_filter = Q(student=student)
-            if student.section:
-                assessment_filter |= Q(section=student.section)
-                assessment_filter |= Q(grade_level=student.section.grade_level, school_year=student.section.school_year)
-                assessment_filter |= Q(school_year=student.section.school_year, grade_level__isnull=True, section__isnull=True, student__isnull=True)
-            
-            student_assessments = cat_assessments.filter(assessment_filter).distinct() if student.section else cat_assessments.filter(student=student)
-            
-            student_assessed = sum(a.amount for a in student_assessments)
-            student_paid = student_payments.aggregate(total=Sum("amount"))["total"] or Decimal("0")
-            
+        for student in student_list:
+            student_assessed = assessed_by_student[student.id]
             if student_assessed == 0:
                 continue
-            elif student_paid >= student_assessed:
+            student_paid = paid_by_student.get(student.id, Decimal("0"))
+            if student_paid >= student_assessed:
                 paid_count += 1
             elif student_paid > 0:
                 partial_count += 1
@@ -2480,7 +2567,7 @@ def fee_collection_report(request):
                 unpaid_count += 1
 
         report_data.append({
-            "school_year": cat_assessments.first().school_year.label if cat_assessments.exists() else "",
+            "school_year": cat_list[0].school_year.label,
             "category": cat.name,
             "total_assessed": total_assessed,
             "total_collected": total_collected,
@@ -2500,7 +2587,6 @@ def fee_collection_report(request):
 @permission_classes([partial(AdminCan, "reports.view")])
 def fee_outstanding_report(request):
     """Reports: outstanding balance report."""
-    from django.db.models import Sum, Q
     from decimal import Decimal
 
     school_year_id = request.query_params.get("school_year")
@@ -2521,16 +2607,22 @@ def fee_outstanding_report(request):
 
     report_data = []
     for assessment in assessments.select_related("category", "school_year", "grade_level", "section"):
-        students = assessment.get_applicable_students()
-        payments = FeePayment.objects.filter(
-            assessment=assessment,
-            student__in=students,
-            status=FeePayment.Status.COMPLETED
-        ).select_related("student__user", "student__section")
+        student_list = list(
+            assessment.get_applicable_students().select_related("user", "section__grade_level")
+        )
+        if not student_list:
+            continue
+        # One grouped query per assessment instead of two per student row.
+        paid_by_student = _fee_paid_by_student(
+            FeePayment.objects.filter(
+                assessment=assessment,
+                student__in=[student.id for student in student_list],
+                status=FeePayment.Status.COMPLETED,
+            )
+        )
 
-        for student in students.select_related("user", "section__grade_level"):
-            student_payments = payments.filter(student=student)
-            paid = student_payments.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+        for student in student_list:
+            paid = paid_by_student.get(student.id, Decimal("0"))
             assessed = assessment.amount
             outstanding = assessed - paid
             
@@ -2564,7 +2656,7 @@ def fee_outstanding_report(request):
 @permission_classes([partial(AdminCan, "fees.view")])
 def fee_dashboard_summary(request):
     """Finance: fee management dashboard summary."""
-    from django.db.models import Sum, Count, Q
+    from django.db.models import Sum
     from decimal import Decimal
 
     now = timezone.now()
@@ -2575,9 +2667,9 @@ def fee_dashboard_summary(request):
     if active_sy:
         published_assessments = published_assessments.filter(school_year=active_sy)
 
-    total_assessed = 0
-    for assessment in published_assessments:
-        total_assessed += assessment.amount * assessment.get_applicable_students().count()
+    scope_cache = {}
+    published_list = list(published_assessments)
+    total_assessed = _fee_assessed_total(published_list, scope_cache)
 
     # Total collected
     collected_payments = FeePayment.objects.filter(
@@ -2591,39 +2683,28 @@ def fee_dashboard_summary(request):
 
     # Students with balances
     student_ids = set()
-    for assessment in published_assessments:
-        student_ids.update(assessment.get_applicable_students().values_list("id", flat=True))
+    for assessment in published_list:
+        student_ids.update(_fee_scope_ids(assessment, scope_cache))
 
-    students_with_balance = 0
-    for student_id in student_ids:
-        student = StudentProfile.objects.select_related("section__grade_level", "section__school_year").get(pk=student_id)
-        student_payments = collected_payments.filter(student=student)
-        
-        # Build query for student's applicable assessments
-        assessment_filter = Q(student=student)
-        if student.section:
-            assessment_filter |= Q(section=student.section)
-            assessment_filter |= Q(grade_level=student.section.grade_level, school_year=student.section.school_year)
-            assessment_filter |= Q(school_year=student.section.school_year, grade_level__isnull=True, section__isnull=True, student__isnull=True)
-        
-        student_assessments = published_assessments.filter(assessment_filter).distinct() if student.section else published_assessments.filter(student=student)
-        
-        student_assessed = sum(a.amount for a in student_assessments)
-        student_paid = student_payments.aggregate(total=Sum("amount"))["total"] or Decimal("0")
-        if student_paid < student_assessed:
-            students_with_balance += 1
+    students = list(StudentProfile.objects.filter(id__in=student_ids).select_related(
+        "section__grade_level", "section__school_year"
+    ))
+    assessed_by_student = _fee_assessed_by_student(published_list, students)
+    paid_by_student = _fee_paid_by_student(collected_payments)
+    students_with_balance = sum(
+        1 for student in students
+        if paid_by_student.get(student.id, Decimal("0")) < assessed_by_student[student.id]
+    )
 
     # By category
     category_breakdown = []
     for cat in FeeCategory.objects.filter(is_active=True):
-        cat_assessments = published_assessments.filter(category=cat)
-        if not cat_assessments.exists():
+        cat_list = [a for a in published_list if a.category_id == cat.id]
+        if not cat_list:
             continue
-        cat_assessed = 0
-        for a in cat_assessments:
-            cat_assessed += a.amount * a.get_applicable_students().count()
+        cat_assessed = _fee_assessed_total(cat_list, scope_cache)
         cat_collected = FeePayment.objects.filter(
-            assessment__in=cat_assessments, status=FeePayment.Status.COMPLETED
+            assessment__in=cat_list, status=FeePayment.Status.COMPLETED
         ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
         category_breakdown.append({
             "category": cat.name,
