@@ -140,6 +140,97 @@
 }
 .nav-link.active .nav-soon { background: var(--gray-100); color: var(--text-muted); }
 
+/* ---------------------------------------------------------------------
+   Collapsible nav group (Users → Students / Teachers / Parents)
+   --------------------------------------------------------------------- */
+
+/* The group row is a toggle button, so reset native button chrome while
+   keeping every visual cue of a normal .nav-link. */
+.nav-link.nav-group-toggle {
+  width: 100%;
+  background: transparent;
+  border: none;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 550;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nav-link.nav-group-toggle:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+
+/* Subtle expanded / child-active indication — never the full white pill,
+   which stays reserved for the selected submenu item. */
+.nav-link.nav-group-toggle.expanded,
+.nav-link.nav-group-toggle.child-active {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.nav-chevron {
+  margin-left: auto;
+  flex: 0 0 auto;
+  transition: transform 220ms ease-in-out;
+}
+.nav-chevron.open { transform: rotate(180deg); }
+
+/* Height animates 0 ↔ the panel's natural content height (0fr/1fr grid
+   trick) so nothing is clipped and no height is hardcoded. */
+.nav-submenu {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 220ms ease-in-out;
+}
+.nav-submenu.open { grid-template-rows: 1fr; }
+
+.nav-submenu-inner {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Slide + fade so items never pop in mid-animation. `visibility` flips
+     instantly when opening but only after the close animation finishes, so
+     the collapsed panel also leaves the tab order and screen readers. */
+  opacity: 0;
+  transform: translateY(-5px);
+  visibility: hidden;
+  transition:
+    opacity 200ms ease-in-out,
+    transform 220ms ease-in-out,
+    visibility 0s linear 220ms;
+}
+.nav-submenu.open .nav-submenu-inner {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+  transition:
+    opacity 200ms ease-in-out,
+    transform 220ms ease-in-out,
+    visibility 0s linear 0s;
+}
+
+/* Submenu items: indented, slightly smaller, same navy/white language. */
+.nav-link.nav-sub {
+  padding-left: 38px;
+  font-size: 0.87rem;
+  font-weight: 500;
+  gap: 9px;
+}
+.nav-link.nav-sub .nav-icon { width: 14px; height: 14px; }
+
+/* Readers who asked for less motion get an instant expand/collapse. */
+@media (prefers-reduced-motion: reduce) {
+  .nav-chevron,
+  .nav-submenu,
+  .nav-submenu-inner {
+    transition: none !important;
+  }
+}
+
 .sidebar-footer {
   padding: 14px 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);

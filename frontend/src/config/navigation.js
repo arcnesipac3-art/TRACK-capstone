@@ -13,12 +13,23 @@ export const NAVIGATION = {
   // renders only the modules the administrator holds.
   admin: [
     { label: 'Dashboard', to: '/admin/dashboard', icon: 'grid' },
-    { label: 'Users', to: '/admin/users', icon: 'users', perm: 'users.view' },
-    // The directory pages all read /api/users/, so they need users.view;
-    // *editing* students additionally needs students.manage (UserFormModal).
-    { label: 'Students', to: '/admin/students', icon: 'user', perm: 'users.view' },
-    { label: 'Teachers', to: '/admin/teachers', icon: 'user', perm: 'users.view' },
-    { label: 'Parents', to: '/admin/parents', icon: 'users', perm: 'users.view' },
+    // Users is a collapsible group: the item keeps its own route (/admin/users,
+    // the "all users" directory) and nests the three role directories beneath
+    // it. The sidebar renders `children` as an animated submenu; routes,
+    // permissions and page components are unchanged.
+    {
+      label: 'Users',
+      to: '/admin/users',
+      icon: 'users',
+      perm: 'users.view',
+      // The directory pages all read /api/users/, so they need users.view;
+      // *editing* students additionally needs students.manage (UserFormModal).
+      children: [
+        { label: 'Students', to: '/admin/students', icon: 'gradCap', perm: 'users.view' },
+        { label: 'Teachers', to: '/admin/teachers', icon: 'user', perm: 'users.view' },
+        { label: 'Parents', to: '/admin/parents', icon: 'users', perm: 'users.view' },
+      ],
+    },
     { label: 'School Structure', to: '/admin/sections', icon: 'layers', perm: 'structure.manage' },
     { label: 'Class Assignments', to: '/admin/assignments', icon: 'book', perm: 'structure.manage' },
     { label: 'Class Schedules', to: '/admin/schedules', icon: 'clock', perm: 'structure.manage' },
@@ -87,7 +98,13 @@ export function navForRole(role) {
 export function navForUser(user) {
   const items = navForRole(user?.role)
   if (user?.role !== 'admin') return items
-  return items.filter((item) => !item.perm || user.permissions?.includes(item.perm))
+  const allowed = (item) => !item.perm || user.permissions?.includes(item.perm)
+  // Groups (e.g. Users) gate their children on the same permission model.
+  return items
+    .filter(allowed)
+    .map((item) =>
+      item.children ? { ...item, children: item.children.filter(allowed) } : item
+    )
 }
 
 export function mobileItemsForRole(role) {
@@ -101,6 +118,10 @@ export function titleForPath(pathname, role) {
   for (const items of Object.values(NAVIGATION)) {
     for (const item of items) {
       if (item.to && pathname.startsWith(item.to)) return item.label
+      // Collapsible groups (Users) title by the matching child page.
+      for (const child of item.children || []) {
+        if (child.to && pathname.startsWith(child.to)) return child.label
+      }
     }
   }
   if (pathname === '/dashboard') return 'Dashboard'

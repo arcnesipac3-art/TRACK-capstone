@@ -97,6 +97,28 @@ describe('navForUser', () => {
       toEqual(new Set(NAVIGATION.admin.map((i) => i.to)))
   })
 
+  it('nests the user directories under the Users group', () => {
+    const users = navForUser(adminWith(['users.view'])).find(
+      (i) => i.label === 'Users'
+    )
+    expect(users.children.map((c) => c.to)).toEqual([
+      '/admin/students',
+      '/admin/teachers',
+      '/admin/parents',
+    ])
+    // …and only as children, never duplicated at the top level.
+    const tos = navForUser(adminWith(['users.view'])).map((i) => i.to)
+    expect(tos).not.toContain('/admin/students')
+    expect(tos).not.toContain('/admin/teachers')
+    expect(tos).not.toContain('/admin/parents')
+  })
+
+  it('drops the whole Users group when users.view is missing', () => {
+    const items = navForUser(adminWith([]))
+    expect(items.some((i) => i.label === 'Users')).toBe(false)
+    expect(items.some((i) => i.children?.length)).toBe(false)
+  })
+
   it('leaves non-administrator roles untouched — their nav is role-scoped', () => {
     expect(navForUser({ role: 'teacher', permissions: [] })).toBe(NAVIGATION.teacher)
     expect(navForUser({ role: 'student' })).toBe(NAVIGATION.student)
@@ -141,6 +163,12 @@ describe('titleForPath', () => {
     expect(titleForPath('/student/requirements', 'student')).toBe(
       'My Requirements'
     )
+  })
+
+  it('titles a nested group route by its child page', () => {
+    expect(titleForPath('/admin/students', 'admin')).toBe('Students')
+    expect(titleForPath('/admin/teachers', 'admin')).toBe('Teachers')
+    expect(titleForPath('/admin/parents', 'admin')).toBe('Parents')
   })
 
   it('matches a route prefix so nested paths still title correctly', () => {
