@@ -908,6 +908,97 @@ class FeeScopePrecedenceTests(TrackTestCase):
         self.assertEqual(row["total_assessed"], "400.00")
 
 
+class ReportTrendsTests(TrackTestCase):
+    """
+    GET /api/reports/trends/: twelve zero-gap-filled months, collections
+    bucketed by payment month, enrollments by account creation month.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.category = FeeCategory.objects.create(name="Trend fees", code="TREND")
+        self.assessment = FeeAssessment.objects.create(
+            category=self.category, school_year=self.school_year,
+            amount=Decimal("500"),
+            due_date=timezone.now().date() + timedelta(days=30),
+            status=FeeAssessment.Status.PUBLISHED, created_by=self.admin,
+        )
+
+    def pay_on(self, student, on_date, amount="500", receipt=None):
+        return FeePayment.objects.create(
+            assessment=self.assessment, student=student, amount=Decimal(amount),
+            payment_date=on_date, status=FeePayment.Status.COMPLETED,
+            recorded_by=self.admin,
+            receipt_number=receipt or f"RCPT-TREND-{on_date:%Y%m%d}-{student.pk}",
+        )
+
+    def enroll_on(self, username, when):
+        user = User.objects.create_user(
+            username=username, password="pass-Stud123",
+            role=User.Role.STUDENT, first_name="Trend", last_name="Student",
+        )
+        # date_joined is auto_now_add; rewrite the history the trend reads.
+        User.objects.filter(pk=user.pk).update(date_joined=when)
+        return user
+
+    def test_requires_reports_view_permission(self):
+        self.login_as(self.teacher1)
+        self.assertEqual(self.client.get("/api/reports/trends/").status_code, 403)
+
+    def test_twelve_gap_filled_months_with_totals(self):
+        today = timezone.now().date()
+        current = today.replace(day=1)
+        two_back = (current - timedelta(days=4)).replace(day=1)
+        first = current
+        for _ in range(11):
+            first = (first - timedelta(days=1)).replace(day=1)
+
+        self.pay_on(self.student1, today)
+        self.pay_on(self.student2, two_back, amount="250")
+        # Older than the 12-month window: must not appear.
+        self.pay_on(self.student1, two_back - timedelta(days=400), amount="999")
+        self.enroll_on("trend_newbie", timezone.now())
+
+        self.login_as(self.admin)
+        months = self.client.get("/api/reports/trends/").json()["months"]
+
+        self.assertEqual(len(months), 12)
+        self.assertEqual(months[0]["month"], first.strftime("%Y-%m"))
+        self.assertEqual(months[-1]["month"], current.strftime("%Y-%m"))
+
+        by_month = {m["month"]: m for m in months}
+        cur = by_month[current.strftime("%Y-%m")]
+        self.assertEqual(cur["collected"], 500.0)
+        self.assertEqual(cur["payments"], 1)
+        # Every student account (shared-fixture ones plus the new enrollee)
+        # was created "now", so they all land in the current month bucket.
+        self.assertEqual(
+            cur["enrollments"],
+            User.objects.filter(role=User.Role.STUDENT).count(),
+        )
+        two = by_month[two_back.strftime("%Y-%m")]
+        self.assertEqual(two["collected"], 250.0)
+        self.assertEqual(two["payments"], 1)
+
+        # The window is gap-filled: the 999 payment is excluded everywhere.
+        self.assertEqual(sum(m["payments"] for m in months), 2)
+        self.assertEqual(sum(m["collected"] for m in months), 750.0)
+
+    def test_school_year_param_narrows_collections(self):
+        today = timezone.now().date()
+        self.pay_on(self.student1, today)
+
+        self.login_as(self.admin)
+        rows = self.client.get(
+            f"/api/reports/trends/?school_year={self.school_year.id}"
+        ).json()["months"]
+        self.assertEqual(sum(m["collected"] for m in rows), 500.0)
+
+        empty = self.client.get("/api/reports/trends/?school_year=999999").json()["months"]
+        self.assertEqual(sum(m["collected"] for m in empty), 0.0)
+        self.assertEqual(len(empty), 12)
+
+
 class AttendanceWriteTests(TrackTestCase):
     def test_teacher_cannot_record_attendance_for_foreign_session(self):
         session = AttendanceSession.objects.create(

@@ -4,6 +4,7 @@ import ErrorMessage from '../components/ErrorMessage'
 import Icon from '../components/Icon'
 import LoadingSpinner from '../components/LoadingSpinner'
 import PageHeader from '../components/PageHeader'
+import TrendsCard from '../components/dashboard/TrendsCard'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 import useFetch from '../hooks/useFetch'
@@ -22,6 +23,7 @@ import useFetch from '../hooks/useFetch'
 export default function ReportsPage() {
   const { can } = useAuth()
   const summary = useFetch('/dashboard/')
+  const trends = useFetch('/reports/trends/')
   const [exporting, setExporting] = useState(null)
   const [exportError, setExportError] = useState(null)
 
@@ -212,6 +214,13 @@ export default function ReportsPage() {
           </button>
         </div>
       )}
+
+      <TrendsCard
+        months={trends.data?.months}
+        loading={trends.loading && !trends.data}
+        error={trends.error}
+        onRetry={trends.reload}
+      />
 
       <div className="two-col">
         <div className="stack stack-md">

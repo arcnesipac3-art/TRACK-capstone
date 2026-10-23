@@ -2659,6 +2659,74 @@ def fee_outstanding_report(request):
 
 
 @api_view(["GET"])
+@permission_classes([partial(AdminCan, "reports.view")])
+def report_trends(request):
+    """
+    Reports: monthly collection and enrollment trends, last 12 months.
+
+    One row per calendar month (zero-gap-filled, oldest first) so charts
+    always get a continuous axis:
+      - collected / payments: completed fee payments by payment month,
+        optionally narrowed with ?school_year=<id>;
+      - enrollments: student accounts created that month (date_joined).
+    """
+    from datetime import timedelta
+    from django.db.models.functions import TruncMonth
+
+    today = timezone.now().date()
+    # Month-start 11 months back, so the 12 iterations below include the
+    # current (still partial) month.
+    start = today.replace(day=1)
+    for _ in range(11):
+        start = (start - timedelta(days=1)).replace(day=1)
+
+    payments = FeePayment.objects.filter(
+        status=FeePayment.Status.COMPLETED,
+        payment_date__gte=start,
+    )
+    school_year_id = request.query_params.get("school_year")
+    if school_year_id:
+        payments = payments.filter(assessment__school_year_id=school_year_id)
+
+    # TruncMonth yields a datetime for DateTimeFields (date_joined) and a
+    # plain date for DateFields (payment_date); bucket keys are dates.
+    def month_key(value):
+        return value.date() if hasattr(value, "date") else value
+
+    collected = {
+        month_key(row["month"]): row
+        for row in payments.annotate(month=TruncMonth("payment_date"))
+        .values("month")
+        .annotate(total=Sum("amount"), count=Count("id"))
+    }
+    enrolled = {
+        month_key(row["month"]): row["total"]
+        for row in User.objects.filter(
+            role=User.Role.STUDENT, date_joined__date__gte=start
+        )
+        .annotate(month=TruncMonth("date_joined"))
+        .values("month")
+        .annotate(total=Count("id"))
+    }
+
+    months = []
+    cursor = start
+    for _ in range(12):
+        row = collected.get(cursor)
+        months.append({
+            "month": cursor.strftime("%Y-%m"),
+            "label": cursor.strftime("%b %Y"),
+            "collected": float(row["total"]) if row else 0.0,
+            "payments": row["count"] if row else 0,
+            "enrollments": enrolled.get(cursor, 0),
+        })
+        # First of the next calendar month.
+        cursor = (cursor.replace(day=28) + timedelta(days=4)).replace(day=1)
+
+    return Response({"months": months})
+
+
+@api_view(["GET"])
 @permission_classes([partial(AdminCan, "fees.view")])
 def fee_dashboard_summary(request):
     """Finance: fee management dashboard summary."""

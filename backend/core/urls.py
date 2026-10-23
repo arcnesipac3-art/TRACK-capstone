@@ -79,6 +79,7 @@ urlpatterns = [
     path("fee-summary/", views.StudentFeeSummaryView.as_view(), name="student_fee_summary"),
     path("fee-reports/collection/", views.fee_collection_report, name="fee_collection_report"),
     path("fee-reports/outstanding/", views.fee_outstanding_report, name="fee_outstanding_report"),
+    path("reports/trends/", views.report_trends, name="report_trends"),
     path("fee-dashboard/", views.fee_dashboard_summary, name="fee_dashboard_summary"),
 
     # ── Dashboard ────────────────────────────────────────────────────────────
