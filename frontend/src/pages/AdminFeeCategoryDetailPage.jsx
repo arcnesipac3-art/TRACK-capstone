@@ -35,7 +35,6 @@ export default function AdminFeeCategoryDetailPage() {
   const back = () => navigate('/admin/fees?tab=categories')
 
   const load = useCallback(async () => {
-    if (isNew) { setLoading(false); return }
     try {
       const data = await api.get(`/fee-categories/${id}/`)
       setCategory(data)
@@ -43,9 +42,12 @@ export default function AdminFeeCategoryDetailPage() {
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not load category.')
     } finally { setLoading(false) }
-  }, [id, isNew])
+  }, [id])
 
-  useEffect(() => { load() }, [load])
+  // The `/new` route never fetches; `loading` already starts false there.
+  // `load` only sets state after `await`; nothing synchronous reaches it.
+  // oxlint-disable-next-line react/set-state-in-effect
+  useEffect(() => { if (!isNew) load() }, [load, isNew])
 
   const handleChange = (field, value) => {
     setCategory(prev => ({ ...prev, [field]: field === 'code' ? value.toUpperCase() : value }))

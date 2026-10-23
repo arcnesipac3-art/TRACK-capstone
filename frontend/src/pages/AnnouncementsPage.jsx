@@ -79,7 +79,6 @@ function AnnouncementFormModal({
   onClose,
   onSubmit,
   initialData = null,
-  loading = false,
 }) {
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
@@ -89,25 +88,27 @@ function AnnouncementFormModal({
   const [busy, setBusy] = useState(false)
   const formRef = useRef(null)
   const previouslyFocused = useRef(null)
+  // Latest-ref so the Escape listener above never acts on a stale closure
+  // (the documented pattern for listeners that read render values).
+  const handleCancelRef = useRef(handleCancel)
+  useEffect(() => {
+    handleCancelRef.current = handleCancel
+  })
 
   const isEdit = Boolean(initialData)
 
-  // Load initial data when editing
-  useEffect(() => {
-    if (initialData) {
-      setTitle(initialData.title || '')
-      setBody(initialData.body || '')
-      setAudience(initialData.audience || 'all')
-      setPinned(initialData.is_pinned || false)
-      setError(null)
-    } else {
-      setTitle('')
-      setBody('')
-      setAudience('all')
-      setPinned(false)
-      setError(null)
-    }
-  }, [initialData])
+  // Load initial data when editing. Adjusting state during render (rather
+  // than in an effect) shows the right values in the same render that sees
+  // the new `initialData` — see react.dev/learn/you-might-not-need-an-effect.
+  const [prevInitialData, setPrevInitialData] = useState(initialData)
+  if (prevInitialData !== initialData) {
+    setPrevInitialData(initialData)
+    setTitle(initialData?.title || '')
+    setBody(initialData?.body || '')
+    setAudience(initialData?.audience || 'all')
+    setPinned(initialData?.is_pinned || false)
+    setError(null)
+  }
 
   // Focus management and keyboard handling
   useEffect(() => {
@@ -123,7 +124,7 @@ function AnnouncementFormModal({
     function onKeyDown(event) {
       if (event.key === 'Escape' && !busy) {
         event.stopPropagation()
-        handleCancel()
+        handleCancelRef.current()
         return
       }
       if (event.key !== 'Tab' || !panel) return
@@ -431,7 +432,7 @@ function AnnouncementDetailModal({ announcement, onClose }) {
   )
 }
 
-function usePaginatedAnnouncements(userRole) {
+function usePaginatedAnnouncements() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [search, setSearch] = useState('')
@@ -453,10 +454,15 @@ function usePaginatedAnnouncements(userRole) {
     return () => clearTimeout(timer)
   }, [search])
 
-  // Reset page when filters/search change
-  useEffect(() => {
+  // Reset page when filters/search change. Adjusting state during render
+  // (rather than in an effect) avoids an intermediate fetch with the stale
+  // page number — see react.dev/learn/you-might-not-need-an-effect.
+  const resetKey = JSON.stringify([debouncedSearch, audienceFilter, pinnedFilter, ordering])
+  const [prevResetKey, setPrevResetKey] = useState(resetKey)
+  if (prevResetKey !== resetKey) {
+    setPrevResetKey(resetKey)
     setPage(1)
-  }, [debouncedSearch, audienceFilter, pinnedFilter, ordering])
+  }
 
   const fetchData = useCallback(async () => {
     if (abortRef.current) abortRef.current.abort()
@@ -487,6 +493,9 @@ function usePaginatedAnnouncements(userRole) {
   }, [page, pageSize, debouncedSearch, audienceFilter, pinnedFilter, ordering])
 
   useEffect(() => {
+    // `fetchData` flips the spinner synchronously and only then awaits the
+    // request; that ordering is what makes refetches show a loading state.
+    // oxlint-disable-next-line react/set-state-in-effect
     fetchData()
     return () => {
       if (abortRef.current) abortRef.current.abort()
@@ -557,7 +566,7 @@ export default function AnnouncementsPage() {
     audienceFilter,
     pinnedFilter,
     ordering,
-  } = usePaginatedAnnouncements(user.role)
+  } = usePaginatedAnnouncements()
 
   // Modal states
   const [formOpen, setFormOpen] = useState(false)
@@ -900,7 +909,6 @@ export default function AnnouncementsPage() {
         }}
         onSubmit={handleFormSubmit}
         initialData={editingAnnouncement}
-        loading={loadingActionId === (editingAnnouncement?.id || 'new')}
       />
 
       <AnnouncementDetailModal

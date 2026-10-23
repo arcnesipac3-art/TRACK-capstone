@@ -1,9 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import EmptyState from '../components/EmptyState'
-import ErrorMessage from '../components/ErrorMessage'
 import Icon from '../components/Icon'
-import LoadingSpinner from '../components/LoadingSpinner'
-import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
 import Card from '../components/dashboard/Card'
@@ -42,7 +39,7 @@ const SEARCH_DEBOUNCE = 300
  * Generic paginated data hook with search, filters, and sorting.
  */
 function usePaginatedList(kind, initialFilters = {}) {
-  const { endpoint, noun } = KINDS[kind]
+  const { endpoint } = KINDS[kind]
   const path = `/${endpoint}/`
 
   const [page, setPage] = useState(1)
@@ -65,10 +62,15 @@ function usePaginatedList(kind, initialFilters = {}) {
     return () => clearTimeout(timer)
   }, [search])
 
-  // Reset page when filters/search change
-  useEffect(() => {
+  // Reset page when filters/search change. Adjusting state during render
+  // (rather than in an effect) avoids an intermediate fetch with the stale
+  // page number — see react.dev/learn/you-might-not-need-an-effect.
+  const resetKey = JSON.stringify([debouncedSearch, filters, ordering])
+  const [prevResetKey, setPrevResetKey] = useState(resetKey)
+  if (prevResetKey !== resetKey) {
+    setPrevResetKey(resetKey)
     setPage(1)
-  }, [debouncedSearch, filters, ordering])
+  }
 
   const fetchData = useCallback(async () => {
     if (abortRef.current) abortRef.current.abort()
@@ -98,6 +100,9 @@ function usePaginatedList(kind, initialFilters = {}) {
   }, [path, page, pageSize, debouncedSearch, filters, ordering])
 
   useEffect(() => {
+    // `fetchData` flips the spinner synchronously and only then awaits the
+    // request; that ordering is what makes refetches show a loading state.
+    // oxlint-disable-next-line react/set-state-in-effect
     fetchData()
     return () => {
       if (abortRef.current) abortRef.current.abort()

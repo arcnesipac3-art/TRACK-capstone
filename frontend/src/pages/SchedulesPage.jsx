@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
 import Icon from '../components/Icon'
@@ -7,63 +7,16 @@ import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
 import useFetch from '../hooks/useFetch'
 import api from '../services/api'
+import {
+  DAYS_OF_WEEK,
+  detectConflicts,
+  generatePeriodGrid,
+  groupConflicts,
+  normTime,
+  schedulesOverlap,
+  timeToMinutes,
+} from '../utils/schedules'
 import './SchedulesPage.css'
-
-const DAYS_OF_WEEK = [
-  { value: 1, label: 'Monday', short: 'Mon' },
-  { value: 2, label: 'Tuesday', short: 'Tue' },
-  { value: 3, label: 'Wednesday', short: 'Wed' },
-  { value: 4, label: 'Thursday', short: 'Thu' },
-  { value: 5, label: 'Friday', short: 'Fri' },
-]
-
-function normTime(t) {
-  return t?.slice(0, 5) ?? ''
-}
-
-function timeToMinutes(t) {
-  const [h, m] = normTime(t).split(':').map(Number)
-  return h * 60 + m
-}
-
-function generatePeriodGrid(schedules) {
-  if (!schedules || schedules.length === 0) return []
-  const timeBoundaries = new Set()
-  schedules.forEach((s) => {
-    timeBoundaries.add(normTime(s.start_time))
-    timeBoundaries.add(normTime(s.end_time))
-  })
-  const sortedTimes = Array.from(timeBoundaries).sort((a, b) => timeToMinutes(a) - timeToMinutes(b))
-  const periods = []
-  for (let i = 0; i < sortedTimes.length - 1; i++) {
-    const start = sortedTimes[i]
-    const end = sortedTimes[i + 1]
-    const startMin = timeToMinutes(start)
-    const endMin = timeToMinutes(end)
-    if (endMin > startMin) {
-      periods.push({
-        index: periods.length + 1,
-        start,
-        end,
-        startMin,
-        endMin,
-        duration: endMin - startMin,
-      })
-    }
-  }
-  return periods
-}
-
-function schedulesOverlap(s1, s2) {
-  if (s1.day_of_week !== s2.day_of_week) return false
-  const s1Start = normTime(s1.start_time)
-  const s1End = normTime(s1.end_time)
-  const s2Start = normTime(s2.start_time)
-  const s2End = normTime(s2.end_time)
-  // Strict overlap: s1 starts before s2 ends AND s1 ends after s2 starts.
-  // Adjacent periods (s1.end === s2.start) are NOT overlapping.
-  return s1Start < s2End && s1End > s2Start
-}
 
 function getSubjectColor(subjectName) {
   const colorMap = {
@@ -86,83 +39,6 @@ function getSubjectColor(subjectName) {
     if (subjectName?.toLowerCase().includes(key.toLowerCase())) return value
   }
   return { bg: '#f1f5f9', border: '#64748b', text: '#334155' }
-}
-
-function detectConflicts(schedules) {
-  const conflicts = []
-  const seen = new Set()
-  for (let i = 0; i < schedules.length; i++) {
-    for (let j = i + 1; j < schedules.length; j++) {
-      const s1 = schedules[i]
-      const s2 = schedules[j]
-      if (s1.id === s2.id) continue
-      if (!schedulesOverlap(s1, s2)) continue
-      const key = `${Math.min(s1.id, s2.id)}-${Math.max(s1.id, s2.id)}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      const reasons = []
-      const d1 = s1.teacher_assignment_detail
-      const d2 = s2.teacher_assignment_detail
-      if (d1?.teacher_id && d2?.teacher_id && d1.teacher_id === d2.teacher_id) {
-        reasons.push({ type: 'teacher', message: `${d1.teacher_name} is double-booked at this time`, severity: 'high' })
-      }
-      if (d1?.section_id && d2?.section_id && d1.section_id === d2.section_id) {
-        reasons.push({ type: 'section', message: `${d1.section_name} has two overlapping classes`, severity: 'high' })
-      }
-      if (s1.room && s2.room && s1.room.trim().toLowerCase() === s2.room.trim().toLowerCase()) {
-        reasons.push({ type: 'room', message: `Room ${s1.room} is double-booked`, severity: 'medium' })
-      }
-      if (reasons.length > 0) {
-        const dayLabel = DAYS_OF_WEEK.find((d) => d.value === s1.day_of_week)?.label || '—'
-        conflicts.push({
-          id: `${s1.id}-${s2.id}`,
-          schedules: [s1, s2],
-          reasons,
-          day: s1.day_of_week,
-          dayLabel,
-          time: `${normTime(s1.start_time)}–${normTime(s1.end_time)}`,
-        })
-      }
-    }
-  }
-  return conflicts
-}
-
-/**
- * Group conflicts by day and time for clearer presentation.
- * Returns an array of grouped conflicts, each containing:
- * - day, dayLabel, time
- * - conflicts: array of individual conflict objects (each with schedules, reasons)
- * - summary: counts by type (teacher, section, room)
- */
-function groupConflicts(conflicts) {
-  const groups = new Map()
-  
-  conflicts.forEach((conflict) => {
-    const key = `${conflict.day}-${conflict.time}`
-    if (!groups.has(key)) {
-      groups.set(key, {
-        day: conflict.day,
-        dayLabel: conflict.dayLabel,
-        time: conflict.time,
-        conflicts: [],
-        summary: { teacher: 0, section: 0, room: 0 },
-      })
-    }
-    const group = groups.get(key)
-    group.conflicts.push(conflict)
-    conflict.reasons.forEach((r) => {
-      if (group.summary[r.type] !== undefined) {
-        group.summary[r.type]++
-      }
-    })
-  })
-  
-  // Sort groups by day then time
-  return Array.from(groups.values()).sort((a, b) => {
-    if (a.day !== b.day) return a.day - b.day
-    return a.time.localeCompare(b.time)
-  })
 }
 
 function ScheduleCard({ schedule, onClick, onEdit, onDelete, hasConflict, conflictReasons }) {
@@ -236,7 +112,7 @@ function ScheduleCard({ schedule, onClick, onEdit, onDelete, hasConflict, confli
 }
 
 function TimetableGrid({ schedules, onScheduleClick, onEdit, onDelete, conflicts }) {
-  const todayDoW = useMemo(getTodayDayOfWeek, [])
+  const todayDoW = useMemo(() => getTodayDayOfWeek(), [])
 
   const periods = useMemo(() => generatePeriodGrid(schedules), [schedules])
 
@@ -430,16 +306,31 @@ function getTodayDayOfWeek() {
   return dayMap[weekdayName] ?? new Date().getDay()
 }
 
+/** Label for the Monday–Friday week containing today (Manila time). */
+function getWeekLabel() {
+  const today = new Date()
+  const dayOfWeekJS = today.getDay()
+  const mondayOffset = dayOfWeekJS === 0 ? -6 : 1 - dayOfWeekJS
+  const monday = new Date(today)
+  monday.setDate(today.getDate() + mondayOffset)
+  const friday = new Date(monday)
+  friday.setDate(monday.getDate() + 4)
+
+  const fmt = (d) =>
+    d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return `${fmt(monday)} – ${fmt(friday)}, ${friday.getFullYear()}`
+}
+
 function SummaryCards({ schedules, onConflictClick }) {
+  // Snapshot "today" once per mount (same as TimetableGrid) instead of
+  // re-reading the clock inside the stats memo on every schedules change.
+  const todayDoW = useMemo(() => getTodayDayOfWeek(), [])
   const stats = useMemo(() => {
-    const weekdayName = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'Asia/Manila' }).format(new Date())
-    const dayMap = { Sun: 7, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
-    const todayDoW = dayMap[weekdayName] ?? new Date().getDay()
     const todaySchedules = schedules.filter((s) => s.day_of_week === todayDoW)
     const teachers = new Set(); schedules.forEach((s) => { if (s.teacher_assignment) teachers.add(s.teacher_assignment) })
     const conflicts = detectConflicts(schedules)
     return { total: schedules.length, today: todaySchedules.length, teachers: teachers.size, conflicts: conflicts.length }
-  }, [schedules])
+  }, [schedules, todayDoW])
   const hasConflicts = stats.conflicts > 0
   return (
     <div className="sched-summary">
@@ -496,7 +387,7 @@ function ConflictPanel({ conflicts, onScheduleClick, onClose }) {
               </div>
             </div>
             <div className="sched-conflict-pairs">
-              {group.conflicts.map((conflict, cidx) => {
+              {group.conflicts.map((conflict) => {
                 const [s1, s2] = conflict.schedules
                 const d1 = s1.teacher_assignment_detail
                 const d2 = s2.teacher_assignment_detail
@@ -563,11 +454,22 @@ function ScheduleFormModal({ schedule, onClose, onSaved, existingSchedules = [] 
   const [busy, setBusy] = useState(false)
   const assignments = useFetch('/teacher-assignments/', { list: true })
   const isEdit = Boolean(schedule)
-  function checkConflicts() { if (!assignment || !dayOfWeek || !startTime || !endTime) { setWarnings([]); return } const conflicts = []; const tempSchedule = { id: schedule?.id || -1, day_of_week: Number(dayOfWeek), start_time: startTime, end_time: endTime, room: room.trim(), teacher_assignment_detail: assignments.data?.find((a) => a.id === Number(assignment)) }; existingSchedules.forEach((existing) => { if (existing.id === tempSchedule.id) return; if (schedulesOverlap(tempSchedule, existing)) { const d1 = tempSchedule.teacher_assignment_detail, d2 = existing.teacher_assignment_detail; if (d1?.teacher_id === d2?.teacher_id) conflicts.push({ type: 'error', message: `${d1.teacher_name} already teaches ${d2.subject_name} (${d2.section_name}) at this time` }); if (d1?.section_id === d2?.section_id) conflicts.push({ type: 'error', message: `${d1.section_name} already has ${d2.subject_name} scheduled at this time` }); if (existing.room && tempSchedule.room && existing.room.toLowerCase() === tempSchedule.room.toLowerCase()) conflicts.push({ type: 'warning', message: `Room ${existing.room} is already booked for ${d2.subject_name} (${d2.section_name})` }) }}); setWarnings(conflicts) }
+  const checkConflicts = useCallback(() => { if (!assignment || !dayOfWeek || !startTime || !endTime) { setWarnings([]); return } const conflicts = []; const tempSchedule = { id: schedule?.id || -1, day_of_week: Number(dayOfWeek), start_time: startTime, end_time: endTime, room: room.trim(), teacher_assignment_detail: assignments.data?.find((a) => a.id === Number(assignment)) }; existingSchedules.forEach((existing) => { if (existing.id === tempSchedule.id) return; if (schedulesOverlap(tempSchedule, existing)) { const d1 = tempSchedule.teacher_assignment_detail, d2 = existing.teacher_assignment_detail; if (d1?.teacher_id === d2?.teacher_id) conflicts.push({ type: 'error', message: `${d1.teacher_name} already teaches ${d2.subject_name} (${d2.section_name}) at this time` }); if (d1?.section_id === d2?.section_id) conflicts.push({ type: 'error', message: `${d1.section_name} already has ${d2.subject_name} scheduled at this time` }); if (existing.room && tempSchedule.room && existing.room.toLowerCase() === tempSchedule.room.toLowerCase()) conflicts.push({ type: 'warning', message: `Room ${existing.room} is already booked for ${d2.subject_name} (${d2.section_name})` }) }}); setWarnings(conflicts) }, [assignment, dayOfWeek, startTime, endTime, room, schedule, existingSchedules, assignments.data])
   const duration = useMemo(() => { if (!startTime || !endTime) return null; const start = new Date(`2000-01-01T${startTime}`), end = new Date(`2000-01-01T${endTime}`); const diffMins = Math.floor((end - start) / 60000); if (diffMins <= 0) return { valid: false, message: 'End time must be after start time' }; if (diffMins < 30) return { valid: true, warning: 'Class is less than 30 minutes' }; if (diffMins > 180) return { valid: true, warning: 'Class is more than 3 hours' }; return { valid: true, duration: `${diffMins} minutes` } }, [startTime, endTime])
-  const hasErrors = warnings.some((w) => w.type === 'error') || (duration && !duration.valid)
+  // Warnings only mean something once every field the check reads is set;
+  // while the form is incomplete they are hidden rather than cleared, so
+  // no state reset is needed when a field is emptied.
+  const complete = Boolean(assignment && dayOfWeek && startTime && endTime)
+  const shownWarnings = complete ? warnings : []
+  const hasErrors = shownWarnings.some((w) => w.type === 'error') || (duration && !duration.valid)
   function handleSubmit(e) { e.preventDefault(); if (busy) return; setError(null); if (!assignment) { setError('Please select a class and subject.'); return } if (!dayOfWeek) { setError('Please select a day of week.'); return } if (!startTime || !endTime) { setError('Please enter start and end times.'); return } if (startTime >= endTime) { setError('End time must be after start time.'); return } if (hasErrors) { setError('Please resolve all conflicts before saving.'); return } setBusy(true); const payload = { teacher_assignment: Number(assignment), day_of_week: Number(dayOfWeek), start_time: startTime, end_time: endTime, room: room.trim() }; const request = isEdit ? api.patch(`/schedules/${schedule.id}/`, payload) : api.post('/schedules/', payload); request.then((saved) => { onSaved(saved); onClose() }).catch((err) => { setError(err.message) }).finally(() => { setBusy(false) }) }
-  useEffect(() => { if (assignment && dayOfWeek && startTime && endTime) { const timer = setTimeout(checkConflicts, 300); return () => clearTimeout(timer) } else setWarnings([]) }, [assignment, dayOfWeek, startTime, endTime, room])
+  // Debounced conflict check whenever any field it reads changes (the
+  // dependency list is exactly `checkConflicts`' own).
+  useEffect(() => {
+    if (!complete) return undefined
+    const timer = setTimeout(checkConflicts, 300)
+    return () => clearTimeout(timer)
+  }, [complete, checkConflicts])
   return (
     <Modal
       open
@@ -646,9 +548,9 @@ function ScheduleFormModal({ schedule, onClose, onSaved, existingSchedules = [] 
           </datalist>
           <p className="hint">Optional. Start typing to see suggestions.</p>
         </div>
-        {warnings.length > 0 && (
+        {shownWarnings.length > 0 && (
           <div className="stack stack-xs">
-            {warnings.map((warning, idx) => (
+            {shownWarnings.map((warning, idx) => (
               <div key={idx} className={`alert alert-${warning.type === 'error' ? 'error' : 'warning'}`}>
                 <Icon name={warning.type === 'error' ? 'x' : 'alertTriangle'} size={15} />
                 <span>{warning.message}</span>
@@ -938,21 +840,8 @@ export default function SchedulesPage() {
   const hasFilters = Boolean(filterTeacher || filterSection || filterSubject || filterDay)
 
   const [undoToast, setUndoToast] = useState(null)
-  const undoTimerRef = useRef(null)
 
-  const weekLabel = useMemo(() => {
-    const today = new Date()
-    const dayOfWeekJS = today.getDay()
-    const mondayOffset = dayOfWeekJS === 0 ? -6 : 1 - dayOfWeekJS
-    const monday = new Date(today)
-    monday.setDate(today.getDate() + mondayOffset)
-    const friday = new Date(monday)
-    friday.setDate(monday.getDate() + 4)
-
-    const fmt = (d) =>
-      d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    return `${fmt(monday)} – ${fmt(friday)}, ${friday.getFullYear()}`
-  }, [])
+  const weekLabel = useMemo(() => getWeekLabel(), [])
 
   return (
     <>
@@ -1325,5 +1214,3 @@ export default function SchedulesPage() {
     </>
   )
 }
-
-export { schedulesOverlap, detectConflicts, groupConflicts, generatePeriodGrid, normTime, timeToMinutes }

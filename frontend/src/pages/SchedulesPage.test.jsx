@@ -6,7 +6,7 @@ import {
   generatePeriodGrid,
   normTime,
   timeToMinutes,
-} from './SchedulesPage'
+} from '../utils/schedules'
 
 // Helper to create a schedule object matching the API shape
 function makeSchedule(overrides) {

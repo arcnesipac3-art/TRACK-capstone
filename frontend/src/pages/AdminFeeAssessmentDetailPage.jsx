@@ -74,7 +74,6 @@ export default function AdminFeeAssessmentDetailPage() {
   }, [isNew])
 
   const load = useCallback(async () => {
-    if (isNew) { setLoading(false); return }
     try {
       const data = await api.get(`/fee-assessments/${id}/`)
       setAssessment({
@@ -92,10 +91,16 @@ export default function AdminFeeAssessmentDetailPage() {
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not load assessment.')
     } finally { setLoading(false) }
-  }, [id, isNew])
+  }, [id])
 
+  // `loadRefs` only sets state after `await`; nothing synchronous reaches
+  // this effect.
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { loadRefs() }, [loadRefs])
-  useEffect(() => { load() }, [load])
+  // The `/new` route never fetches; `loading` already starts false there.
+  // `load` only sets state after `await`; nothing synchronous reaches it.
+  // oxlint-disable-next-line react/set-state-in-effect
+  useEffect(() => { if (!isNew) load() }, [load, isNew])
 
   const handleChange = (field, value) => setAssessment(prev => ({ ...prev, [field]: value }))
 

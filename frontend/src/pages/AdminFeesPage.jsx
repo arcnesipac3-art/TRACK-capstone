@@ -111,6 +111,9 @@ export default function AdminFeesPage() {
     }
   }, [])
 
+  // `load` only sets state after `await`; nothing synchronous reaches this
+  // effect.
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { load() }, [load])
 
   const loadPayments = useCallback(async () => {
@@ -147,8 +150,12 @@ export default function AdminFeesPage() {
     }
   }, [reportYear, reportCategory])
 
+  // Activating a tab must flip its loading state before the request fires,
+  // or switching to an unloaded tab would show stale content with no spinner.
   useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect
     if (activeTab === 'payments') loadPayments()
+    // oxlint-disable-next-line react/set-state-in-effect
     if (activeTab === 'reports') loadReports()
   }, [activeTab, loadPayments, loadReports])
 

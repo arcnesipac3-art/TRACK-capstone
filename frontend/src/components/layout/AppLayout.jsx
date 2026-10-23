@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import MobileNavigation from './MobileNavigation'
+import LoadingSpinner from '../LoadingSpinner'
 import useFetch from '../../hooks/useFetch'
 import { NotificationsContext } from '../../context/NotificationsContext'
 
@@ -63,7 +64,10 @@ export default function AppLayout() {
             notifications={notifications}
           />
           <main className="app-content" id="main-content">
-            <Outlet />
+            {/* Pages are lazy chunks; keep the shell on screen while one loads. */}
+            <Suspense fallback={<LoadingSpinner block label="Loading page…" />}>
+              <Outlet />
+            </Suspense>
           </main>
         </div>
 

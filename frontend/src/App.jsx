@@ -1,42 +1,45 @@
-import { useEffect } from 'react'
+import { lazy, useEffect } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import './App.css'
 
 import ProtectedRoute from './components/ProtectedRoute'
 import RoleBasedRedirect from './components/RoleBasedRedirect'
 import AppLayout from './components/layout/AppLayout'
-
-import AnnouncementsPage from './pages/AnnouncementsPage'
-import AttendancePage from './pages/AttendancePage'
-import AssignmentsPage from './pages/AssignmentsPage'
-import AuditLogsPage from './pages/AuditLogsPage'
-import DepartmentsPage from './pages/DepartmentsPage'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import NotFoundPage from './pages/NotFoundPage'
-import NotificationsPage from './pages/NotificationsPage'
-import ParentChildrenPage from './pages/ParentChildrenPage'
-import ProfilePage from './pages/ProfilePage'
-import ReportsPage from './pages/ReportsPage'
-import RequirementsPage from './pages/RequirementsPage'
-import SchedulesPage from './pages/SchedulesPage'
-import SectionsPage from './pages/SectionsPage'
-import SubmissionsPage from './pages/SubmissionsPage'
-import SystemSettingsPage from './pages/SystemSettingsPage'
-import TeacherClassesPage from './pages/TeacherClassesPage'
 import UnauthorizedPage from './pages/UnauthorizedPage'
-import UsersPage from './pages/UsersPage'
 
-import AdminDashboard from './pages/dashboards/AdminDashboard'
-import ParentDashboard from './pages/dashboards/ParentDashboard'
-import StudentDashboard from './pages/dashboards/StudentDashboard'
-import TeacherDashboard from './pages/dashboards/TeacherDashboard'
+// Public screens stay eager (first paint, no round-trip). Everything behind
+// the authenticated shell is code-split per page: the old single chunk bundled
+// all ~25 screens into one 600 kB file that every login had to download first.
+const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage'))
+const AttendancePage = lazy(() => import('./pages/AttendancePage'))
+const AssignmentsPage = lazy(() => import('./pages/AssignmentsPage'))
+const AuditLogsPage = lazy(() => import('./pages/AuditLogsPage'))
+const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage'))
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
+const ParentChildrenPage = lazy(() => import('./pages/ParentChildrenPage'))
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
+const ReportsPage = lazy(() => import('./pages/ReportsPage'))
+const RequirementsPage = lazy(() => import('./pages/RequirementsPage'))
+const SchedulesPage = lazy(() => import('./pages/SchedulesPage'))
+const SectionsPage = lazy(() => import('./pages/SectionsPage'))
+const SubmissionsPage = lazy(() => import('./pages/SubmissionsPage'))
+const SystemSettingsPage = lazy(() => import('./pages/SystemSettingsPage'))
+const TeacherClassesPage = lazy(() => import('./pages/TeacherClassesPage'))
+const UsersPage = lazy(() => import('./pages/UsersPage'))
 
-import AdminFeesPage from './pages/AdminFeesPage'
-import AdminFeeCategoryDetailPage from './pages/AdminFeeCategoryDetailPage'
-import AdminFeeAssessmentDetailPage from './pages/AdminFeeAssessmentDetailPage'
-import StudentFeesPage from './pages/StudentFeesPage'
-import ParentFeesPage from './pages/ParentFeesPage'
+const AdminDashboard = lazy(() => import('./pages/dashboards/AdminDashboard'))
+const ParentDashboard = lazy(() => import('./pages/dashboards/ParentDashboard'))
+const StudentDashboard = lazy(() => import('./pages/dashboards/StudentDashboard'))
+const TeacherDashboard = lazy(() => import('./pages/dashboards/TeacherDashboard'))
+
+const AdminFeesPage = lazy(() => import('./pages/AdminFeesPage'))
+const AdminFeeCategoryDetailPage = lazy(() => import('./pages/AdminFeeCategoryDetailPage'))
+const AdminFeeAssessmentDetailPage = lazy(() => import('./pages/AdminFeeAssessmentDetailPage'))
+const StudentFeesPage = lazy(() => import('./pages/StudentFeesPage'))
+const ParentFeesPage = lazy(() => import('./pages/ParentFeesPage'))
 
 export default function App() {
   const { hash, pathname } = useLocation()

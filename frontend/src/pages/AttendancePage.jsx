@@ -19,9 +19,6 @@ import { attendanceSummary } from '../utils/stats'
 
 const STATUSES = ['present', 'absent', 'late', 'excused']
 
-/** Rows are capped so a long history never turns the list into a scroll wall. */
-const SESSION_ROW_LIMIT = 50
-
 /** Resolved once at module load so date inputs never recompute it while rendering. */
 const TODAY_ISO = new Date().toISOString().split('T')[0]
 
@@ -412,181 +409,6 @@ function EditSessionModal({ session, onClose, onUpdated, onDeleted }) {
         )}
       </form>
     </Modal>
-  )
-}
-
-function NewSessionDialog({ onCreated, existingSessions = [] }) {
-  const assignments = useFetch('/teacher-assignments/', { list: true })
-  const [open, setOpen] = useState(false)
-  const [assignment, setAssignment] = useState('')
-  const [date, setDate] = useState('')
-  const [notes, setNotes] = useState('')
-  const [error, setError] = useState(null)
-  const [busy, setBusy] = useState(false)
-
-  // Check for duplicate sessions
-  const isDuplicate = () => {
-    if (!assignment || !date) return false
-    return existingSessions.some(
-      (s) => s.teacher_assignment === Number(assignment) && s.date === date
-    )
-  }
-
-  function close() {
-    if (busy) return
-    setOpen(false)
-    setError(null)
-  }
-
-  function submit(event) {
-    event?.preventDefault?.()
-    if (busy) return
-
-    setError(null)
-    if (!assignment) return setError('Please select a class and subject.')
-    if (!date) return setError('Please select a date for this session.')
-    if (isDuplicate()) {
-      return setError('A session for this class on this date already exists.')
-    }
-
-    setBusy(true)
-    api
-      .post('/attendance/sessions/', {
-        teacher_assignment: Number(assignment),
-        date,
-        notes: notes.trim(),
-      })
-      .then((created) => {
-        setOpen(false)
-        setAssignment('')
-        setDate('')
-        setNotes('')
-        onCreated(created)
-      })
-      .catch((err) => {
-        // Handle backend duplicate constraint error
-        if (/unique|duplicate/i.test(err.message)) {
-          setError('A session for this class on this date already exists.')
-        } else {
-          setError(err.message)
-        }
-      })
-      .finally(() => setBusy(false))
-  }
-
-  const duplicate = isDuplicate()
-
-  return (
-    <>
-      <button
-        type="button"
-        className="btn btn-primary btn-sm"
-        onClick={() => setOpen(true)}
-        disabled={assignments.loading}
-        aria-haspopup="dialog"
-        aria-label="Create new attendance session"
-      >
-        <Icon name="plus" size={15} />
-        New attendance session
-      </button>
-
-      <Modal
-        open={open}
-        title="New attendance session"
-        onClose={close}
-        dismissible={!busy}
-        footer={
-          <>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={close}
-              disabled={busy}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={submit}
-              disabled={busy || duplicate}
-            >
-              {busy && <span className="spinner spinner-sm" aria-hidden="true" />}
-              {busy ? 'Creating…' : 'Create session'}
-            </button>
-          </>
-        }
-      >
-        <form
-          className="stack stack-sm"
-          onSubmit={submit}
-          aria-label="New attendance session"
-        >
-          <div className="field">
-            <label htmlFor="session-class">
-              Class and subject <span style={{ color: 'var(--red-700)' }}>*</span>
-            </label>
-            <select
-              id="session-class"
-              className="select"
-              value={assignment}
-              onChange={(event) => setAssignment(event.target.value)}
-              disabled={busy}
-              required
-            >
-              <option value="">Select a class…</option>
-              {(assignments.data || []).map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.subject_name} — {option.section_name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="field">
-            <label htmlFor="session-date">
-              Date <span style={{ color: 'var(--red-700)' }}>*</span>
-            </label>
-            <input
-              id="session-date"
-              className="input"
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-              disabled={busy}
-              required
-              max={TODAY_ISO}
-            />
-          </div>
-
-          <div className="field">
-            <label htmlFor="session-notes">Notes (optional)</label>
-            <input
-              id="session-notes"
-              className="input"
-              placeholder="e.g., Make-up class, Special schedule"
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              disabled={busy}
-            />
-          </div>
-
-          {duplicate && (
-            <div className="alert alert-warning" role="alert">
-              <Icon name="info" size={15} />
-              <span>A session for this class on this date already exists.</span>
-            </div>
-          )}
-
-          {error && (
-            <div className="alert alert-error" role="alert">
-              <Icon name="info" size={15} />
-              <span>{error}</span>
-            </div>
-          )}
-        </form>
-      </Modal>
-    </>
   )
 }
 
@@ -1910,7 +1732,6 @@ function TeacherAttendance() {
   const [editingSession, setEditingSession] = useState(null)
   const [filterClass, setFilterClass] = useState('')
   const [filterDate, setFilterDate] = useState('')
-  const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState(null)
   const sessions = useFetch('/attendance/sessions/', { list: true, deps: [nonce] })
   const assignments = useFetch('/teacher-assignments/', { list: true })
@@ -1919,36 +1740,37 @@ function TeacherAttendance() {
 
   const all = useMemo(() => sessions.data || [], [sessions.data])
 
-  // Auto-generate sessions on mount (once schedules are loaded)
+  // Auto-generate sessions on mount (once schedules are loaded). A ref —
+  // not state — makes this once-per-mount: depending on a `generating`
+  // state flag would re-run the effect the moment a run finished.
+  const autoGeneratedRef = useRef(false)
   useEffect(() => {
     async function autoGenerate() {
       // Wait for schedules to finish loading
       if (schedules.loading || !schedules.data) return
-      
+
       // Skip if no schedules configured
       if (schedules.data.length === 0) return
 
-      // Skip if already generating
-      if (generating) return
+      // Skip if this mount already generated
+      if (autoGeneratedRef.current) return
+      autoGeneratedRef.current = true
 
-      setGenerating(true)
       setGenerateError(null)
 
       try {
         const today = new Date().toISOString().split('T')[0]
         const endDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-        
+
         await api.post('/attendance/generate/', {
           start_date: today,
           end_date: endDate,
         })
-        
+
         // Refresh sessions after generation
         refresh()
       } catch (err) {
         setGenerateError(err.message)
-      } finally {
-        setGenerating(false)
       }
     }
 
@@ -2029,7 +1851,6 @@ function TeacherAttendance() {
   }
 
   const hasFilters = Boolean(filterClass || filterDate)
-  const visible = list.slice(0, SESSION_ROW_LIMIT)
 
   /* ---- taking attendance: dedicated view ------------------------- */
   if (openSession) {

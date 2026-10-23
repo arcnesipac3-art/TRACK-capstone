@@ -37,6 +37,9 @@ export default function StudentFeesPage() {
     } finally { setLoading(false) }
   }, [schoolYearFilter])
 
+  // `load` only sets state after `await`; nothing synchronous reaches this
+  // effect.
+  // oxlint-disable-next-line react/set-state-in-effect
   useEffect(() => { load() }, [load])
 
   if (loading) return <LoadingSpinner block size="lg" label="Loading fee summary…" />

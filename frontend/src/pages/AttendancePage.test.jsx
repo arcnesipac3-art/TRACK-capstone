@@ -63,7 +63,6 @@ const STUDENTS = [
 
 // Use today's date so sessions appear in "Today's Sessions" → "Take attendance" button.
 const TODAY = new Date().toISOString().split('T')[0]
-const YESTERDAY = new Date(Date.now() - 86400000).toISOString().split('T')[0]
 
 const SESSIONS = [
   {
@@ -246,7 +245,6 @@ describe('Teacher attendance — session list', () => {
   })
 
   it('shows no sessions match when date filter eliminates all', async () => {
-    const user = userEvent.setup()
     renderTeacher()
 
     fireEvent.change(screen.getByLabelText(/filter by date/i), {
