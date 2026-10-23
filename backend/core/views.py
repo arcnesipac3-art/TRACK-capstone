@@ -1709,9 +1709,11 @@ def _fee_assessed_total(assessments, cache=None):
 def _fee_assessed_by_student(assessments, students):
     """
     {student id: total applicable amount}, computed in Python with exactly
-    the scope rules the fee reports' per-student Q filter applied
-    (individual / section / grade level / school-wide). The paid, partial
-    and unpaid counts derived from it are unchanged; only the
+    the scope rules of `FeeAssessment.get_applicable_students()`: student
+    beats section beats grade level beats school-wide, and an assessment
+    that sets several of them (e.g. a section that also carries its grade
+    level) applies through its strongest scope only. The paid, partial and
+    unpaid counts derived from it follow the same rule; only the
     one-query-per-student cost is gone.
     """
     by_section = {}
@@ -1728,23 +1730,18 @@ def _fee_assessed_by_student(assessments, students):
     assessed = {student.id: Decimal("0") for student in students}
     for assessment in assessments:
         amount = assessment.amount
-        # The Q filter was an OR of scope branches; an assessment matching
-        # several of them (e.g. section + its grade level) still counts
-        # once per student, hence the set before adding.
+        # First matching scope wins, mirroring get_applicable_students().
         matched = set()
-        if assessment.student_id and assessment.student_id in assessed:
-            matched.add(assessment.student_id)
-        if assessment.section_id:
+        if assessment.student_id:
+            if assessment.student_id in assessed:
+                matched.add(assessment.student_id)
+        elif assessment.section_id:
             matched.update(by_section.get(assessment.section_id, ()))
-        if assessment.grade_level_id:
+        elif assessment.grade_level_id:
             matched.update(by_grade.get(
                 (assessment.grade_level_id, assessment.school_year_id), ()
             ))
-        if (
-            not assessment.grade_level_id
-            and not assessment.section_id
-            and not assessment.student_id
-        ):
+        else:
             matched.update(by_year.get(assessment.school_year_id, ()))
         for sid in matched:
             assessed[sid] += amount
@@ -2427,7 +2424,16 @@ class StudentFeeSummaryView(generics.ListAPIView):
             assessment_filter = Q(student=profile)
             if profile.section:
                 assessment_filter |= Q(section=profile.section)
-                assessment_filter |= Q(grade_level=profile.section.grade_level, school_year=profile.section.school_year)
+                # Grade-wide only when nothing narrower is set: a
+                # section-scoped assessment belongs to its section, even if
+                # it also carries the grade level (scope precedence mirrors
+                # FeeAssessment.get_applicable_students()).
+                assessment_filter |= Q(
+                    grade_level=profile.section.grade_level,
+                    school_year=profile.section.school_year,
+                    section__isnull=True,
+                    student__isnull=True,
+                )
                 assessment_filter |= Q(school_year=profile.section.school_year, grade_level__isnull=True, section__isnull=True, student__isnull=True)
             
             assessments = FeeAssessment.objects.filter(assessment_filter).distinct() if profile.section else FeeAssessment.objects.filter(student=profile)

@@ -708,10 +708,12 @@ class FeeAggregationEfficiencyTests(TrackTestCase):
                                                    total hand-computable)
         Draft    999 -> excluded everywhere
 
-    Per-student assessed/paid follow the reports' original Q-filter
-    semantics: a section-scoped assessment whose grade_level is also set
-    counts for the whole grade (the old code deduped that per row; the
-    batched helper must dedupe it per student instead).
+    Per-student assessed/paid follow FeeAssessment.get_applicable_students()
+    scope precedence: `section_scoped` sets both section and grade level
+    but counts for its section only, so the three Gumamela students owe
+    1500 each (school-wide 1000 + grade 500), not 1800. The old Q filter
+    ORed the scope branches and billed the whole grade for a section fee;
+    the fixed behaviour is pinned by FeeScopePrecedenceTests below.
     """
 
     def make_assessment(self, amount, category=None, **kwargs):
@@ -831,6 +833,79 @@ class FeeAggregationEfficiencyTests(TrackTestCase):
         self.assertEqual(student2_wide["outstanding"], "300.00")
         self.assertEqual(student2_wide["payment_status"], "partial")
         self.assertLess(len(ctx.captured_queries), 30)
+
+
+class FeeScopePrecedenceTests(TrackTestCase):
+    """
+    An assessment that sets several scope fields applies through the
+    strongest one only, exactly like
+    FeeAssessment.get_applicable_students(): student beats section beats
+    grade level beats school-wide. The reports' per-student statuses and
+    the student fee summary used to OR the branches together, which
+    billed the whole grade for a section fee.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.category = FeeCategory.objects.create(name="Lab", code="LAB-SCOPE")
+        self.school_wide = self.make("100")
+        self.section_and_grade = self.make(
+            "300", grade_level=self.grade7, section=self.section_a
+        )
+        # Both students pay the school-wide fee in full; only student1
+        # (Sampaguita/section A) additionally owes the section fee.
+        FeePayment.objects.create(
+            assessment=self.school_wide, student=self.student1,
+            amount=Decimal("100"), payment_date=timezone.now().date(),
+            status=FeePayment.Status.COMPLETED, recorded_by=self.admin,
+            receipt_number="RCPT-SCOPE-1",
+        )
+        FeePayment.objects.create(
+            assessment=self.school_wide, student=self.student2,
+            amount=Decimal("100"), payment_date=timezone.now().date(),
+            status=FeePayment.Status.COMPLETED, recorded_by=self.admin,
+            receipt_number="RCPT-SCOPE-2",
+        )
+
+    def make(self, amount, **kwargs):
+        return FeeAssessment.objects.create(
+            category=self.category, school_year=self.school_year,
+            amount=Decimal(amount),
+            due_date=timezone.now().date() + timedelta(days=30),
+            status=FeeAssessment.Status.PUBLISHED, created_by=self.admin,
+            **kwargs,
+        )
+
+    def test_collection_report_statuses_use_strongest_scope(self):
+        self.login_as(self.admin)
+        rows = self.client.get("/api/fee-reports/collection/").json()
+        lab = next(row for row in rows if row["category"] == "Lab")
+
+        # Gumamela (section B) students owe only the school-wide 100 and
+        # have paid it in full: paid 1, partial 1 (student1: 100 of 400),
+        # unpaid 0. With the old OR semantics every student was billed 400,
+        # so student2 read as partial — counts of 0/2/0.
+        self.assertEqual(lab["student_count"], 2)
+        self.assertEqual(lab["paid_count"], 1)
+        self.assertEqual(lab["partial_count"], 1)
+        self.assertEqual(lab["unpaid_count"], 0)
+        self.assertEqual(lab["total_assessed"], "500.00")
+        self.assertEqual(lab["total_collected"], "200.00")
+
+    def test_student_fee_summary_hides_other_sections(self):
+        # student2 (section B) must not be billed the section A fee, even
+        # though the assessment also carries the (matching) grade level.
+        self.login_as(self.student2_user)
+        row = self.client.get("/api/fee-summary/").json()[0]
+        self.assertEqual(len(row["assessments"]), 1)
+        self.assertEqual(row["assessments"][0]["amount"], 100.0)
+        self.assertEqual(row["total_assessed"], "100.00")
+
+        # student1 (section A) sees both, as before.
+        self.login_as(self.student1_user)
+        row = self.client.get("/api/fee-summary/").json()[0]
+        self.assertEqual(len(row["assessments"]), 2)
+        self.assertEqual(row["total_assessed"], "400.00")
 
 
 class AttendanceWriteTests(TrackTestCase):
