@@ -1283,6 +1283,20 @@
   -webkit-backdrop-filter: blur(10px);
 }
 
+.landing-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.landing-nav-seal {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
 .landing-nav-links {
   display: flex;
   align-items: center;

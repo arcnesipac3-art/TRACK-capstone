@@ -208,7 +208,14 @@ export default function LandingPage() {
           action are the whole navigation. It stays pinned while scrolling so
           the section links remain reachable on long reads. */}
       <header className="landing-nav">
-        <Logo size="sm" />
+        <div className="landing-nav-brand">
+          <img
+            src="/knhs-seal.png"
+            alt="Kiwalan National High School seal"
+            className="landing-nav-seal"
+          />
+          <Logo size="sm" />
+        </div>
 
         <nav className="landing-nav-links" aria-label="Landing sections">
           <a href="#features">Features</a>
