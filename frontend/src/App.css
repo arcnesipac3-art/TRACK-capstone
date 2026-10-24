@@ -1828,10 +1828,10 @@
   margin: 0;
 }
 
-/* Feature cards grid — 3 columns */
+/* Feature cards grid — 4 columns × 2 rows */
 .feature-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 20px;
 }
 
