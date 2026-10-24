@@ -1512,15 +1512,17 @@
    ================================================================ */
 .landing-hero {
   position: relative;
-  /* Deep navy base matching the reference */
   background: #070f22;
-  overflow: hidden;
-  /* Full viewport height beneath the navbar */
+  /* overflow:hidden clips the student. overflow:clip clips bg shapes
+     but doesn't affect abs-pos children outside the stacking context. */
+  overflow: clip;
   height: calc(100svh - 76px);
   min-height: 600px;
   max-height: 940px;
   display: flex;
   align-items: stretch;
+  /* Prevent sub-pixel gap at the bottom edge */
+  margin-bottom: -1px;
 }
 
 /* ── Background: large diagonal blue shape upper-right ── */
@@ -1547,18 +1549,18 @@
 .landing-hero::after {
   content: 'KIWALAN NATIONAL HIGH SCHOOL';
   position: absolute;
-  bottom: 32px;
+  bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: clamp(1.1rem, 2vw, 2rem);
+  font-size: clamp(1rem, 1.8vw, 1.8rem);
   font-weight: 900;
   letter-spacing: 0.18em;
-  /* Visible but subtle — matches reference ~10-12% opacity */
-  color: rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.08);
   white-space: nowrap;
   pointer-events: none;
   text-transform: uppercase;
-  z-index: 0;
+  /* Above student (z-index:1) but below cards (z-index:3) */
+  z-index: 2;
 }
 
 /* Radial glow circles — subtle depth */
@@ -1588,16 +1590,16 @@
   position: relative;
   z-index: 1;
   display: grid;
-  /* Reference: left ~42%, right ~58% */
-  grid-template-columns: 42fr 58fr;
+  /* 46% left / 54% right — wide enough for headline not to wrap at 1366px */
+  grid-template-columns: 46fr 54fr;
   grid-template-rows: 1fr;
-  /* Stretch both columns to full hero height */
   align-items: center;
   align-content: stretch;
   width: 100%;
   max-width: 1440px;
   margin: 0 auto;
-  padding: clamp(40px,5vh,72px) clamp(48px,6vw,96px);
+  /* Tighter horizontal padding so the left column has more room */
+  padding: clamp(40px,5vh,72px) clamp(36px,4.5vw,80px);
   gap: 0;
   flex: 1 1 auto;
 }
@@ -1644,15 +1646,16 @@
 }
 
 .hero-heading-line1 {
-  font-size: clamp(2.8rem, 4.8vw, 4.4rem);
+  font-size: clamp(2.6rem, 4.2vw, 4.2rem);
   font-weight: 900;
   line-height: 1.0;
   letter-spacing: -0.03em;
   color: #ffffff;
+  white-space: nowrap;
 }
 
 .hero-heading-line2 {
-  font-size: clamp(2.8rem, 4.8vw, 4.4rem);
+  font-size: clamp(2.6rem, 4.2vw, 4.2rem);
   font-weight: 900;
   line-height: 1.05;
   letter-spacing: -0.03em;
@@ -1747,7 +1750,8 @@
 .hero-stat {
   display: flex;
   flex-direction: column;
-  padding: 0 clamp(20px,2.5vw,32px);
+  /* Tighter padding so all 3 stats fit in the left column without wrapping */
+  padding: 0 clamp(14px,1.8vw,22px);
 }
 .hero-stat:first-child { padding-left: 0; }
 
@@ -1902,13 +1906,13 @@
 @media (max-width: 1199px) {
   .landing-hero { max-height: 860px; }
   .hero-layout {
-    grid-template-columns: 44fr 56fr;
-    padding: clamp(32px,4vh,52px) clamp(28px,4vw,52px);
+    grid-template-columns: 46fr 54fr;
+    padding: clamp(32px,4vh,52px) clamp(24px,3.5vw,48px);
   }
   .hero-visual { min-height: 380px; }
   .hero-student-img { max-width: 520px; }
   .hero-heading-line1,
-  .hero-heading-line2 { font-size: clamp(2.4rem, 4vw, 3.8rem); }
+  .hero-heading-line2 { font-size: clamp(2.4rem, 3.8vw, 3.6rem); }
 }
 
 /* Tablet 768px–1023px */
@@ -1918,6 +1922,7 @@
     grid-template-columns: 1fr 1fr;
     padding: 40px 28px 48px;
   }
+  .hero-heading-line1 { white-space: normal; }
   .hero-visual {
     min-height: clamp(360px, 52vw, 520px);
     align-self: stretch;
@@ -1932,7 +1937,7 @@
 
 /* Mobile ≤767px: stack vertically */
 @media (max-width: 767px) {
-  .landing-hero { min-height: auto; }
+  .landing-hero { min-height: auto; margin-bottom: 0; }
   .hero-layout {
     grid-template-columns: 1fr;
     padding: 40px 20px 0;
@@ -1944,6 +1949,8 @@
     text-align: center;
     padding-right: 0;
   }
+  .hero-heading-line1,
+  .hero-heading-line2 { white-space: normal; }
   .hero-kicker  { align-self: center; }
   .hero-sub     { max-width: none; text-align: center; }
   .hero-actions { justify-content: center; }
