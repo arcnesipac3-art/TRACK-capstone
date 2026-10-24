@@ -1562,13 +1562,14 @@
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* Left text ~48%, right visual ~52% */
+  grid-template-columns: 48fr 52fr;
   align-items: center;
   width: 100%;
   max-width: 1440px;
   margin: 0 auto;
   padding: clamp(40px,5vh,72px) clamp(32px,6vw,80px);
-  gap: 24px;
+  gap: 0;
   min-height: inherit;
 }
 
@@ -1578,6 +1579,93 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 0;
+}
+
+/* ── RIGHT COLUMN ── */
+.hero-visual {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  /* Stretch to full hero height so portrait occupies the full right side */
+  align-self: stretch;
+  /* Minimum height keeps it from collapsing */
+  min-height: clamp(500px, calc(100svh - 120px), 760px);
+  overflow: visible;
+}
+
+.hero-student-img {
+  position: absolute;
+  bottom: 0;
+  right: -24px;
+  /* Tall, prominent image that fills most of the hero height */
+  width: min(100%, 680px);
+  max-width: 680px;
+  height: auto;
+  max-height: 720px;
+  /* Anchor the head at the top, feet near the bottom */
+  object-fit: contain;
+  object-position: bottom right;
+  pointer-events: none;
+  user-select: none;
+  display: block;
+}
+
+/* Floating role cards */
+.hero-card {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(9,22,60,0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(37,99,235,0.35);
+  border-radius: 14px;
+  min-width: 168px;
+  max-width: 200px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  z-index: 2;
+  animation: hero-float 4s ease-in-out infinite;
+}
+
+.hero-card-icon {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(37,99,235,0.5);
+  border-radius: 50%;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.hero-card-body { flex: 1; min-width: 0; }
+
+.hero-card-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.hero-card-desc {
+  font-size: 0.66rem;
+  color: rgba(255,255,255,0.6);
+  line-height: 1.45;
+  margin-top: 2px;
+}
+
+/* Card positions — on the left side of the portrait (portrait is right-anchored) */
+.hero-card-student  { top: 6%;     left: 0;    animation-delay: 0s;   }
+.hero-card-teacher  { top: 38%;   left: -8px;  animation-delay: 1.4s; }
+.hero-card-parent   { bottom: 10%; left: 4px;   animation-delay: 2.8s; }
+
+@keyframes hero-float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-7px); }
 }
 
 .hero-kicker {
@@ -1742,90 +1830,6 @@
   line-height: 1.5;
 }
 
-/* ── RIGHT COLUMN ── */
-.hero-visual {
-  position: relative;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  /* Fill the full hero height so the portrait can be tall */
-  height: clamp(440px, calc(100svh - 140px), 660px);
-  overflow: visible;
-}
-
-.hero-student-img {
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  /* No height cap — let it fill the visual column */
-  height: 105%;
-  max-height: 680px;
-  width: auto;
-  object-fit: contain;
-  object-position: bottom center;
-  /* NO mix-blend-mode — image already has transparent background */
-  pointer-events: none;
-  user-select: none;
-  display: block;
-}
-
-/* Floating role cards */
-.hero-card {
-  position: absolute;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: rgba(9,22,60,0.72);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(37,99,235,0.35);
-  border-radius: 14px;
-  min-width: 168px;
-  max-width: 200px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-  z-index: 2;
-  animation: hero-float 4s ease-in-out infinite;
-}
-
-.hero-card-icon {
-  width: 34px;
-  height: 34px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(37,99,235,0.5);
-  border-radius: 50%;
-  color: #fff;
-  flex-shrink: 0;
-}
-
-.hero-card-body { flex: 1; min-width: 0; }
-
-.hero-card-title {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #fff;
-  line-height: 1.2;
-}
-
-.hero-card-desc {
-  font-size: 0.66rem;
-  color: rgba(255,255,255,0.6);
-  line-height: 1.45;
-  margin-top: 2px;
-}
-
-/* Card positions — right side of portrait, staggered */
-.hero-card-student  { top: 8%;  right: 0;   animation-delay: 0s;   }
-.hero-card-teacher  { top: 36%; right: -16px; animation-delay: 1.4s; }
-.hero-card-parent   { bottom: 12%; right: 8px;  animation-delay: 2.8s; }
-
-@keyframes hero-float {
-  0%, 100% { transform: translateY(0); }
-  50%       { transform: translateY(-7px); }
-}
 
 /* ── Dashboard preview section ── */
 .hero-preview-section {
@@ -1850,30 +1854,45 @@
 }
 
 /* ── RESPONSIVE ── */
+/* 1200px–1279px: slight padding reduction, cards stay in place */
 @media (max-width: 1279px) {
   .hero-layout { padding: clamp(32px,4vh,56px) clamp(24px,4vw,48px); }
-  .hero-card-teacher { right: -8px; }
+  .hero-student-img { max-width: 600px; max-height: 680px; }
 }
 
+/* Laptop 992px–1199px: reduce image size, keep two-column layout */
+@media (max-width: 1199px) {
+  .hero-layout {
+    grid-template-columns: 48fr 52fr;
+    gap: 0;
+  }
+  .hero-visual { height: clamp(460px, calc(100svh - 130px), 700px); }
+  .hero-student-img { max-width: 540px; max-height: 620px; right: -12px; }
+  .hero-heading-line1,
+  .hero-heading-line2 { font-size: clamp(2.2rem, 3.8vw, 3.4rem); }
+}
+
+/* Tablet 768px–991px: tighter two-column, reduce image */
 @media (max-width: 1023px) {
   .hero-layout {
     grid-template-columns: 1fr 1fr;
     padding: 40px 24px 48px;
-    gap: 16px;
+    gap: 0;
   }
-  .hero-visual { height: clamp(380px, 50vw, 520px); }
-  .hero-student-img { height: 105%; max-height: 540px; }
+  .hero-visual { height: clamp(400px, 52vw, 560px); align-self: stretch; }
+  .hero-student-img { max-width: 480px; max-height: 560px; right: -8px; }
   .hero-card { min-width: 140px; max-width: 168px; padding: 8px 12px; }
-  .hero-card-teacher { right: 0; }
-  .hero-card-parent  { right: 4px; }
+  .hero-card-teacher { left: -4px; }
+  .hero-card-parent  { left: 0; }
 }
 
+/* Mobile ≤767px: stack vertically */
 @media (max-width: 767px) {
   .landing-hero { min-height: auto; align-items: flex-start; }
   .hero-layout {
     grid-template-columns: 1fr;
     padding: 40px 20px 48px;
-    gap: 32px;
+    gap: 28px;
   }
   .hero-content { align-items: center; text-align: center; }
   .hero-kicker  { align-self: center; }
@@ -1882,18 +1901,28 @@
   .hero-note    { text-align: center; }
   .hero-stats   { justify-content: center; }
   .hero-stat:first-child { padding-left: clamp(16px,2vw,24px); }
-  /* Show portrait below content, smaller */
+  /* Show portrait below content, centered and scaled */
   .hero-visual {
-    height: clamp(260px,55vw,360px);
+    height: clamp(280px, 60vw, 400px);
     width: 100%;
+    justify-content: center;
   }
-  .hero-student-img { height: 105%; max-height: 380px; }
-  /* Keep cards visible, reposition */
-  .hero-card-student { top: 4%;  right: 4px; }
-  .hero-card-teacher { top: 34%; right: -4px; }
-  .hero-card-parent  { bottom: 4%; right: 4px; }
+  .hero-student-img {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(100%, 360px);
+    max-width: 360px;
+    max-height: 400px;
+    object-position: bottom center;
+  }
+  /* Reposition cards around the centered portrait */
+  .hero-card-student { top: 4%;   left: auto; right: 4px; }
+  .hero-card-teacher { top: 34%;  left: auto; right: -4px; }
+  .hero-card-parent  { bottom: 4%; left: auto; right: 4px; }
 }
 
+/* Small mobile ≤479px */
 @media (max-width: 479px) {
   .hero-layout { padding: 32px 16px 40px; }
   .hero-heading-line1,
@@ -1902,7 +1931,11 @@
   .hero-btn-secondary { width: 100%; justify-content: center; }
   .hero-actions { flex-direction: column; width: 100%; }
   .hero-visual { height: clamp(240px,65vw,320px); }
-  .hero-student-img { height: 105%; max-height: 320px; }
+  .hero-student-img {
+    width: min(100%, 300px);
+    max-width: 300px;
+    max-height: 320px;
+  }
   /* Hide cards on very small screens to reduce clutter */
   .hero-card { display: none; }
   .hero-stats { flex-wrap: wrap; gap: 12px 0; }
