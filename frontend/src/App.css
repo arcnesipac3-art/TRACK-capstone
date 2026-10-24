@@ -1748,7 +1748,8 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  height: clamp(380px, calc(100svh - 200px), 560px);
+  /* Fill the full hero height so the portrait can be tall */
+  height: clamp(440px, calc(100svh - 140px), 660px);
   overflow: visible;
 }
 
@@ -1757,13 +1758,16 @@
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  height: 100%;
-  max-height: 560px;
+  /* No height cap — let it fill the visual column */
+  height: 105%;
+  max-height: 680px;
   width: auto;
   object-fit: contain;
   object-position: bottom center;
+  /* NO mix-blend-mode — image already has transparent background */
   pointer-events: none;
   user-select: none;
+  display: block;
 }
 
 /* Floating role cards */
@@ -1857,8 +1861,8 @@
     padding: 40px 24px 48px;
     gap: 16px;
   }
-  .hero-visual { height: clamp(300px, 45vw, 420px); }
-  .hero-student-img { max-height: 420px; }
+  .hero-visual { height: clamp(380px, 50vw, 520px); }
+  .hero-student-img { height: 105%; max-height: 540px; }
   .hero-card { min-width: 140px; max-width: 168px; padding: 8px 12px; }
   .hero-card-teacher { right: 0; }
   .hero-card-parent  { right: 4px; }
@@ -1883,7 +1887,7 @@
     height: clamp(260px,55vw,360px);
     width: 100%;
   }
-  .hero-student-img { max-height: 360px; }
+  .hero-student-img { height: 105%; max-height: 380px; }
   /* Keep cards visible, reposition */
   .hero-card-student { top: 4%;  right: 4px; }
   .hero-card-teacher { top: 34%; right: -4px; }
@@ -1897,8 +1901,8 @@
   .hero-btn-primary,
   .hero-btn-secondary { width: 100%; justify-content: center; }
   .hero-actions { flex-direction: column; width: 100%; }
-  .hero-visual { height: clamp(220px,60vw,300px); }
-  .hero-student-img { max-height: 300px; }
+  .hero-visual { height: clamp(240px,65vw,320px); }
+  .hero-student-img { height: 105%; max-height: 320px; }
   /* Hide cards on very small screens to reduce clutter */
   .hero-card { display: none; }
   .hero-stats { flex-wrap: wrap; gap: 12px 0; }
