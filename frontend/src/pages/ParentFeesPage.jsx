@@ -37,10 +37,9 @@ export default function ParentFeesPage() {
     } finally { setLoading(false) }
   }, [schoolYearFilter])
 
-  // `load` only sets state after `await`; nothing synchronous reaches this
-  // effect.
-  // oxlint-disable-next-line react/set-state-in-effect
-  useEffect(() => { load() }, [load])
+  // `load` writes state only after its request resolves; queueMicrotask keeps
+  // the kickoff off the effect's synchronous pass.
+  useEffect(() => { queueMicrotask(load) }, [load])
 
   if (loading) return <LoadingSpinner block size="lg" label="Loading fee summaries…" />
   if (error) return <ErrorMessage error={error} title="Could not load fee summaries" onRetry={load} />

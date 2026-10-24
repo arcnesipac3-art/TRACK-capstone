@@ -111,10 +111,9 @@ export default function AdminFeesPage() {
     }
   }, [])
 
-  // `load` only sets state after `await`; nothing synchronous reaches this
-  // effect.
-  // oxlint-disable-next-line react/set-state-in-effect
-  useEffect(() => { load() }, [load])
+  // `load` writes state only after its requests resolve; queueMicrotask keeps
+  // the kickoff off the effect's synchronous pass.
+  useEffect(() => { queueMicrotask(load) }, [load])
 
   const loadPayments = useCallback(async () => {
     setPaymentsLoading(true)
@@ -151,12 +150,12 @@ export default function AdminFeesPage() {
   }, [reportYear, reportCategory])
 
   // Activating a tab must flip its loading state before the request fires,
-  // or switching to an unloaded tab would show stale content with no spinner.
+  // or switching to an unloaded tab would show stale content with no
+  // spinner — the loaders begin with that flip, and queueMicrotask runs the
+  // kickoff outside the effect's synchronous pass.
   useEffect(() => {
-    // oxlint-disable-next-line react/set-state-in-effect
-    if (activeTab === 'payments') loadPayments()
-    // oxlint-disable-next-line react/set-state-in-effect
-    if (activeTab === 'reports') loadReports()
+    if (activeTab === 'payments') queueMicrotask(loadPayments)
+    if (activeTab === 'reports') queueMicrotask(loadReports)
   }, [activeTab, loadPayments, loadReports])
 
   /* ------------------------------------------------------------------ */

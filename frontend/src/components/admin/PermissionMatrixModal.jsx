@@ -33,13 +33,21 @@ export default function PermissionMatrixModal({
   const [busy, setBusy] = useState(false)
   const [saveError, setSaveError] = useState(null)
 
+  // Opening for a department shows its spinner and clears stale errors —
+  // adjusted during render (react.dev "you might not need an effect") so the
+  // effect body only talks to the network.
+  const deptFetchKey = open && department ? department.id : null
+  const [prevDeptFetchKey, setPrevDeptFetchKey] = useState(undefined)
+  if (deptFetchKey !== prevDeptFetchKey) {
+    setPrevDeptFetchKey(deptFetchKey)
+    setLoading(deptFetchKey !== null)
+    setError(null)
+    setSaveError(null)
+  }
+
   useEffect(() => {
     if (!open || !department) return undefined
     let cancelled = false
-    /* oxlint-disable-next-line react/set-state-in-effect */
-    setLoading(true)
-    setError(null)
-    setSaveError(null)
     api
       .get(`/departments/${department.id}/permissions/`)
       .then((data) => {

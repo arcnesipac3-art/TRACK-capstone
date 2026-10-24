@@ -45,9 +45,9 @@ export default function AdminFeeCategoryDetailPage() {
   }, [id])
 
   // The `/new` route never fetches; `loading` already starts false there.
-  // `load` only sets state after `await`; nothing synchronous reaches it.
-  // oxlint-disable-next-line react/set-state-in-effect
-  useEffect(() => { if (!isNew) load() }, [load, isNew])
+  // `load` writes state only after its request resolves; queueMicrotask keeps
+  // the kickoff off the effect's synchronous pass.
+  useEffect(() => { if (!isNew) queueMicrotask(load) }, [load, isNew])
 
   const handleChange = (field, value) => {
     setCategory(prev => ({ ...prev, [field]: field === 'code' ? value.toUpperCase() : value }))

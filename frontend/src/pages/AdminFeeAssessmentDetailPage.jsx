@@ -93,14 +93,12 @@ export default function AdminFeeAssessmentDetailPage() {
     } finally { setLoading(false) }
   }, [id])
 
-  // `loadRefs` only sets state after `await`; nothing synchronous reaches
-  // this effect.
-  // oxlint-disable-next-line react/set-state-in-effect
-  useEffect(() => { loadRefs() }, [loadRefs])
+  // `loadRefs` writes state only after its requests resolve; queueMicrotask
+  // keeps the kickoff off the effect's synchronous pass.
+  useEffect(() => { queueMicrotask(loadRefs) }, [loadRefs])
   // The `/new` route never fetches; `loading` already starts false there.
-  // `load` only sets state after `await`; nothing synchronous reaches it.
-  // oxlint-disable-next-line react/set-state-in-effect
-  useEffect(() => { if (!isNew) load() }, [load, isNew])
+  // `load` writes state only after its request resolves — same deferral.
+  useEffect(() => { if (!isNew) queueMicrotask(load) }, [load, isNew])
 
   const handleChange = (field, value) => setAssessment(prev => ({ ...prev, [field]: value }))
 

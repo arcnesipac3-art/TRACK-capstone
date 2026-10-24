@@ -106,11 +106,18 @@ export default function UserFormModal({ open, user, sections = [], onClose, onSa
   }, [open, form.role])
 
   // Administrator accounts need the department list to be assigned to.
+  // Stale errors reset with the fetch trigger itself — adjusted during render
+  // (react.dev "you might not need an effect") so no effect pass starts a
+  // cascading commit; the effect below only synchronizes with the network.
+  const deptFetchKey = open && form.role === 'admin' ? 'admin' : null
+  const [prevDeptFetchKey, setPrevDeptFetchKey] = useState(null)
+  if (deptFetchKey !== prevDeptFetchKey) {
+    setPrevDeptFetchKey(deptFetchKey)
+    if (deptFetchKey) setDepartmentsError(null)
+  }
   useEffect(() => {
     if (!open || form.role !== 'admin') return undefined
     let cancelled = false
-    /* oxlint-disable-next-line react/set-state-in-effect */
-    setDepartmentsError(null)
     api
       .list('/departments/')
       .then((rows) => {
@@ -126,12 +133,21 @@ export default function UserFormModal({ open, user, sections = [], onClose, onSa
 
   // Personal grants on top of the department matrix — read once per dialog,
   // and only for administrators, only with the permission to see them.
+  // The error resets when that trigger changes (render-time adjustment), and
+  // again on a successful read so a mid-dialog identity change self-heals.
+  const grantsFetchKey =
+    open && editing && user?.role === 'admin' && can('departments.permissions')
+      ? user.id
+      : null
+  const [prevGrantsFetchKey, setPrevGrantsFetchKey] = useState(null)
+  if (grantsFetchKey !== prevGrantsFetchKey) {
+    setPrevGrantsFetchKey(grantsFetchKey)
+    if (grantsFetchKey) setGrantsError(null)
+  }
   useEffect(() => {
     if (!open || !editing || user?.role !== 'admin') return undefined
     if (!can('departments.permissions')) return undefined
     let cancelled = false
-    /* oxlint-disable-next-line react/set-state-in-effect */
-    setGrantsError(null)
     Promise.all([
       api.get(`/users/${user.id}/permissions/`),
       api.list('/permissions/'),
@@ -140,6 +156,7 @@ export default function UserFormModal({ open, user, sections = [], onClose, onSa
         if (cancelled) return
         setExtraPerms(perms.permissions || [])
         setPermDefs(defs)
+        setGrantsError(null)
       })
       .catch((err) => {
         if (cancelled) return

@@ -99,11 +99,12 @@ function usePaginatedList(kind, initialFilters = {}) {
     }
   }, [path, page, pageSize, debouncedSearch, filters, ordering])
 
+  // The spinner still flips before the request fires — `fetchData` begins
+  // with it — but queueMicrotask runs that kickoff outside the effect's
+  // synchronous pass. Each call aborts its predecessor, so request ordering
+  // and this cleanup's abort are unchanged.
   useEffect(() => {
-    // `fetchData` flips the spinner synchronously and only then awaits the
-    // request; that ordering is what makes refetches show a loading state.
-    // oxlint-disable-next-line react/set-state-in-effect
-    fetchData()
+    queueMicrotask(fetchData)
     return () => {
       if (abortRef.current) abortRef.current.abort()
     }
