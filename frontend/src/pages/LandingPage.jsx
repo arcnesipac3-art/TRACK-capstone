@@ -446,22 +446,29 @@ export default function LandingPage() {
         </section>
 
         {/* ── Features ──────────────────────────────────────────── */}
-        <section className="landing-section" id="features" aria-labelledby="features-heading" data-reveal>
-          <p className="ls-eyebrow">Features</p>
-          <h2 id="features-heading">Everything you need, in one place.</h2>
-          <p className="ls-lede">
-            Designed for every role at KNHS — simple, secure and accessible on any device.
-          </p>
-          <div className="feature-grid">
-            {FEATURES.map((feature) => (
-              <article className="feature-card" key={feature.title}>
-                <span className="fc-icon" aria-hidden="true">
-                  <Icon name={feature.icon} size={18} />
-                </span>
-                <h3>{feature.title}</h3>
-                <p>{feature.body}</p>
-              </article>
-            ))}
+        <section className="feat-section" id="features" aria-labelledby="features-heading" data-reveal>
+          <div className="feat-section-inner">
+            <div className="feat-header">
+              <p className="feat-eyebrow">Features</p>
+              <h2 id="features-heading">
+                Everything You Need,{' '}
+                <span className="feat-heading-accent">In One Place</span>
+              </h2>
+              <p className="feat-subheading">
+                Designed for every role at KNHS — simple, secure and accessible on any device.
+              </p>
+            </div>
+            <div className="feature-grid">
+              {FEATURES.map((feature) => (
+                <article className="feature-card" key={feature.title}>
+                  <span className="fc-icon" aria-hidden="true">
+                    <Icon name={feature.icon} size={22} />
+                  </span>
+                  <h3>{feature.title}</h3>
+                  <p>{feature.body}</p>
+                </article>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -528,25 +535,35 @@ export default function LandingPage() {
         </section>
 
         {/* ── Trust & Security ──────────────────────────────────── */}
-        <section className="landing-band" id="security" aria-labelledby="trust-heading" data-reveal>
-          <div className="landing-section">
-            <p className="ls-eyebrow">Trust &amp; Security</p>
-            <h2 id="trust-heading">Your records are safe with TRACK.</h2>
-            <p className="ls-lede">
-              Built on strict role-scoping and a full audit trail. Official. Secure. School-controlled.
-            </p>
-            <div className="trust-grid">
-              {TRUST.map((item) => (
-                <article className="trust-card" key={item.title}>
-                  <span className="trust-icon" aria-hidden="true">
-                    <Icon name={item.icon} size={18} />
-                  </span>
-                  <div>
+        <section className="trust-section" id="security" aria-labelledby="trust-heading" data-reveal>
+          <div className="trust-section-inner">
+            <div className="trust-left">
+              <p className="trust-eyebrow">Trust &amp; Security</p>
+              <h2 id="trust-heading">
+                Your Data is{' '}
+                <span className="trust-heading-accent">Safe With Us</span>
+              </h2>
+              <p className="trust-lede">
+                TRACK is built on the highest standards of security and privacy.
+                Official. Secure. School-controlled.
+              </p>
+              <div className="trust-badge">
+                <Icon name="shield" size={14} aria-hidden="true" />
+                Registrar-Issued Accounts Only
+              </div>
+            </div>
+            <div className="trust-right">
+              <div className="trust-grid">
+                {TRUST.map((item) => (
+                  <article className="trust-card" key={item.title}>
+                    <span className="trust-icon" aria-hidden="true">
+                      <Icon name={item.icon} size={20} />
+                    </span>
                     <h3>{item.title}</h3>
                     <p>{item.body}</p>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                ))}
+              </div>
             </div>
           </div>
         </section>

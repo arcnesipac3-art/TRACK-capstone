@@ -1704,34 +1704,252 @@
   color: var(--red-700);
 }
 
-/* --- Trust cards --- */
+/* --- Feature section (eGov-style centered, 3-col card grid) --- */
+.feat-section {
+  background: #fff;
+  border-top: 1px solid var(--border);
+  padding: 96px 40px;
+  width: 100%;
+}
+
+.feat-section-inner {
+  max-width: 1060px;
+  margin: 0 auto;
+}
+
+.feat-header {
+  text-align: center;
+  margin-bottom: 56px;
+}
+
+.feat-eyebrow {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #155DFC;
+  background: #EEF3FF;
+  border: 1px solid #C7D9FF;
+  border-radius: 999px;
+  padding: 4px 14px;
+  margin: 0 0 18px;
+}
+
+.feat-section-inner h2,
+#features-heading {
+  font-size: clamp(1.8rem, 3.2vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--navy-900);
+  margin: 0 0 12px;
+}
+
+.feat-heading-accent {
+  color: #155DFC;
+}
+
+.feat-subheading {
+  font-size: 1rem;
+  color: #5c7199;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Feature cards grid — 3 columns */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.feature-card {
+  padding: 28px 24px;
+  background: #fff;
+  border: 1.5px solid #E4EAFE;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(21, 93, 252, 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.feature-card:hover {
+  border-color: #A5BEFF;
+  box-shadow: 0 8px 24px rgba(21, 93, 252, 0.1);
+  transform: translateY(-3px);
+}
+
+/* Icon box — each card gets a tinted rounded square */
+.feature-card .fc-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  border-radius: 12px;
+  /* Base tint; individual cards override via nth-child */
+  background: #EEF3FF;
+  color: #155DFC;
+  border: 1.5px solid #C7D9FF;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+/* Cycle through 6 tint pairs so cards feel distinct */
+.feature-card:nth-child(6n+1) .fc-icon { background: #EEF3FF; color: #155DFC; border-color: #C7D9FF; }
+.feature-card:nth-child(6n+2) .fc-icon { background: #FFF7ED; color: #c2610c; border-color: #fed7aa; }
+.feature-card:nth-child(6n+3) .fc-icon { background: #F0FDF4; color: #15803d; border-color: #bbf7d0; }
+.feature-card:nth-child(6n+4) .fc-icon { background: #FFF1F2; color: #be123c; border-color: #fecdd3; }
+.feature-card:nth-child(6n+5) .fc-icon { background: #F5F3FF; color: #7c3aed; border-color: #ddd6fe; }
+.feature-card:nth-child(6n+6) .fc-icon { background: #FFFBEB; color: #b45309; border-color: #fde68a; }
+
+.feature-card:hover .fc-icon {
+  filter: brightness(0.95) saturate(1.1);
+}
+
+.feature-card h3 {
+  font-size: 0.97rem;
+  font-weight: 700;
+  color: var(--navy-900);
+  margin: 0 0 8px;
+}
+
+.feature-card p {
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: #5c7199;
+  margin: 0;
+}
+
+/* --- Trust & Security section (eGov two-column layout) --- */
+.trust-section {
+  background: #F4F6FA;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 96px 40px;
+  width: 100%;
+}
+
+.trust-section-inner {
+  max-width: 1060px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: 64px;
+  align-items: center;
+}
+
+/* Left column */
+.trust-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.trust-eyebrow {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #155DFC;
+  background: #EEF3FF;
+  border: 1px solid #C7D9FF;
+  border-radius: 999px;
+  padding: 4px 14px;
+  margin: 0 0 18px;
+  width: fit-content;
+}
+
+.trust-left h2,
+#trust-heading {
+  font-size: clamp(1.7rem, 2.8vw, 2.2rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: var(--navy-900);
+  margin: 0 0 16px;
+}
+
+.trust-heading-accent {
+  color: #155DFC;
+}
+
+.trust-lede {
+  font-size: 0.96rem;
+  color: #5c7199;
+  line-height: 1.65;
+  margin: 0 0 28px;
+}
+
+/* Pill badge */
+.trust-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  background: #fff;
+  border: 1.5px solid #C7D9FF;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #155DFC;
+  width: fit-content;
+}
+
+/* Right column — 2×2 grid */
+.trust-right {
+  width: 100%;
+}
+
 .trust-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 16px;
 }
+
 .trust-card {
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 20px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: var(--shadow-sm);
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px 20px;
+  background: #fff;
+  border: 1.5px solid #E4EAFE;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(21, 93, 252, 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
-.trust-card h3 { font-size: 0.95rem; margin: 0 0 6px; color: var(--navy-800); }
-.trust-card p { font-size: 0.86rem; color: var(--text-muted); line-height: 1.5; margin: 0; }
+
+.trust-card:hover {
+  border-color: #A5BEFF;
+  box-shadow: 0 6px 20px rgba(21, 93, 252, 0.09);
+}
+
 .trust-icon {
-  flex: 0 0 auto;
-  width: 36px;
-  height: 36px;
-  display: grid;
-  place-items: center;
-  border-radius: 8px;
-  background: var(--green-100);
-  color: var(--green-700);
-  margin-top: 2px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: #EEF3FF;
+  color: #155DFC;
+  border: 1.5px solid #C7D9FF;
+  flex-shrink: 0;
+}
+
+.trust-card h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--navy-900);
+  margin: 0;
+}
+
+.trust-card p {
+  font-size: 0.855rem;
+  line-height: 1.6;
+  color: #5c7199;
+  margin: 0;
 }
 
 /* --- Footer brand logos --- */
@@ -1751,44 +1969,7 @@
   flex: 0 0 auto;
 }
 
-/* --- Feature cards --- */
-.feature-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-}
-.feature-card {
-  padding: 20px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: var(--shadow-sm);
-  transition: transform var(--ease), box-shadow var(--ease);
-}
-.feature-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
-}
-.feature-card .fc-icon {
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  margin-bottom: 12px;
-  background: linear-gradient(135deg, var(--blue-600), var(--navy-700));
-  color: #fff;
-  border-radius: 8px;
-}
-.feature-card h3 {
-  margin-bottom: 5px;
-  font-size: 0.95rem;
-  color: var(--navy-800);
-}
-.feature-card p {
-  font-size: 0.86rem;
-  line-height: 1.5;
-  color: var(--text-muted);
-}
+/* Feature and trust CSS moved above to eGov-style blocks */
 
 /* --- How it works (eGov-style 3-step cards with connector line) --- */
 .how-section {
@@ -2556,10 +2737,12 @@
   .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
   .feature-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .feat-section { padding: 72px 24px; }
+  .trust-section { padding: 72px 24px; }
+  .trust-section-inner { grid-template-columns: minmax(0, 1fr); gap: 40px; }
   .role-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .problem-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .trust-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-
   /* Landing page — tablet */
   .landing-nav { padding: 0 24px; }
   .landing-hero { padding: 64px 24px 140px; }
@@ -2679,7 +2862,11 @@
    width so they are easy to hit. */
 @media (max-width: 639px) {
   .feature-grid,
+  .trust-grid,
   .role-grid { grid-template-columns: minmax(0, 1fr); }
+  .feat-section { padding: 56px 20px; }
+  .trust-section { padding: 56px 20px; }
+  .trust-section-inner { gap: 32px; }
 }
 
 @media (max-width: 479px) {
