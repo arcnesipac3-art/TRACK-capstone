@@ -3091,9 +3091,10 @@
   .quick-action .qa-icon { width: 30px; height: 30px; }
 }
 
-/* On mobile, hide the Sign In button in the navbar (it lives in the drawer) */
+/* On mobile, hide the Sign In button in the navbar (it lives in the dropdown) */
 @media (max-width: 767px) {
-  .landing-nav > .btn { display: none; }
+  .landing-nav > .btn,
+  .landing-nav > .btn.btn-primary { display: none; }
 }
 
 /* Landing page: the feature cards drop to one column a little before the rest
