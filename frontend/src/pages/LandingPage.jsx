@@ -273,7 +273,7 @@ export default function LandingPage() {
   useEffect(() => {
     const container = rootRef.current
     if (!container) return undefined
-    const NAV_H = 72 // matches .landing-nav height
+    const NAV_H = 88 // matches .landing-nav height
 
     function handleAnchorClick(e) {
       const anchor = e.target.closest('a[href^="#"]')
