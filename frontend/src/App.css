@@ -1242,6 +1242,10 @@
   background: var(--surface);
   /* Prevent absolute-positioned glow pseudo-elements from causing horizontal scroll */
   overflow-x: hidden;
+  /* Make .landing the scroll container so position:sticky on the nav works
+     correctly when html/body/root are constrained to height:100%. */
+  overflow-y: auto;
+  height: 100%;
 }
 
 /* The main element wraps the preview + all sections.
