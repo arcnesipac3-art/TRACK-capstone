@@ -1277,23 +1277,17 @@
 .landing-skip:focus { transform: translateY(0); }
 
 /* --- Navigation --- */
-/* Pinned to the top of the window so the section links stay reachable on a
-   long read. Translucent over the hero gradient, with a blur to keep the copy
-   underneath legible as it scrolls past. */
 .landing-nav {
   position: sticky;
   top: 0;
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 0 40px;
-  height: 68px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.96);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  /* Prevent children from ever overflowing the nav bar width */
+  gap: 24px;
+  padding: 0 48px;
+  height: 72px;
+  border-bottom: 1px solid #e8ecf4;
+  background: #ffffff;
   min-width: 0;
 }
 
@@ -1305,32 +1299,57 @@
 }
 
 .landing-nav-seal {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   flex: 0 0 auto;
   object-fit: contain;
 }
 
+/* Center the nav links between brand and CTA */
 .landing-nav-links {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   margin-left: auto;
-  margin-right: 16px;
+  margin-right: auto;
 }
+
 .landing-nav-links a {
-  padding: 7px 11px;
-  border-radius: var(--radius-sm);
-  color: var(--text-muted);
-  font-size: 0.88rem;
+  padding: 7px 13px;
+  border-radius: 6px;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.landing-nav-links a:hover {
+  background: #F3F4F6;
+  color: #111827;
+  text-decoration: none;
+}
+
+/* CTA button — solid blue pill, matches eGov "Download App" */
+.landing-nav > .btn.btn-primary {
+  flex-shrink: 0;
+  background: #155DFC;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 9px 22px;
+  font-size: 0.875rem;
   font-weight: 600;
   white-space: nowrap;
-}
-.landing-nav-links a:hover {
-  background: var(--gray-100);
-  color: var(--navy-800);
+  transition: background 0.15s ease, box-shadow 0.15s ease;
   text-decoration: none;
+}
+
+.landing-nav > .btn.btn-primary:hover {
+  background: #1148d4;
+  box-shadow: 0 4px 12px rgba(21, 93, 252, 0.3);
 }
 
 /* Mobile hamburger button — hidden on desktop */
@@ -2819,8 +2838,7 @@
   .problem-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .trust-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* Landing page — tablet */
-  .landing-nav { padding: 0 24px; }
-  .landing-hero { padding: 64px 24px 140px; }
+  .landing-nav { padding: 0 24px; }  .landing-hero { padding: 64px 24px 140px; }
   .landing-preview { margin-top: -90px; padding: 0 24px 60px; }
   .landing-section { padding: 60px 24px; }
   .landing-cta { padding: 60px 24px; }
@@ -2886,8 +2904,7 @@
 
   .landing-nav { padding: 0 16px; height: 60px; }
   .landing-nav-links { display: none; }
-  .landing-nav-menu-btn { display: flex; }
-  .landing-hero { padding: 52px 16px 110px; }
+  .landing-nav-menu-btn { display: flex; }  .landing-hero { padding: 52px 16px 110px; }
   .landing-preview { margin-top: -60px; padding: 0 12px 48px; }
   .landing-section { padding: 48px 16px; }
   .problem-grid { grid-template-columns: minmax(0, 1fr); }
