@@ -1508,55 +1508,60 @@
 }
 
 /* ================================================================
-   HERO — two-column, viewport-height-aware
+   HERO — matches reference screenshot exactly
    ================================================================ */
 .landing-hero {
   position: relative;
-  background: linear-gradient(135deg, #040c18 0%, #071525 30%, #0c1e42 60%, #0a1838 100%);
-  overflow: clip;
-  /* Desktop: fill the viewport beneath the navbar, capped to avoid excess space.
-     The hero must not grow beyond what the grid content needs. */
-  min-height: calc(100svh - 76px);
-  /* Cap it so it never forces a scrollbar on short laptops */
-  max-height: 860px;
+  /* Deep navy base matching the reference */
+  background: #070f22;
+  overflow: hidden;
+  /* Full viewport height beneath the navbar */
+  height: calc(100svh - 76px);
+  min-height: 600px;
+  max-height: 940px;
   display: flex;
   align-items: stretch;
 }
 
-/* ── Background decorative shapes (matching reference) ── */
-
-/* Large diagonal blue band — upper-right */
+/* ── Background: large diagonal blue shape upper-right ── */
 .landing-hero::before {
   content: '';
   position: absolute;
-  top: -120px;
-  right: -80px;
-  width: 55%;
-  height: 140%;
-  background: linear-gradient(145deg, rgba(21,93,252,0.22) 0%, rgba(14,55,180,0.12) 40%, transparent 70%);
-  border-radius: 60% 0 0 40%;
+  top: 0;
+  right: 0;
+  /* Covers the upper-right ~55% of the hero */
+  width: 62%;
+  height: 100%;
+  background: linear-gradient(135deg,
+    transparent 0%,
+    rgba(18,60,180,0.35) 30%,
+    rgba(22,80,220,0.5) 55%,
+    rgba(16,55,190,0.3) 75%,
+    transparent 100%);
+  border-radius: 50% 0 0 60%;
   pointer-events: none;
   z-index: 0;
 }
 
-/* Watermark — kept well above the hero bottom edge so overflow:clip doesn't cut it */
+/* ── Watermark — "KIWALAN NATIONAL HIGH SCHOOL" across the bottom ── */
 .landing-hero::after {
   content: 'KIWALAN NATIONAL HIGH SCHOOL';
   position: absolute;
-  bottom: 48px;
+  bottom: 32px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: clamp(0.7rem, 1.4vw, 1.2rem);
+  font-size: clamp(1.1rem, 2vw, 2rem);
   font-weight: 900;
-  letter-spacing: 0.22em;
-  color: rgba(255,255,255,0.03);
+  letter-spacing: 0.18em;
+  /* Visible but subtle — matches reference ~10-12% opacity */
+  color: rgba(255,255,255,0.10);
   white-space: nowrap;
   pointer-events: none;
   text-transform: uppercase;
   z-index: 0;
 }
 
-/* Subtle decorative radial glows */
+/* Radial glow circles — subtle depth */
 .hero-bg-curve {
   position: absolute;
   border-radius: 50%;
@@ -1564,18 +1569,18 @@
   z-index: 0;
 }
 .hero-bg-curve-1 {
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(21,93,252,0.18) 0%, transparent 65%);
-  top: -160px;
-  right: 5%;
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(22,80,220,0.2) 0%, transparent 60%);
+  top: -200px;
+  right: 0;
 }
 .hero-bg-curve-2 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(14,55,180,0.1) 0%, transparent 65%);
-  bottom: -80px;
-  left: -60px;
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(circle, rgba(10,40,140,0.15) 0%, transparent 65%);
+  bottom: -60px;
+  left: -40px;
 }
 
 /* ── Two-column grid ── */
@@ -1583,18 +1588,18 @@
   position: relative;
   z-index: 1;
   display: grid;
-  grid-template-columns: 48fr 52fr;
+  /* Reference: left ~42%, right ~58% */
+  grid-template-columns: 42fr 58fr;
   grid-template-rows: 1fr;
+  /* Stretch both columns to full hero height */
   align-items: center;
+  align-content: stretch;
   width: 100%;
   max-width: 1440px;
   margin: 0 auto;
-  /* Tighter vertical padding — let the hero height drive the spacing */
-  padding: clamp(32px,4vh,52px) clamp(40px,6vw,96px);
+  padding: clamp(40px,5vh,72px) clamp(48px,6vw,96px);
   gap: 0;
   flex: 1 1 auto;
-  /* Ensure the single grid row fills the flex item's full height */
-  align-content: stretch;
 }
 
 /* ── LEFT COLUMN ── */
@@ -1603,65 +1608,68 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 0;
-  /* Ensure text doesn't get squeezed against the student */
-  padding-right: clamp(16px,3vw,48px);
+  /* Gap between text and student */
+  padding-right: clamp(24px,3vw,56px);
 }
 
+/* School badge */
 .hero-kicker {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 14px;
-  background: rgba(255,255,255,0.1);
-  color: rgba(255,255,255,0.9);
-  border: 1px solid rgba(255,255,255,0.18);
+  padding: 5px 12px 5px 5px;
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.88);
+  border: 1px solid rgba(255,255,255,0.15);
   border-radius: 999px;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  margin-bottom: clamp(16px,2.2vh,24px);
+  margin-bottom: clamp(18px,2.4vh,28px);
 }
 
 .hero-knhs-seal {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   object-fit: contain;
 }
 
-/* Heading */
+/* Heading — large, bold, matching reference */
 .hero-heading {
   display: flex;
   flex-direction: column;
-  margin: 0 0 clamp(14px,2vh,22px);
+  margin: 0 0 clamp(16px,2vh,24px);
 }
 
 .hero-heading-line1 {
-  font-size: clamp(2.6rem, 4.4vw, 4rem);
+  font-size: clamp(2.8rem, 4.8vw, 4.4rem);
   font-weight: 900;
   line-height: 1.0;
   letter-spacing: -0.03em;
-  color: #fff;
+  color: #ffffff;
 }
 
 .hero-heading-line2 {
-  font-size: clamp(2.6rem, 4.4vw, 4rem);
+  font-size: clamp(2.8rem, 4.8vw, 4.4rem);
   font-weight: 900;
-  line-height: 1.0;
+  line-height: 1.05;
   letter-spacing: -0.03em;
+  /* Bright blue matching reference */
   color: #2563EB;
 }
 
+/* Description */
 .hero-sub {
-  font-size: clamp(0.88rem, 1.05vw, 1rem);
+  font-size: clamp(0.88rem, 1vw, 1rem);
   line-height: 1.7;
-  color: rgba(255,255,255,0.62);
-  max-width: 46ch;
-  margin: 0 0 clamp(22px,2.8vh,32px);
+  color: rgba(255,255,255,0.60);
+  max-width: 44ch;
+  margin: 0 0 clamp(24px,3vh,36px);
 }
 
-/* Buttons */
+/* CTA Buttons */
 .hero-actions {
   display: flex;
   gap: 12px;
@@ -1669,17 +1677,18 @@
   margin-bottom: clamp(10px,1.4vh,14px);
 }
 
+/* Primary: solid blue, rounded */
 .hero-btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: clamp(46px,5.6vh,54px);
-  padding: 0 clamp(22px,2.2vw,30px);
+  height: 48px;
+  padding: 0 28px;
   background: #2563EB;
   color: #fff;
   border: none;
-  border-radius: 10px;
-  font-size: 0.97rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
@@ -1693,17 +1702,18 @@
   color: #fff;
 }
 
+/* Secondary: transparent with white border */
 .hero-btn-secondary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: clamp(46px,5.6vh,54px);
-  padding: 0 clamp(22px,2.2vw,30px);
+  height: 48px;
+  padding: 0 28px;
   background: transparent;
   color: #fff;
-  border: 1.5px solid rgba(255,255,255,0.4);
-  border-radius: 10px;
-  font-size: 0.97rem;
+  border: 1.5px solid rgba(255,255,255,0.45);
+  border-radius: 8px;
+  font-size: 0.95rem;
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
@@ -1712,43 +1722,45 @@
 }
 .hero-btn-secondary:hover {
   background: rgba(255,255,255,0.08);
-  border-color: rgba(255,255,255,0.7);
+  border-color: rgba(255,255,255,0.72);
   text-decoration: none;
   color: #fff;
 }
 
+/* Note below buttons */
 .hero-note {
   font-size: 0.78rem;
-  color: rgba(255,255,255,0.34);
-  margin: 0 0 clamp(18px,2.2vh,28px);
+  color: rgba(255,255,255,0.32);
+  margin: 0 0 clamp(20px,2.5vh,32px);
 }
 
-/* Statistics row */
+/* ── Statistics row ── */
 .hero-stats {
   display: flex;
   align-items: flex-start;
   gap: 0;
-  padding-top: clamp(14px,1.8vh,20px);
-  border-top: 1px solid rgba(255,255,255,0.1);
+  padding-top: 0;
+  border-top: none;
   width: 100%;
 }
 
 .hero-stat {
   display: flex;
   flex-direction: column;
-  padding: 0 clamp(16px,2vw,24px);
+  padding: 0 clamp(20px,2.5vw,32px);
 }
 .hero-stat:first-child { padding-left: 0; }
 
 .hero-stat-sep {
   width: 1px;
-  background: rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.15);
   align-self: stretch;
   flex-shrink: 0;
 }
 
+/* Large bold number, blue word */
 .hero-stat-value {
-  font-size: clamp(1.3rem,2vw,1.6rem);
+  font-size: clamp(1.6rem,2.4vw,2rem);
   font-weight: 900;
   color: #fff;
   letter-spacing: -0.02em;
@@ -1770,50 +1782,49 @@
 }
 
 /* ── RIGHT COLUMN ── */
-/* align-self:stretch fills the grid row (which fills the flex hero).
-   abs-pos children resolve height:100% against this container. */
 .hero-visual {
   position: relative;
   align-self: stretch;
-  /* No min-height here — the hero's max-height drives the overall size.
-     A small fallback prevents complete collapse on edge cases. */
-  min-height: 400px;
+  /* Fallback height floor */
+  min-height: 420px;
   overflow: visible;
 }
 
-/* The student image — fills the visual column, bottom-anchored */
+/* Student image — fills the full right column height, anchored to bottom */
 .hero-student-img {
   position: absolute;
   bottom: 0;
-  right: 0;
+  /* Horizontally centered within the column */
+  left: 50%;
+  transform: translateX(-50%);
+  /* Fill column height; let width follow naturally */
   height: 100%;
   width: auto;
-  /* Cap matches hero max-height minus padding so image never overflows */
-  max-height: 760px;
-  max-width: 680px;
+  max-height: 900px;
+  max-width: 640px;
   object-fit: contain;
-  object-position: bottom right;
+  object-position: bottom center;
   pointer-events: none;
   user-select: none;
   display: block;
   z-index: 1;
 }
 
-/* Floating role cards */
+/* ── Floating role cards ── */
 .hero-card {
   position: absolute;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  background: rgba(6,18,52,0.78);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(37,99,235,0.45);
-  border-radius: 14px;
-  min-width: 176px;
-  max-width: 218px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(37,99,235,0.1);
+  background: rgba(8,22,58,0.82);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(37,99,235,0.5);
+  border-radius: 12px;
+  min-width: 180px;
+  max-width: 220px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 0 1px rgba(37,99,235,0.12);
   z-index: 3;
   animation: hero-float 4s ease-in-out infinite;
 }
@@ -1824,7 +1835,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(37,99,235,0.55);
+  background: rgba(37,99,235,0.6);
   border-radius: 50%;
   color: #fff;
   flex-shrink: 0;
@@ -1840,16 +1851,17 @@
 }
 
 .hero-card-desc {
-  font-size: 0.65rem;
-  color: rgba(255,255,255,0.58);
+  font-size: 0.63rem;
+  color: rgba(255,255,255,0.55);
   line-height: 1.5;
-  margin-top: 3px;
+  margin-top: 2px;
 }
 
-/* Cards stacked on the right edge — positioned to avoid face and tablet */
+/* Card positions — right side of the visual column, matching reference exactly:
+   Student: upper-right, Teacher: mid-right, Parent: lower-right */
 .hero-card-student  { top: 8%;     right: 0;   animation-delay: 0s;   }
-.hero-card-teacher  { top: 38%;    right: 0;   animation-delay: 1.4s; }
-.hero-card-parent   { bottom: 18%; right: 0;   animation-delay: 2.8s; }
+.hero-card-teacher  { top: 36%;    right: 0;   animation-delay: 1.4s; }
+.hero-card-parent   { bottom: 10%; right: 0;   animation-delay: 2.8s; }
 
 @keyframes hero-float {
   0%, 100% { transform: translateY(0px); }
@@ -1882,38 +1894,38 @@
 /* ── RESPONSIVE ── */
 /* 1200px–1279px */
 @media (max-width: 1279px) {
-  .hero-layout { padding: clamp(32px,4vh,52px) clamp(32px,5vw,64px); }
-  .hero-student-img { max-width: 620px; max-height: 700px; }
+  .hero-layout { padding: clamp(36px,5vh,60px) clamp(36px,5vw,64px); }
+  .hero-student-img { max-width: 580px; }
 }
 
 /* Laptop 992px–1199px */
 @media (max-width: 1199px) {
-  .landing-hero { max-height: 800px; }
+  .landing-hero { max-height: 860px; }
   .hero-layout {
-    grid-template-columns: 48fr 52fr;
-    padding: clamp(28px,4vh,48px) clamp(28px,4vw,52px);
-    gap: 0;
+    grid-template-columns: 44fr 56fr;
+    padding: clamp(32px,4vh,52px) clamp(28px,4vw,52px);
   }
-  /* Remove min-height override here — let hero max-height drive the layout */
-  .hero-visual { min-height: 400px; }
-  .hero-student-img { max-width: 560px; max-height: 680px; }
+  .hero-visual { min-height: 380px; }
+  .hero-student-img { max-width: 520px; }
   .hero-heading-line1,
-  .hero-heading-line2 { font-size: clamp(2.3rem, 3.8vw, 3.6rem); }
+  .hero-heading-line2 { font-size: clamp(2.4rem, 4vw, 3.8rem); }
 }
 
 /* Tablet 768px–1023px */
 @media (max-width: 1023px) {
-  .landing-hero { max-height: none; }
+  .landing-hero { max-height: none; height: auto; min-height: auto; }
   .hero-layout {
     grid-template-columns: 1fr 1fr;
-    padding: 36px 28px 48px;
-    gap: 0;
+    padding: 40px 28px 48px;
   }
   .hero-visual {
     min-height: clamp(360px, 52vw, 520px);
     align-self: stretch;
   }
-  .hero-student-img { max-width: 460px; max-height: 500px; }
+  .hero-student-img {
+    max-width: 440px;
+    max-height: 500px;
+  }
   .hero-card { min-width: 148px; max-width: 176px; padding: 9px 12px; }
   .hero-card-icon { width: 30px; height: 30px; }
 }
