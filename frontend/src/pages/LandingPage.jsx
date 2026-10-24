@@ -277,6 +277,20 @@ export default function LandingPage() {
               <a className="btn btn-secondary" href="#features">Explore features</a>
             </div>
             <p className="hero-note">Accounts are issued by the school registrar.</p>
+            <div className="hero-stats">
+              <div className="hero-stat">
+                <div className="hero-stat-value">4 Roles</div>
+                <div className="hero-stat-label">Admins · Teachers · Students · Parents</div>
+              </div>
+              <div className="hero-stat">
+                <div className="hero-stat-value">8 Features</div>
+                <div className="hero-stat-label">Requirements, Attendance, Fees &amp; more</div>
+              </div>
+              <div className="hero-stat">
+                <div className="hero-stat-value">1 Portal</div>
+                <div className="hero-stat-label">Everything in one place</div>
+              </div>
+            </div>
           </div>
         </section>
 
