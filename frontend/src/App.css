@@ -1790,80 +1790,177 @@
   color: var(--text-muted);
 }
 
-/* --- How it works --- */
-.how-steps {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  /* The list is ordered for screen readers; the visible "Step n" label inside
-     each card does the numbering, so the browser marker is suppressed. */
+/* --- How it works (eGov-style 3-step cards with connector line) --- */
+.how-section {
+  background: #fff;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 96px 40px;
+  width: 100%;
+}
+
+.how-section-inner {
+  max-width: 1060px;
+  margin: 0 auto;
+}
+
+/* Centered header */
+.how-header {
+  text-align: center;
+  margin-bottom: 64px;
+}
+
+.how-eyebrow {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #155DFC;
+  background: #EEF3FF;
+  border: 1px solid #C7D9FF;
+  border-radius: 999px;
+  padding: 4px 14px;
+  margin: 0 0 18px;
+}
+
+.how-section-inner h2,
+#how-heading {
+  font-size: clamp(1.8rem, 3.2vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--navy-900);
+  margin: 0 0 12px;
+}
+
+.how-heading-accent {
+  color: #155DFC;
+}
+
+.how-subheading {
+  font-size: 1rem;
+  color: #5c7199;
+  line-height: 1.6;
   margin: 0;
-  padding: 0;
-  list-style: none;
 }
-.how-step {
+
+/* Steps wrapper — positions the connector line behind the cards */
+.how-steps-wrap {
   position: relative;
-  padding: 20px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: var(--shadow-sm);
-  overflow: hidden;
-  transition: transform var(--ease), box-shadow var(--ease);
 }
-.how-step:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow);
-}
-/* Large decorative step number behind the card content */
-.how-step::before {
+
+/* Horizontal dashed connector line between the icon boxes */
+.how-steps-wrap::before {
   content: '';
   position: absolute;
-  top: -8px;
-  right: -4px;
-  font-size: 5rem;
-  font-weight: 800;
-  line-height: 1;
-  color: var(--blue-50);
-  letter-spacing: -0.03em;
+  top: 52px; /* vertically centered on the icon box */
+  left: calc(100% / 6);
+  right: calc(100% / 6);
+  height: 2px;
+  border-top: 2px dashed #C7D9FF;
   pointer-events: none;
   z-index: 0;
 }
-.how-step .step-icon {
-  position: relative;
-  z-index: 1;
-  width: 40px;
-  height: 40px;
+
+/* Steps list */
+.how-steps {
   display: grid;
-  place-items: center;
-  margin-bottom: 12px;
-  background: linear-gradient(135deg, var(--blue-600), var(--navy-700));
-  color: #fff;
-  border-radius: 8px;
-}
-.how-step .step-eyebrow {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
   position: relative;
   z-index: 1;
-  font-size: clamp(1.4rem, 2.5vw, 2rem);
+}
+
+/* Individual step card */
+.how-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 24px 28px;
+  background: #fff;
+  border: 1.5px solid #E4EAFE;
+  border-radius: 20px;
+  box-shadow: 0 2px 12px rgba(21, 93, 252, 0.06);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  position: relative;
+  overflow: visible;
+}
+
+.how-step:hover {
+  border-color: #A5BEFF;
+  box-shadow: 0 8px 28px rgba(21, 93, 252, 0.13);
+  transform: translateY(-4px);
+}
+
+/* Icon box with step number badge */
+.how-step-icon-wrap {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+}
+
+/* Large rounded square for the icon */
+.how-step-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  background: #EEF3FF;
+  border: 1.5px solid #C7D9FF;
+  border-radius: 20px;
+  color: #155DFC;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.how-step:hover .how-step-icon {
+  background: #155DFC;
+  border-color: #155DFC;
+  color: #fff;
+}
+
+/* Step number badge — top-right corner of icon box */
+.how-step-num {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #155DFC;
+  color: #fff;
+  font-size: 0.68rem;
   font-weight: 800;
-  letter-spacing: -0.02em;
-  text-transform: uppercase;
-  color: var(--blue-600);
+  letter-spacing: 0.02em;
+  border-radius: 8px;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(21, 93, 252, 0.3);
   line-height: 1;
 }
-.how-step h3 {
-  position: relative;
-  z-index: 1;
-  margin: 4px 0 5px;
-  font-size: 0.95rem;
-  color: var(--navy-800);
+
+.how-step-title {
+  font-size: 0.97rem;
+  font-weight: 700;
+  color: var(--navy-900);
+  margin: 0 0 8px;
+  line-height: 1.35;
 }
-.how-step .step-body {
-  position: relative;
-  z-index: 1;
-  font-size: 0.86rem;
-  line-height: 1.5;
-  color: var(--text-muted);
+
+.how-step-body {
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: #5c7199;
+  margin: 0;
+  max-width: 26ch;
 }
 
 /* --- Who it's for (role cards) --- */
@@ -2478,6 +2575,10 @@
   .faq-section-inner { max-width: 760px; }
   .faq-list { max-width: 760px; }
 
+  /* How it Works — tablet */
+  .how-section { padding: 72px 24px; }
+  .how-step-body { max-width: none; }
+
   /* The call to action stacks once it has less than a full desktop to run in. */
   .cta-card { padding: 44px 36px; border-radius: 20px; }
 
@@ -2537,6 +2638,9 @@
   .trust-grid { grid-template-columns: minmax(0, 1fr); }
   .landing-foot { padding: 40px 16px 0; }
   .how-steps { grid-template-columns: minmax(0, 1fr); }
+  .how-steps-wrap::before { display: none; }
+  .how-section { padding: 56px 20px; }
+  .how-header { margin-bottom: 40px; }
 
   .landing-cta { padding: 48px 16px; }
   .cta-card { padding: 36px 24px; border-radius: 18px; }

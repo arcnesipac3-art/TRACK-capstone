@@ -466,23 +466,34 @@ export default function LandingPage() {
         </section>
 
         {/* ── How it works ──────────────────────────────────────── */}
-        <section className="landing-band" id="how-it-works" aria-labelledby="how-heading" data-reveal>
-          <div className="landing-section">
-            <p className="ls-eyebrow">How it Works</p>
-            <h2 id="how-heading">Get started in 3 easy steps.</h2>
-            <p className="ls-lede">From sign-in to full access — it only takes minutes.</p>
-            <ol className="how-steps">
-              {STEPS.map((step, index) => (
-                <li className="how-step" key={step.title}>
-                  <span className="step-icon" aria-hidden="true">
-                    <Icon name={step.icon} size={18} />
-                  </span>
-                  <p className="step-eyebrow">Step {String(index + 1).padStart(2, '0')}</p>
-                  <h3>{step.title}</h3>
-                  <p className="step-body">{step.body}</p>
-                </li>
-              ))}
-            </ol>
+        <section className="how-section" id="how-it-works" aria-labelledby="how-heading" data-reveal>
+          <div className="how-section-inner">
+            <div className="how-header">
+              <p className="how-eyebrow">How it Works</p>
+              <h2 id="how-heading">
+                Get Started in{' '}
+                <span className="how-heading-accent">3 Easy Steps</span>
+              </h2>
+              <p className="how-subheading">From sign-in to full access — it only takes minutes.</p>
+            </div>
+            <div className="how-steps-wrap">
+              <ol className="how-steps">
+                {STEPS.map((step, index) => (
+                  <li className="how-step" key={step.title}>
+                    <div className="how-step-icon-wrap">
+                      <span className="how-step-icon" aria-hidden="true">
+                        <Icon name={step.icon} size={28} />
+                      </span>
+                      <span className="how-step-num" aria-hidden="true">
+                        {String(index + 1).padStart(2, '0')}
+                      </span>
+                    </div>
+                    <h3 className="how-step-title">{step.title}</h3>
+                    <p className="how-step-body">{step.body}</p>
+                  </li>
+                ))}
+              </ol>
+            </div>
           </div>
         </section>
 
