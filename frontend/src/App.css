@@ -1513,8 +1513,10 @@
 .landing-hero {
   position: relative;
   background: linear-gradient(135deg, #040c18 0%, #071525 30%, #0c1e42 60%, #0a1838 100%);
-  overflow: hidden;
-  min-height: max(850px, calc(100svh - 76px));
+  /* No overflow:hidden — it clips the student image.
+     The bg decorations use z-index:0 so they don't escape visually. */
+  overflow: clip; /* clips decorations without affecting abs-pos children */
+  min-height: calc(100svh - 76px);
   display: flex;
   align-items: stretch;
 }
@@ -1584,9 +1586,11 @@
   width: 100%;
   max-width: 1440px;
   margin: 0 auto;
+  /* Use padding for breathing room — not fixed height */
   padding: clamp(56px,7vh,88px) clamp(40px,6vw,96px);
   gap: 0;
-  min-height: inherit;
+  /* Fill the hero's full height so the student can anchor to the bottom */
+  flex: 1 1 auto;
 }
 
 /* ── LEFT COLUMN ── */
@@ -1762,29 +1766,33 @@
 }
 
 /* ── RIGHT COLUMN ── */
-/* Visual container: student occupies most of it, cards sit on the right */
+/* Visual container stretches to the full grid row height.
+   The student image is absolutely positioned within it. */
 .hero-visual {
   position: relative;
   align-self: stretch;
-  min-height: clamp(560px, calc(100svh - 100px), 820px);
+  /* height:100% lets abs-pos children (student) use percentage heights */
+  height: 100%;
+  /* Minimum so it never collapses on very short viewports */
+  min-height: 480px;
   overflow: visible;
 }
 
-/* The student image — large, bottom-anchored, right side */
+/* The student image — fills the visual column height, bottom-anchored */
 .hero-student-img {
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 100%;
+  /* Fill the column's height; max-width/max-height prevent oversizing */
+  height: 100%;
+  width: auto;
   max-width: 700px;
   max-height: 780px;
-  height: auto;
   object-fit: contain;
-  object-position: bottom center;
+  object-position: bottom right;
   pointer-events: none;
   user-select: none;
   display: block;
-  /* Ensure student renders above the bg shapes but below cards */
   z-index: 1;
 }
 
@@ -1843,168 +1851,6 @@
 @keyframes hero-float {
   0%, 100% { transform: translateY(0px); }
   50%       { transform: translateY(-8px); }
-}
-
-.hero-kicker {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  background: rgba(255,255,255,0.1);
-  color: rgba(255,255,255,0.88);
-  border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  margin-bottom: clamp(14px,2vh,22px);
-}
-
-.hero-knhs-seal {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  object-fit: contain;
-}
-
-/* Heading */
-.hero-heading {
-  display: flex;
-  flex-direction: column;
-  margin: 0 0 clamp(12px,1.8vh,20px);
-}
-
-.hero-heading-line1 {
-  font-size: clamp(2.4rem, 4.2vw, 3.8rem);
-  font-weight: 900;
-  line-height: 1.05;
-  letter-spacing: -0.03em;
-  color: #fff;
-}
-
-.hero-heading-line2 {
-  font-size: clamp(2.4rem, 4.2vw, 3.8rem);
-  font-weight: 900;
-  line-height: 1.05;
-  letter-spacing: -0.03em;
-  color: #2563EB;
-}
-
-.hero-sub {
-  font-size: clamp(0.88rem, 1.1vw, 1rem);
-  line-height: 1.65;
-  color: rgba(255,255,255,0.65);
-  max-width: 48ch;
-  margin: 0 0 clamp(20px,2.5vh,28px);
-}
-
-/* Buttons */
-.hero-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: clamp(10px,1.5vh,14px);
-}
-
-.hero-btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: clamp(44px,5.5vh,52px);
-  padding: 0 clamp(20px,2vw,28px);
-  background: #2563EB;
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  font-size: 0.97rem;
-  font-weight: 700;
-  text-decoration: none;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
-}
-.hero-btn-primary:hover {
-  background: #1d4ed8;
-  box-shadow: 0 4px 16px rgba(37,99,235,0.45);
-  text-decoration: none;
-  color: #fff;
-}
-
-.hero-btn-secondary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: clamp(44px,5.5vh,52px);
-  padding: 0 clamp(20px,2vw,28px);
-  background: transparent;
-  color: #fff;
-  border: 1.5px solid rgba(255,255,255,0.38);
-  border-radius: 10px;
-  font-size: 0.97rem;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s ease, border-color 0.15s ease;
-}
-.hero-btn-secondary:hover {
-  background: rgba(255,255,255,0.08);
-  border-color: rgba(255,255,255,0.65);
-  text-decoration: none;
-  color: #fff;
-}
-
-.hero-note {
-  font-size: 0.79rem;
-  color: rgba(255,255,255,0.36);
-  margin: 0 0 clamp(16px,2vh,24px);
-}
-
-/* Statistics row */
-.hero-stats {
-  display: flex;
-  align-items: flex-start;
-  gap: 0;
-  padding-top: clamp(14px,1.8vh,20px);
-  border-top: 1px solid rgba(255,255,255,0.1);
-  width: 100%;
-}
-
-.hero-stat {
-  display: flex;
-  flex-direction: column;
-  padding: 0 clamp(16px,2vw,24px);
-}
-.hero-stat:first-child { padding-left: 0; }
-
-.hero-stat-sep {
-  width: 1px;
-  background: rgba(255,255,255,0.12);
-  align-self: stretch;
-  flex-shrink: 0;
-}
-
-.hero-stat-value {
-  font-size: clamp(1.3rem,2vw,1.6rem);
-  font-weight: 900;
-  color: #fff;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-}
-
-.hero-stat-word {
-  color: #2563EB;
-}
-
-.hero-stat-label {
-  font-size: 0.63rem;
-  color: rgba(255,255,255,0.45);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-top: 4px;
-  line-height: 1.5;
 }
 
 
@@ -2068,11 +1914,12 @@
 
 /* Mobile ≤767px: stack vertically */
 @media (max-width: 767px) {
-  .landing-hero { min-height: auto; align-items: flex-start; }
+  .landing-hero { min-height: auto; }
   .hero-layout {
     grid-template-columns: 1fr;
-    padding: 40px 20px 48px;
+    padding: 40px 20px 0;
     gap: 32px;
+    flex: none;
   }
   .hero-content {
     align-items: center;
@@ -2085,19 +1932,22 @@
   .hero-note    { text-align: center; }
   .hero-stats   { justify-content: center; }
   .hero-stat:first-child { padding-left: clamp(16px,2vw,24px); }
-  /* Student centered below content */
+  /* Student below content — static height container, no absolute */
   .hero-visual {
-    min-height: clamp(300px, 64vw, 440px);
+    height: clamp(300px, 68vw, 440px);
     width: 100%;
+    min-height: 0;
   }
   .hero-student-img {
+    height: 100%;
+    width: auto;
+    max-width: 90%;
+    max-height: 440px;
     right: 50%;
     transform: translateX(50%);
-    width: min(90%, 380px);
-    max-width: 380px;
-    max-height: 440px;
+    object-position: bottom center;
   }
-  /* Cards: absolute to right side of visual */
+  /* Cards: right side */
   .hero-card-student { top: 6%;    right: 0; }
   .hero-card-teacher { top: 38%;   right: 0; }
   .hero-card-parent  { bottom: 6%; right: 0; }
@@ -2105,14 +1955,14 @@
 
 /* Small mobile ≤479px */
 @media (max-width: 479px) {
-  .hero-layout { padding: 32px 16px 40px; }
+  .hero-layout { padding: 32px 16px 0; }
   .hero-heading-line1,
   .hero-heading-line2 { font-size: clamp(1.95rem,8.5vw,2.7rem); }
   .hero-btn-primary,
   .hero-btn-secondary { width: 100%; justify-content: center; }
   .hero-actions { flex-direction: column; width: 100%; }
-  .hero-visual { min-height: clamp(260px,70vw,340px); }
-  .hero-student-img { max-height: 340px; max-width: 300px; }
+  .hero-visual { height: clamp(260px,70vw,340px); min-height: 0; }
+  .hero-student-img { max-height: 340px; }
   /* Hide cards on very small screens */
   .hero-card { display: none; }
   .hero-stats { flex-wrap: wrap; gap: 12px 0; }
