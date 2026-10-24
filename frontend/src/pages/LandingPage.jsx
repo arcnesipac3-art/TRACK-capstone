@@ -397,40 +397,93 @@ export default function LandingPage() {
 
         {/* ── Hero ──────────────────────────────────────────────── */}
         <section className="landing-hero" aria-labelledby="hero-heading">
-          <div className="landing-hero-inner">
-            <span className="hero-kicker">
-              <img src="/knhs-seal.png" alt="" aria-hidden="true" className="hero-knhs-seal" />
-              Kiwalan National High School · Iligan City
-            </span>
-            <h1 id="hero-heading">
-              All school records. One portal.
-            </h1>
-            <p className="hero-sub">
-              TRACK gives Kiwalan National High School a single, secure place for
-              requirements, attendance, fees and communication — accessible to
-              administrators, teachers, students and parents, anytime, anywhere.
-            </p>
-            <div className="hero-actions">
-              <Link className="btn btn-primary" to={dashboardHref}>
-                {signedIn ? 'Go to my dashboard' : 'Sign in to TRACK'}
-              </Link>
-              <a className="btn btn-secondary" href="#features">Explore features</a>
+          <div className="hero-layout">
+
+            {/* ── Left: text content ── */}
+            <div className="hero-content">
+              <span className="hero-kicker">
+                <img src="/knhs-seal.png" alt="" aria-hidden="true" className="hero-knhs-seal" />
+                Kiwalan National High School · Iligan City
+              </span>
+
+              <h1 id="hero-heading">
+                All school records.<br />
+                <span className="hero-accent">One portal.</span>
+              </h1>
+
+              <p className="hero-sub">
+                TRACK gives Kiwalan National High School a single, secure
+                place for requirements, attendance, fees and communication —
+                accessible to administrators, teachers, students and parents,
+                anytime, anywhere.
+              </p>
+
+              <div className="hero-actions">
+                <Link className="btn hero-btn-primary" to={dashboardHref}>
+                  {signedIn ? 'Go to my dashboard' : 'Sign in to TRACK'}
+                </Link>
+                <a className="btn hero-btn-secondary" href="#features">Explore features</a>
+              </div>
+
+              <p className="hero-note">Accounts are issued by the school registrar.</p>
+
+              <div className="hero-stats">
+                <div className="hero-stat">
+                  <div className="hero-stat-value">4 Roles</div>
+                  <div className="hero-stat-label">Admins · Teachers<br />Students · Parents</div>
+                </div>
+                <div className="hero-stat">
+                  <div className="hero-stat-value">8 Features</div>
+                  <div className="hero-stat-label">Requirements,<br />Attendance, Fees &amp; more</div>
+                </div>
+                <div className="hero-stat">
+                  <div className="hero-stat-value">1 Portal</div>
+                  <div className="hero-stat-label">Everything in one place</div>
+                </div>
+              </div>
             </div>
-            <p className="hero-note">Accounts are issued by the school registrar.</p>
-            <div className="hero-stats">
-              <div className="hero-stat">
-                <div className="hero-stat-value">4 Roles</div>
-                <div className="hero-stat-label">Admins · Teachers · Students · Parents</div>
+
+            {/* ── Right: student photo + floating role cards ── */}
+            <div className="hero-visual" aria-hidden="true">
+              {/* Student photo — needs student.png in /public */}
+              <img
+                src="/student.png"
+                alt="A KNHS student in uniform holding a tablet"
+                className="hero-student-img"
+              />
+
+              {/* Floating role cards */}
+              <div className="hero-card hero-card-student">
+                <div className="hero-card-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                </div>
+                <div>
+                  <div className="hero-card-title">Student</div>
+                  <div className="hero-card-desc">Grades · Attendance<br />Schedule · Notifications</div>
+                </div>
               </div>
-              <div className="hero-stat">
-                <div className="hero-stat-value">8 Features</div>
-                <div className="hero-stat-label">Requirements, Attendance, Fees &amp; more</div>
+
+              <div className="hero-card hero-card-teacher">
+                <div className="hero-card-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8"/><path d="M12 12H6"/><path d="M12 16H6"/><path d="M8 8H6"/><circle cx="19" cy="19" r="3"/><path d="m22 22-1.5-1.5"/></svg>
+                </div>
+                <div>
+                  <div className="hero-card-title">Teacher</div>
+                  <div className="hero-card-desc">Attendance · Grades<br />Materials · Messages</div>
+                </div>
               </div>
-              <div className="hero-stat">
-                <div className="hero-stat-value">1 Portal</div>
-                <div className="hero-stat-label">Everything in one place</div>
+
+              <div className="hero-card hero-card-parent">
+                <div className="hero-card-icon">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                </div>
+                <div>
+                  <div className="hero-card-title">Parent</div>
+                  <div className="hero-card-desc">Child Grades · Attendance<br />Schedule · Notifications</div>
+                </div>
               </div>
             </div>
+
           </div>
         </section>
 
