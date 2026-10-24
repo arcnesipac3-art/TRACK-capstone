@@ -1562,8 +1562,8 @@
   position: relative;
   z-index: 1;
   display: grid;
-  /* Left text ~48%, right visual ~52% */
-  grid-template-columns: 48fr 52fr;
+  /* Left text ~42%, right visual ~58% to match screenshot proportions */
+  grid-template-columns: 42fr 58fr;
   align-items: center;
   width: 100%;
   max-width: 1440px;
@@ -1582,30 +1582,34 @@
 }
 
 /* ── RIGHT COLUMN ── */
+/* The visual holds the student + cards side by side.
+   Student is the main element; cards float on the right. */
 .hero-visual {
   position: relative;
   display: flex;
   align-items: flex-end;
-  justify-content: flex-end;
-  /* Stretch to full hero height so portrait occupies the full right side */
+  /* Cards live to the right of the student, so give them room */
+  justify-content: flex-start;
   align-self: stretch;
-  /* Minimum height keeps it from collapsing */
   min-height: clamp(500px, calc(100svh - 120px), 760px);
   overflow: visible;
+  /* Right padding reserves space so the cards don't clip out of frame */
+  padding-right: 210px;
 }
 
 .hero-student-img {
   position: absolute;
   bottom: 0;
-  right: -24px;
-  /* Tall, prominent image that fills most of the hero height */
-  width: min(100%, 680px);
-  max-width: 680px;
-  height: auto;
-  max-height: 720px;
-  /* Anchor the head at the top, feet near the bottom */
+  /* Student centered within the column, shifted slightly left to leave room for cards */
+  left: 50%;
+  transform: translateX(-60%);
+  /* Large — fills most of the hero height */
+  width: auto;
+  height: 100%;
+  max-height: 740px;
+  max-width: 560px;
   object-fit: contain;
-  object-position: bottom right;
+  object-position: bottom center;
   pointer-events: none;
   user-select: none;
   display: block;
@@ -1624,7 +1628,7 @@
   border: 1px solid rgba(37,99,235,0.35);
   border-radius: 14px;
   min-width: 168px;
-  max-width: 200px;
+  max-width: 210px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.3);
   z-index: 2;
   animation: hero-float 4s ease-in-out infinite;
@@ -1658,10 +1662,10 @@
   margin-top: 2px;
 }
 
-/* Card positions — on the left side of the portrait (portrait is right-anchored) */
-.hero-card-student  { top: 6%;     left: 0;    animation-delay: 0s;   }
-.hero-card-teacher  { top: 38%;   left: -8px;  animation-delay: 1.4s; }
-.hero-card-parent   { bottom: 10%; left: 4px;   animation-delay: 2.8s; }
+/* Card positions — stacked on the RIGHT side of the portrait, matching screenshot */
+.hero-card-student  { top: 12%;    right: 0;   animation-delay: 0s;   }
+.hero-card-teacher  { top: 40%;    right: 0;   animation-delay: 1.4s; }
+.hero-card-parent   { bottom: 14%; right: 0;   animation-delay: 2.8s; }
 
 @keyframes hero-float {
   0%, 100% { transform: translateY(0); }
@@ -1854,39 +1858,45 @@
 }
 
 /* ── RESPONSIVE ── */
-/* 1200px–1279px: slight padding reduction, cards stay in place */
+/* 1200px–1279px: slight padding reduction */
 @media (max-width: 1279px) {
   .hero-layout { padding: clamp(32px,4vh,56px) clamp(24px,4vw,48px); }
-  .hero-student-img { max-width: 600px; max-height: 680px; }
+  .hero-visual { padding-right: 190px; }
+  .hero-student-img { max-height: 680px; }
 }
 
-/* Laptop 992px–1199px: reduce image size, keep two-column layout */
+/* Laptop 992px–1199px: shrink image, reduce card space */
 @media (max-width: 1199px) {
   .hero-layout {
-    grid-template-columns: 48fr 52fr;
+    grid-template-columns: 44fr 56fr;
     gap: 0;
   }
-  .hero-visual { height: clamp(460px, calc(100svh - 130px), 700px); }
-  .hero-student-img { max-width: 540px; max-height: 620px; right: -12px; }
+  .hero-visual {
+    min-height: clamp(460px, calc(100svh - 130px), 700px);
+    padding-right: 180px;
+  }
+  .hero-student-img { max-height: 620px; max-width: 480px; }
   .hero-heading-line1,
   .hero-heading-line2 { font-size: clamp(2.2rem, 3.8vw, 3.4rem); }
 }
 
-/* Tablet 768px–991px: tighter two-column, reduce image */
+/* Tablet 768px–1023px: tighter layout, smaller cards */
 @media (max-width: 1023px) {
   .hero-layout {
     grid-template-columns: 1fr 1fr;
     padding: 40px 24px 48px;
     gap: 0;
   }
-  .hero-visual { height: clamp(400px, 52vw, 560px); align-self: stretch; }
-  .hero-student-img { max-width: 480px; max-height: 560px; right: -8px; }
+  .hero-visual {
+    min-height: clamp(400px, 52vw, 560px);
+    align-self: stretch;
+    padding-right: 160px;
+  }
+  .hero-student-img { max-height: 520px; max-width: 400px; }
   .hero-card { min-width: 140px; max-width: 168px; padding: 8px 12px; }
-  .hero-card-teacher { left: -4px; }
-  .hero-card-parent  { left: 0; }
 }
 
-/* Mobile ≤767px: stack vertically */
+/* Mobile ≤767px: stack vertically, center everything */
 @media (max-width: 767px) {
   .landing-hero { min-height: auto; align-items: flex-start; }
   .hero-layout {
@@ -1901,25 +1911,24 @@
   .hero-note    { text-align: center; }
   .hero-stats   { justify-content: center; }
   .hero-stat:first-child { padding-left: clamp(16px,2vw,24px); }
-  /* Show portrait below content, centered and scaled */
+  /* Show portrait below content, centered */
   .hero-visual {
-    height: clamp(280px, 60vw, 400px);
+    min-height: clamp(280px, 60vw, 400px);
     width: 100%;
+    padding-right: 0;
     justify-content: center;
   }
   .hero-student-img {
-    right: auto;
     left: 50%;
     transform: translateX(-50%);
-    width: min(100%, 360px);
-    max-width: 360px;
+    height: 100%;
     max-height: 400px;
-    object-position: bottom center;
+    max-width: 320px;
   }
-  /* Reposition cards around the centered portrait */
-  .hero-card-student { top: 4%;   left: auto; right: 4px; }
-  .hero-card-teacher { top: 34%;  left: auto; right: -4px; }
-  .hero-card-parent  { bottom: 4%; left: auto; right: 4px; }
+  /* Cards: back to right side of the visual area */
+  .hero-card-student { top: 4%;    right: 4px;  }
+  .hero-card-teacher { top: 36%;   right: -4px; }
+  .hero-card-parent  { bottom: 4%; right: 4px;  }
 }
 
 /* Small mobile ≤479px */
@@ -1930,13 +1939,9 @@
   .hero-btn-primary,
   .hero-btn-secondary { width: 100%; justify-content: center; }
   .hero-actions { flex-direction: column; width: 100%; }
-  .hero-visual { height: clamp(240px,65vw,320px); }
-  .hero-student-img {
-    width: min(100%, 300px);
-    max-width: 300px;
-    max-height: 320px;
-  }
-  /* Hide cards on very small screens to reduce clutter */
+  .hero-visual { min-height: clamp(240px,65vw,320px); }
+  .hero-student-img { max-height: 320px; max-width: 280px; }
+  /* Hide cards on very small screens */
   .hero-card { display: none; }
   .hero-stats { flex-wrap: wrap; gap: 12px 0; }
   .hero-stat-sep { display: none; }
