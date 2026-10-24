@@ -1507,45 +1507,72 @@
   .mob-nav-cta { padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px)); }
 }
 
-/* --- Hero (two-column: text left, student photo right) --- */
+/* ================================================================
+   HERO — two-column, viewport-height-aware
+   ================================================================ */
 .landing-hero {
   position: relative;
-  background: linear-gradient(135deg, #050d1a 0%, #0a1530 40%, #0f2044 70%, #0d1a3d 100%);
+  background: linear-gradient(135deg, #050d1a 0%, #091628 35%, #0f2044 65%, #0d1a3d 100%);
   overflow: hidden;
-  min-height: 580px;
+  /* Fill remaining viewport after the navbar */
+  min-height: calc(100svh - 76px);
+  display: flex;
+  align-items: center;
 }
 
-/* Subtle school building watermark text — decorative only */
+/* Subtle decorative curves */
+.hero-bg-curve {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.hero-bg-curve-1 {
+  width: 700px;
+  height: 700px;
+  background: radial-gradient(circle, rgba(37,99,235,0.13) 0%, transparent 70%);
+  top: -200px;
+  right: -100px;
+}
+.hero-bg-curve-2 {
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(37,99,235,0.08) 0%, transparent 70%);
+  bottom: -100px;
+  left: -80px;
+}
+
+/* Watermark */
 .landing-hero::after {
   content: 'KIWALAN NATIONAL HIGH SCHOOL';
   position: absolute;
-  bottom: 40px;
+  bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 2.4rem;
+  font-size: clamp(1.2rem, 2.5vw, 2rem);
   font-weight: 900;
-  letter-spacing: 0.18em;
-  color: rgba(255, 255, 255, 0.04);
+  letter-spacing: 0.2em;
+  color: rgba(255,255,255,0.035);
   white-space: nowrap;
   pointer-events: none;
   text-transform: uppercase;
 }
 
-/* Two-column layout */
+/* Two-column grid */
 .hero-layout {
   position: relative;
   z-index: 1;
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: center;
-  max-width: 1280px;
+  width: 100%;
+  max-width: 1440px;
   margin: 0 auto;
-  padding: 72px 56px 64px;
-  min-height: 580px;
-  gap: 32px;
+  padding: clamp(40px,5vh,72px) clamp(32px,6vw,80px);
+  gap: 24px;
+  min-height: inherit;
 }
 
-/* ── Left column ── */
+/* ── LEFT COLUMN ── */
 .hero-content {
   display: flex;
   flex-direction: column;
@@ -1558,60 +1585,69 @@
   align-items: center;
   gap: 8px;
   padding: 6px 14px;
-  background: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.88);
+  border: 1px solid rgba(255,255,255,0.18);
   border-radius: 999px;
-  font-size: 0.73rem;
+  font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  margin-bottom: 20px;
+  margin-bottom: clamp(14px,2vh,22px);
 }
 
 .hero-knhs-seal {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   object-fit: contain;
 }
 
-/* Heading: left-aligned, two lines */
-#hero-heading {
-  font-size: clamp(2.4rem, 4vw, 3.6rem);
-  font-weight: 900;
-  line-height: 1.06;
-  letter-spacing: -0.03em;
-  color: #fff;
-  margin: 0 0 16px;
+/* Heading */
+.hero-heading {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 clamp(12px,1.8vh,20px);
 }
 
-/* "One portal." in bright blue */
-.hero-accent {
+.hero-heading-line1 {
+  font-size: clamp(2.4rem, 4.2vw, 3.8rem);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+
+.hero-heading-line2 {
+  font-size: clamp(2.4rem, 4.2vw, 3.8rem);
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
   color: #2563EB;
 }
 
 .hero-sub {
-  font-size: 1rem;
+  font-size: clamp(0.88rem, 1.1vw, 1rem);
   line-height: 1.65;
-  color: rgba(255, 255, 255, 0.68);
-  max-width: 46ch;
-  margin: 0 0 28px;
+  color: rgba(255,255,255,0.65);
+  max-width: 48ch;
+  margin: 0 0 clamp(20px,2.5vh,28px);
 }
 
+/* Buttons */
 .hero-actions {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-bottom: clamp(10px,1.5vh,14px);
 }
 
 .hero-btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 50px;
-  padding: 0 28px;
+  height: clamp(44px,5.5vh,52px);
+  padding: 0 clamp(20px,2vw,28px);
   background: #2563EB;
   color: #fff;
   border: none;
@@ -1619,12 +1655,13 @@
   font-size: 0.97rem;
   font-weight: 700;
   text-decoration: none;
-  transition: background 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
   white-space: nowrap;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
 }
 .hero-btn-primary:hover {
   background: #1d4ed8;
-  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.4);
+  box-shadow: 0 4px 16px rgba(37,99,235,0.45);
   text-decoration: none;
   color: #fff;
 }
@@ -1633,71 +1670,86 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 50px;
-  padding: 0 28px;
+  height: clamp(44px,5.5vh,52px);
+  padding: 0 clamp(20px,2vw,28px);
   background: transparent;
   color: #fff;
-  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  border: 1.5px solid rgba(255,255,255,0.38);
   border-radius: 10px;
   font-size: 0.97rem;
   font-weight: 600;
   text-decoration: none;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  cursor: pointer;
   white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 .hero-btn-secondary:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.7);
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.65);
   text-decoration: none;
   color: #fff;
 }
 
 .hero-note {
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.38);
-  margin: 0 0 28px;
+  font-size: 0.79rem;
+  color: rgba(255,255,255,0.36);
+  margin: 0 0 clamp(16px,2vh,24px);
 }
 
-/* Stats row — left-aligned, no separators */
+/* Statistics row */
 .hero-stats {
   display: flex;
-  gap: 32px;
-  flex-wrap: wrap;
-  padding-top: 20px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  align-items: flex-start;
+  gap: 0;
+  padding-top: clamp(14px,1.8vh,20px);
+  border-top: 1px solid rgba(255,255,255,0.1);
   width: 100%;
 }
 
 .hero-stat {
   display: flex;
   flex-direction: column;
+  padding: 0 clamp(16px,2vw,24px);
+}
+.hero-stat:first-child { padding-left: 0; }
+
+.hero-stat-sep {
+  width: 1px;
+  background: rgba(255,255,255,0.12);
+  align-self: stretch;
+  flex-shrink: 0;
 }
 
 .hero-stat-value {
-  font-size: 1.6rem;
+  font-size: clamp(1.3rem,2vw,1.6rem);
   font-weight: 900;
   color: #fff;
   letter-spacing: -0.02em;
   line-height: 1.1;
 }
 
-.hero-stat-label {
-  font-size: 0.68rem;
-  color: rgba(255, 255, 255, 0.5);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-top: 4px;
-  line-height: 1.4;
+.hero-stat-word {
+  color: #2563EB;
 }
 
-/* ── Right column ── */
+.hero-stat-label {
+  font-size: 0.63rem;
+  color: rgba(255,255,255,0.45);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+/* ── RIGHT COLUMN ── */
 .hero-visual {
   position: relative;
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  height: 520px;
+  height: clamp(380px, calc(100svh - 200px), 560px);
+  overflow: visible;
 }
 
 .hero-student-img {
@@ -1705,12 +1757,12 @@
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  height: 110%;
-  max-height: 580px;
+  height: 100%;
+  max-height: 560px;
   width: auto;
   object-fit: contain;
   object-position: bottom center;
-  /* mix-blend-mode removes the black background if the photo has it */
+  /* Removes black background from photo */
   mix-blend-mode: lighten;
   pointer-events: none;
   user-select: none;
@@ -1723,115 +1775,146 @@
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(9,22,60,0.72);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(37,99,235,0.35);
   border-radius: 14px;
-  min-width: 170px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
-  animation: hero-card-float 4s ease-in-out infinite;
+  min-width: 168px;
+  max-width: 200px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+  z-index: 2;
+  animation: hero-float 4s ease-in-out infinite;
 }
 
 .hero-card-icon {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(37, 99, 235, 0.6);
-  border-radius: 10px;
+  background: rgba(37,99,235,0.5);
+  border-radius: 50%;
   color: #fff;
   flex-shrink: 0;
 }
 
+.hero-card-body { flex: 1; min-width: 0; }
+
 .hero-card-title {
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 700;
   color: #fff;
   line-height: 1.2;
 }
 
 .hero-card-desc {
-  font-size: 0.68rem;
-  color: rgba(255, 255, 255, 0.65);
-  line-height: 1.4;
+  font-size: 0.66rem;
+  color: rgba(255,255,255,0.6);
+  line-height: 1.45;
   margin-top: 2px;
 }
 
-/* Card positions */
-.hero-card-student {
-  top: 5%;
-  right: -10px;
-  animation-delay: 0s;
-}
-.hero-card-teacher {
-  top: 30%;
-  right: -30px;
-  animation-delay: 1.3s;
-}
-.hero-card-parent {
-  bottom: 10%;
-  right: -10px;
-  animation-delay: 2.6s;
+/* Card positions — right side of portrait, staggered */
+.hero-card-student  { top: 8%;  right: 0;   animation-delay: 0s;   }
+.hero-card-teacher  { top: 36%; right: -16px; animation-delay: 1.4s; }
+.hero-card-parent   { bottom: 12%; right: 8px;  animation-delay: 2.8s; }
+
+@keyframes hero-float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-7px); }
 }
 
-@keyframes hero-card-float {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-6px); }
+/* ── Dashboard preview section ── */
+.hero-preview-section {
+  background: #fff;
+  padding: 64px 32px 72px;
+  border-top: 1px solid var(--border);
 }
 
-/* ── Responsive ── */
+.hero-preview-inner {
+  max-width: 960px;
+  margin: 0 auto;
+}
 
-/* Tablet: keep two columns but compress */
+.hero-preview-label {
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  margin: 0 0 20px;
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 1279px) {
+  .hero-layout { padding: clamp(32px,4vh,56px) clamp(24px,4vw,48px); }
+  .hero-card-teacher { right: -8px; }
+}
+
 @media (max-width: 1023px) {
   .hero-layout {
-    padding: 56px 32px 56px;
-    gap: 24px;
-    min-height: 480px;
+    grid-template-columns: 1fr 1fr;
+    padding: 40px 24px 48px;
+    gap: 16px;
   }
-  .hero-visual { height: 420px; }
-  .hero-student-img { height: 100%; max-height: 480px; }
-  .hero-card { min-width: 148px; padding: 8px 12px; }
-  .hero-card-teacher { right: -10px; }
-  .hero-card-parent { right: 0; }
+  .hero-visual { height: clamp(300px, 45vw, 420px); }
+  .hero-student-img { max-height: 420px; }
+  .hero-card { min-width: 140px; max-width: 168px; padding: 8px 12px; }
+  .hero-card-teacher { right: 0; }
+  .hero-card-parent  { right: 4px; }
 }
 
-/* Mobile: stack vertically, hide photo and cards */
 @media (max-width: 767px) {
-  .landing-hero { min-height: auto; }
+  .landing-hero { min-height: auto; align-items: flex-start; }
   .hero-layout {
     grid-template-columns: 1fr;
-    padding: 48px 20px 56px;
-    min-height: auto;
-    gap: 0;
+    padding: 40px 20px 48px;
+    gap: 32px;
   }
-  .hero-visual { display: none; }
   .hero-content { align-items: center; text-align: center; }
-  .hero-kicker { align-self: center; }
-  #hero-heading { font-size: clamp(2rem, 7vw, 2.8rem); }
-  .hero-sub { max-width: none; text-align: center; }
+  .hero-kicker  { align-self: center; }
+  .hero-sub     { max-width: none; text-align: center; }
   .hero-actions { justify-content: center; }
-  .hero-note { text-align: center; }
-  .hero-stats { justify-content: center; gap: 20px; }
+  .hero-note    { text-align: center; }
+  .hero-stats   { justify-content: center; }
+  .hero-stat:first-child { padding-left: clamp(16px,2vw,24px); }
+  /* Show portrait below content, smaller */
+  .hero-visual {
+    height: clamp(260px,55vw,360px);
+    width: 100%;
+  }
+  .hero-student-img { max-height: 360px; }
+  /* Keep cards visible, reposition */
+  .hero-card-student { top: 4%;  right: 4px; }
+  .hero-card-teacher { top: 34%; right: -4px; }
+  .hero-card-parent  { bottom: 4%; right: 4px; }
 }
 
 @media (max-width: 479px) {
-  .hero-layout { padding: 36px 16px 48px; }
+  .hero-layout { padding: 32px 16px 40px; }
+  .hero-heading-line1,
+  .hero-heading-line2 { font-size: clamp(1.9rem,8vw,2.6rem); }
   .hero-btn-primary,
   .hero-btn-secondary { width: 100%; justify-content: center; }
   .hero-actions { flex-direction: column; width: 100%; }
-  #hero-heading { font-size: clamp(1.9rem, 8vw, 2.4rem); }
+  .hero-visual { height: clamp(220px,60vw,300px); }
+  .hero-student-img { max-height: 300px; }
+  /* Hide cards on very small screens to reduce clutter */
+  .hero-card { display: none; }
+  .hero-stats { flex-wrap: wrap; gap: 12px 0; }
+  .hero-stat-sep { display: none; }
+  .hero-stat { padding: 0 12px; }
+  .hero-stat:first-child { padding-left: 12px; }
 }
 
-/* --- Product preview --- */
-.landing-preview {
-  position: relative;
-  z-index: 2;
+/* --- Product preview (inside .hero-preview-section) --- */
+.landing-preview,
+.hero-preview-inner {
   width: 100%;
   max-width: 960px;
   margin: 0 auto;
-  padding: 0 32px 72px;
 }
 
 .preview-window {

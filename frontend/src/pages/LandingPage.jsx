@@ -397,6 +397,10 @@ export default function LandingPage() {
 
         {/* ── Hero ──────────────────────────────────────────────── */}
         <section className="landing-hero" aria-labelledby="hero-heading">
+          {/* Decorative background curves */}
+          <div className="hero-bg-curve hero-bg-curve-1" aria-hidden="true" />
+          <div className="hero-bg-curve hero-bg-curve-2" aria-hidden="true" />
+
           <div className="hero-layout">
 
             {/* ── Left: text content ── */}
@@ -406,9 +410,9 @@ export default function LandingPage() {
                 Kiwalan National High School · Iligan City
               </span>
 
-              <h1 id="hero-heading">
-                All school records.<br />
-                <span className="hero-accent">One portal.</span>
+              <h1 id="hero-heading" className="hero-heading">
+                <span className="hero-heading-line1">All school records.</span>
+                <span className="hero-heading-line2">One portal.</span>
               </h1>
 
               <p className="hero-sub">
@@ -419,67 +423,68 @@ export default function LandingPage() {
               </p>
 
               <div className="hero-actions">
-                <Link className="btn hero-btn-primary" to={dashboardHref}>
+                <Link className="hero-btn-primary" to={dashboardHref}>
                   {signedIn ? 'Go to my dashboard' : 'Sign in to TRACK'}
                 </Link>
-                <a className="btn hero-btn-secondary" href="#features">Explore features</a>
+                <a className="hero-btn-secondary" href="#features">Explore features</a>
               </div>
 
               <p className="hero-note">Accounts are issued by the school registrar.</p>
 
               <div className="hero-stats">
                 <div className="hero-stat">
-                  <div className="hero-stat-value">4 Roles</div>
-                  <div className="hero-stat-label">Admins · Teachers<br />Students · Parents</div>
+                  <div className="hero-stat-value">4 <span className="hero-stat-word">Roles</span></div>
+                  <div className="hero-stat-label">ADMINS · TEACHERS<br />STUDENTS · PARENTS</div>
                 </div>
+                <div className="hero-stat-sep" aria-hidden="true" />
                 <div className="hero-stat">
-                  <div className="hero-stat-value">8 Features</div>
-                  <div className="hero-stat-label">Requirements,<br />Attendance, Fees &amp; more</div>
+                  <div className="hero-stat-value">8 <span className="hero-stat-word">Features</span></div>
+                  <div className="hero-stat-label">REQUIREMENTS,<br />ATTENDANCE, FEES &amp; MORE</div>
                 </div>
+                <div className="hero-stat-sep" aria-hidden="true" />
                 <div className="hero-stat">
-                  <div className="hero-stat-value">1 Portal</div>
-                  <div className="hero-stat-label">Everything in one place</div>
+                  <div className="hero-stat-value">1 <span className="hero-stat-word">Portal</span></div>
+                  <div className="hero-stat-label">EVERYTHING IN ONE PLACE</div>
                 </div>
               </div>
             </div>
 
             {/* ── Right: student photo + floating role cards ── */}
             <div className="hero-visual" aria-hidden="true">
-              {/* Student photo — needs student.png in /public */}
               <img
                 src="/student.png"
-                alt="A KNHS student in uniform holding a tablet"
+                alt="A KNHS student in school uniform holding a tablet"
                 className="hero-student-img"
               />
 
-              {/* Floating role cards */}
+              {/* Floating role cards — positioned around the portrait */}
               <div className="hero-card hero-card-student">
                 <div className="hero-card-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                 </div>
-                <div>
+                <div className="hero-card-body">
                   <div className="hero-card-title">Student</div>
-                  <div className="hero-card-desc">Grades · Attendance<br />Schedule · Notifications</div>
+                  <div className="hero-card-desc">Grades · Attendance · Schedule · Notifications</div>
                 </div>
               </div>
 
               <div className="hero-card hero-card-teacher">
                 <div className="hero-card-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8"/><path d="M12 12H6"/><path d="M12 16H6"/><path d="M8 8H6"/><circle cx="19" cy="19" r="3"/><path d="m22 22-1.5-1.5"/></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 </div>
-                <div>
+                <div className="hero-card-body">
                   <div className="hero-card-title">Teacher</div>
-                  <div className="hero-card-desc">Attendance · Grades<br />Materials · Messages</div>
+                  <div className="hero-card-desc">Attendance · Grades · Materials · Messages</div>
                 </div>
               </div>
 
               <div className="hero-card hero-card-parent">
                 <div className="hero-card-icon">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 </div>
-                <div>
+                <div className="hero-card-body">
                   <div className="hero-card-title">Parent</div>
-                  <div className="hero-card-desc">Child Grades · Attendance<br />Schedule · Notifications</div>
+                  <div className="hero-card-desc">Child Grades · Attendance · Schedule · Notifications</div>
                 </div>
               </div>
             </div>
@@ -487,22 +492,25 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ── Preview ───────────────────────────────────────────── */}
-        <section className="landing-preview" aria-label="Product preview" data-reveal>
-          <figure className="preview-window">
-            <div className="preview-chrome" aria-hidden="true">
-              <span className="preview-dots"><i /><i /><i /></span>
-              <span className="preview-title">TRACK · Administrator dashboard</span>
-            </div>
-            <img
-              src={dashboardShot}
-              width={1324}
-              height={904}
-              fetchPriority="high"
-              alt="The TRACK administrator dashboard showing quick actions, student and teacher counts, active requirements, and attendance summaries."
-            />
-            <figcaption>The TRACK administrator dashboard, showing the school&rsquo;s live records.</figcaption>
-          </figure>
+        {/* ── Dashboard Preview ─────────────────────────────────── */}
+        <section className="hero-preview-section" aria-label="Dashboard preview" data-reveal>
+          <div className="hero-preview-inner">
+            <p className="hero-preview-label">A closer look at TRACK</p>
+            <figure className="preview-window">
+              <div className="preview-chrome" aria-hidden="true">
+                <span className="preview-dots"><i /><i /><i /></span>
+                <span className="preview-title">TRACK · Administrator dashboard</span>
+              </div>
+              <img
+                src={dashboardShot}
+                width={1324}
+                height={904}
+                fetchPriority="high"
+                alt="The TRACK administrator dashboard showing quick actions, student and teacher counts, active requirements, and attendance summaries."
+              />
+              <figcaption>The TRACK administrator dashboard, showing the school&rsquo;s live records.</figcaption>
+            </figure>
+          </div>
         </section>
 
         {/* ── Problem ───────────────────────────────────────────── */}
