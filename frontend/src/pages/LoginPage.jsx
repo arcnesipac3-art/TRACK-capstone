@@ -128,15 +128,16 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="aside-foot">Iligan City, Philippines</p>
+        <p className="aside-foot">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          Iligan City, Philippines
+        </p>
 
         {/* Student PNG — decorative, bottom-right of the branding panel */}
         <div className="aside-student-img" aria-hidden="true">
           <img
-            src="/student.png"
+            src="/student2.png"
             alt=""
-            width="280"
-            height="420"
           />
         </div>
       </aside>
@@ -168,21 +169,26 @@ export default function LoginPage() {
 
             <div className="field">
               <label htmlFor="identifier">Username or email</label>
-              <input
-                id="identifier"
-                name="username"
-                className="input"
-                type="text"
-                autoComplete="username"
-                autoCapitalize="none"
-                spellCheck="false"
-                placeholder="e.g. teacher1 or name@knhs.edu.ph"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                aria-invalid={fieldErrors.identifier ? 'true' : undefined}
-                aria-describedby={fieldErrors.identifier ? 'identifier-error' : undefined}
-                disabled={submitting}
-              />
+              <div className="auth-input-wrap">
+                <span className="auth-input-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                </span>
+                <input
+                  id="identifier"
+                  name="username"
+                  className="input"
+                  type="text"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  spellCheck="false"
+                  placeholder="e.g. teacher1 or name@knhs.edu.ph"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  aria-invalid={fieldErrors.identifier ? 'true' : undefined}
+                  aria-describedby={fieldErrors.identifier ? 'identifier-error' : undefined}
+                  disabled={submitting}
+                />
+              </div>
               {fieldErrors.identifier && (
                 <span className="field-error" id="identifier-error">
                   <Icon name="info" size={13} />
@@ -194,10 +200,14 @@ export default function LoginPage() {
             <div className="field">
               <label htmlFor="password">Password</label>
               <div className="password-wrap">
+                <span className="auth-input-icon" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-subtle)', pointerEvents: 'none', display: 'flex', alignItems: 'center', zIndex: 1 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </span>
                 <input
                   id="password"
                   name="password"
                   className="input"
+                  style={{ paddingLeft: '40px' }}
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   placeholder="Enter your password"
