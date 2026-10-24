@@ -1512,63 +1512,79 @@
    ================================================================ */
 .landing-hero {
   position: relative;
-  background: linear-gradient(135deg, #050d1a 0%, #091628 35%, #0f2044 65%, #0d1a3d 100%);
+  background: linear-gradient(135deg, #040c18 0%, #071525 30%, #0c1e42 60%, #0a1838 100%);
   overflow: hidden;
-  /* Fill remaining viewport after the navbar */
-  min-height: calc(100svh - 76px);
+  min-height: max(850px, calc(100svh - 76px));
   display: flex;
-  align-items: center;
+  align-items: stretch;
 }
 
-/* Subtle decorative curves */
+/* ── Background decorative shapes (matching reference) ── */
+
+/* Large diagonal blue band — upper-right */
+.landing-hero::before {
+  content: '';
+  position: absolute;
+  top: -120px;
+  right: -80px;
+  width: 55%;
+  height: 140%;
+  background: linear-gradient(145deg, rgba(21,93,252,0.22) 0%, rgba(14,55,180,0.12) 40%, transparent 70%);
+  border-radius: 60% 0 0 40%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Subtle bottom-left glow */
+.landing-hero::after {
+  content: 'KIWALAN NATIONAL HIGH SCHOOL';
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: clamp(1rem, 2.2vw, 1.8rem);
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  color: rgba(255,255,255,0.028);
+  white-space: nowrap;
+  pointer-events: none;
+  text-transform: uppercase;
+  z-index: 0;
+}
+
+/* Subtle decorative radial glows */
 .hero-bg-curve {
   position: absolute;
   border-radius: 50%;
   pointer-events: none;
+  z-index: 0;
 }
 .hero-bg-curve-1 {
-  width: 700px;
-  height: 700px;
-  background: radial-gradient(circle, rgba(37,99,235,0.13) 0%, transparent 70%);
-  top: -200px;
-  right: -100px;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(21,93,252,0.18) 0%, transparent 65%);
+  top: -160px;
+  right: 5%;
 }
 .hero-bg-curve-2 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(37,99,235,0.08) 0%, transparent 70%);
-  bottom: -100px;
-  left: -80px;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(14,55,180,0.1) 0%, transparent 65%);
+  bottom: -80px;
+  left: -60px;
 }
 
-/* Watermark */
-.landing-hero::after {
-  content: 'KIWALAN NATIONAL HIGH SCHOOL';
-  position: absolute;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: clamp(1.2rem, 2.5vw, 2rem);
-  font-weight: 900;
-  letter-spacing: 0.2em;
-  color: rgba(255,255,255,0.035);
-  white-space: nowrap;
-  pointer-events: none;
-  text-transform: uppercase;
-}
-
-/* Two-column grid */
+/* ── Two-column grid ── */
 .hero-layout {
   position: relative;
   z-index: 1;
   display: grid;
-  /* Left text ~42%, right visual ~58% to match screenshot proportions */
-  grid-template-columns: 42fr 58fr;
+  grid-template-columns: 48fr 52fr;
   align-items: center;
   width: 100%;
   max-width: 1440px;
   margin: 0 auto;
-  padding: clamp(40px,5vh,72px) clamp(32px,6vw,80px);
+  padding: clamp(56px,7vh,88px) clamp(40px,6vw,96px);
   gap: 0;
   min-height: inherit;
 }
@@ -1579,40 +1595,197 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 0;
+  /* Ensure text doesn't get squeezed against the student */
+  padding-right: clamp(16px,3vw,48px);
+}
+
+.hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.9);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  margin-bottom: clamp(16px,2.2vh,24px);
+}
+
+.hero-knhs-seal {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  object-fit: contain;
+}
+
+/* Heading */
+.hero-heading {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 clamp(14px,2vh,22px);
+}
+
+.hero-heading-line1 {
+  font-size: clamp(2.6rem, 4.4vw, 4rem);
+  font-weight: 900;
+  line-height: 1.0;
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+
+.hero-heading-line2 {
+  font-size: clamp(2.6rem, 4.4vw, 4rem);
+  font-weight: 900;
+  line-height: 1.0;
+  letter-spacing: -0.03em;
+  color: #2563EB;
+}
+
+.hero-sub {
+  font-size: clamp(0.88rem, 1.05vw, 1rem);
+  line-height: 1.7;
+  color: rgba(255,255,255,0.62);
+  max-width: 46ch;
+  margin: 0 0 clamp(22px,2.8vh,32px);
+}
+
+/* Buttons */
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: clamp(10px,1.4vh,14px);
+}
+
+.hero-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: clamp(46px,5.6vh,54px);
+  padding: 0 clamp(22px,2.2vw,30px);
+  background: #2563EB;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.97rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+.hero-btn-primary:hover {
+  background: #1d4ed8;
+  box-shadow: 0 4px 18px rgba(37,99,235,0.5);
+  text-decoration: none;
+  color: #fff;
+}
+
+.hero-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: clamp(46px,5.6vh,54px);
+  padding: 0 clamp(22px,2.2vw,30px);
+  background: transparent;
+  color: #fff;
+  border: 1.5px solid rgba(255,255,255,0.4);
+  border-radius: 10px;
+  font-size: 0.97rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.hero-btn-secondary:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.7);
+  text-decoration: none;
+  color: #fff;
+}
+
+.hero-note {
+  font-size: 0.78rem;
+  color: rgba(255,255,255,0.34);
+  margin: 0 0 clamp(18px,2.2vh,28px);
+}
+
+/* Statistics row */
+.hero-stats {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  padding-top: clamp(14px,1.8vh,20px);
+  border-top: 1px solid rgba(255,255,255,0.1);
+  width: 100%;
+}
+
+.hero-stat {
+  display: flex;
+  flex-direction: column;
+  padding: 0 clamp(16px,2vw,24px);
+}
+.hero-stat:first-child { padding-left: 0; }
+
+.hero-stat-sep {
+  width: 1px;
+  background: rgba(255,255,255,0.12);
+  align-self: stretch;
+  flex-shrink: 0;
+}
+
+.hero-stat-value {
+  font-size: clamp(1.3rem,2vw,1.6rem);
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.hero-stat-word {
+  color: #2563EB;
+}
+
+.hero-stat-label {
+  font-size: 0.62rem;
+  color: rgba(255,255,255,0.44);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 4px;
+  line-height: 1.5;
 }
 
 /* ── RIGHT COLUMN ── */
-/* The visual holds the student + cards side by side.
-   Student is the main element; cards float on the right. */
+/* Visual container: student occupies most of it, cards sit on the right */
 .hero-visual {
   position: relative;
-  display: flex;
-  align-items: flex-end;
-  /* Cards live to the right of the student, so give them room */
-  justify-content: flex-start;
   align-self: stretch;
-  min-height: clamp(500px, calc(100svh - 120px), 760px);
+  min-height: clamp(560px, calc(100svh - 100px), 820px);
   overflow: visible;
-  /* Right padding reserves space so the cards don't clip out of frame */
-  padding-right: 210px;
 }
 
+/* The student image — large, bottom-anchored, right side */
 .hero-student-img {
   position: absolute;
   bottom: 0;
-  /* Student centered within the column, shifted slightly left to leave room for cards */
-  left: 50%;
-  transform: translateX(-60%);
-  /* Large — fills most of the hero height */
-  width: auto;
-  height: 100%;
-  max-height: 740px;
-  max-width: 560px;
+  right: 0;
+  width: 100%;
+  max-width: 700px;
+  max-height: 780px;
+  height: auto;
   object-fit: contain;
   object-position: bottom center;
   pointer-events: none;
   user-select: none;
   display: block;
+  /* Ensure student renders above the bg shapes but below cards */
+  z-index: 1;
 }
 
 /* Floating role cards */
@@ -1622,25 +1795,25 @@
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  background: rgba(9,22,60,0.72);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(37,99,235,0.35);
+  background: rgba(6,18,52,0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(37,99,235,0.45);
   border-radius: 14px;
-  min-width: 168px;
-  max-width: 210px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-  z-index: 2;
+  min-width: 176px;
+  max-width: 218px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(37,99,235,0.1);
+  z-index: 3;
   animation: hero-float 4s ease-in-out infinite;
 }
 
 .hero-card-icon {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(37,99,235,0.5);
+  background: rgba(37,99,235,0.55);
   border-radius: 50%;
   color: #fff;
   flex-shrink: 0;
@@ -1656,20 +1829,20 @@
 }
 
 .hero-card-desc {
-  font-size: 0.66rem;
-  color: rgba(255,255,255,0.6);
-  line-height: 1.45;
-  margin-top: 2px;
+  font-size: 0.65rem;
+  color: rgba(255,255,255,0.58);
+  line-height: 1.5;
+  margin-top: 3px;
 }
 
-/* Card positions — stacked on the RIGHT side of the portrait, matching screenshot */
-.hero-card-student  { top: 12%;    right: 0;   animation-delay: 0s;   }
+/* Cards stacked on the right edge of the visual container — matching reference */
+.hero-card-student  { top: 10%;    right: 0;   animation-delay: 0s;   }
 .hero-card-teacher  { top: 40%;    right: 0;   animation-delay: 1.4s; }
-.hero-card-parent   { bottom: 14%; right: 0;   animation-delay: 2.8s; }
+.hero-card-parent   { bottom: 12%; right: 0;   animation-delay: 2.8s; }
 
 @keyframes hero-float {
-  0%, 100% { transform: translateY(0); }
-  50%       { transform: translateY(-7px); }
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-8px); }
 }
 
 .hero-kicker {
@@ -1860,87 +2033,86 @@
 /* ── RESPONSIVE ── */
 /* 1200px–1279px: slight padding reduction */
 @media (max-width: 1279px) {
-  .hero-layout { padding: clamp(32px,4vh,56px) clamp(24px,4vw,48px); }
-  .hero-visual { padding-right: 190px; }
-  .hero-student-img { max-height: 680px; }
+  .hero-layout { padding: clamp(40px,5vh,72px) clamp(32px,5vw,64px); }
+  .hero-student-img { max-width: 640px; max-height: 720px; }
 }
 
-/* Laptop 992px–1199px: shrink image, reduce card space */
+/* Laptop 992px–1199px */
 @media (max-width: 1199px) {
   .hero-layout {
-    grid-template-columns: 44fr 56fr;
+    grid-template-columns: 48fr 52fr;
+    padding: clamp(36px,5vh,64px) clamp(28px,4vw,52px);
     gap: 0;
   }
-  .hero-visual {
-    min-height: clamp(460px, calc(100svh - 130px), 700px);
-    padding-right: 180px;
-  }
-  .hero-student-img { max-height: 620px; max-width: 480px; }
+  .hero-visual { min-height: clamp(500px, calc(100svh - 110px), 760px); }
+  .hero-student-img { max-width: 580px; max-height: 660px; }
   .hero-heading-line1,
-  .hero-heading-line2 { font-size: clamp(2.2rem, 3.8vw, 3.4rem); }
+  .hero-heading-line2 { font-size: clamp(2.3rem, 3.8vw, 3.6rem); }
 }
 
-/* Tablet 768px–1023px: tighter layout, smaller cards */
+/* Tablet 768px–1023px */
 @media (max-width: 1023px) {
   .hero-layout {
     grid-template-columns: 1fr 1fr;
-    padding: 40px 24px 48px;
+    padding: 40px 28px 56px;
     gap: 0;
   }
   .hero-visual {
-    min-height: clamp(400px, 52vw, 560px);
+    min-height: clamp(420px, 54vw, 600px);
     align-self: stretch;
-    padding-right: 160px;
   }
-  .hero-student-img { max-height: 520px; max-width: 400px; }
-  .hero-card { min-width: 140px; max-width: 168px; padding: 8px 12px; }
+  .hero-student-img { max-width: 480px; max-height: 560px; }
+  .hero-card { min-width: 148px; max-width: 176px; padding: 9px 12px; }
+  .hero-card-icon { width: 30px; height: 30px; }
 }
 
-/* Mobile ≤767px: stack vertically, center everything */
+/* Mobile ≤767px: stack vertically */
 @media (max-width: 767px) {
   .landing-hero { min-height: auto; align-items: flex-start; }
   .hero-layout {
     grid-template-columns: 1fr;
     padding: 40px 20px 48px;
-    gap: 28px;
+    gap: 32px;
   }
-  .hero-content { align-items: center; text-align: center; }
+  .hero-content {
+    align-items: center;
+    text-align: center;
+    padding-right: 0;
+  }
   .hero-kicker  { align-self: center; }
   .hero-sub     { max-width: none; text-align: center; }
   .hero-actions { justify-content: center; }
   .hero-note    { text-align: center; }
   .hero-stats   { justify-content: center; }
   .hero-stat:first-child { padding-left: clamp(16px,2vw,24px); }
-  /* Show portrait below content, centered */
+  /* Student centered below content */
   .hero-visual {
-    min-height: clamp(280px, 60vw, 400px);
+    min-height: clamp(300px, 64vw, 440px);
     width: 100%;
-    padding-right: 0;
-    justify-content: center;
   }
   .hero-student-img {
-    left: 50%;
-    transform: translateX(-50%);
-    height: 100%;
-    max-height: 400px;
-    max-width: 320px;
+    right: 50%;
+    transform: translateX(50%);
+    width: min(90%, 380px);
+    max-width: 380px;
+    max-height: 440px;
   }
-  /* Cards: back to right side of the visual area */
-  .hero-card-student { top: 4%;    right: 4px;  }
-  .hero-card-teacher { top: 36%;   right: -4px; }
-  .hero-card-parent  { bottom: 4%; right: 4px;  }
+  /* Cards: absolute to right side of visual */
+  .hero-card-student { top: 6%;    right: 0; }
+  .hero-card-teacher { top: 38%;   right: 0; }
+  .hero-card-parent  { bottom: 6%; right: 0; }
 }
 
 /* Small mobile ≤479px */
 @media (max-width: 479px) {
   .hero-layout { padding: 32px 16px 40px; }
   .hero-heading-line1,
-  .hero-heading-line2 { font-size: clamp(1.9rem,8vw,2.6rem); }
+  .hero-heading-line2 { font-size: clamp(1.95rem,8.5vw,2.7rem); }
   .hero-btn-primary,
   .hero-btn-secondary { width: 100%; justify-content: center; }
   .hero-actions { flex-direction: column; width: 100%; }
-  .hero-visual { min-height: clamp(240px,65vw,320px); }
-  .hero-student-img { max-height: 320px; max-width: 280px; }
+  .hero-visual { min-height: clamp(260px,70vw,340px); }
+  .hero-student-img { max-height: 340px; max-width: 300px; }
   /* Hide cards on very small screens */
   .hero-card { display: none; }
   .hero-stats { flex-wrap: wrap; gap: 12px 0; }
