@@ -1513,10 +1513,9 @@
 .landing-hero {
   position: relative;
   background: linear-gradient(135deg, #040c18 0%, #071525 30%, #0c1e42 60%, #0a1838 100%);
-  /* No overflow:hidden — it clips the student image.
-     The bg decorations use z-index:0 so they don't escape visually. */
-  overflow: clip; /* clips decorations without affecting abs-pos children */
-  min-height: calc(100svh - 76px);
+  overflow: clip;
+  /* Target ~760-790px on a 900px viewport (900 - 76px nav = 824px, capped at 760) */
+  min-height: min(calc(100svh - 76px), 760px);
   display: flex;
   align-items: stretch;
 }
@@ -1537,17 +1536,17 @@
   z-index: 0;
 }
 
-/* Subtle bottom-left glow */
+/* Watermark — kept well above the hero bottom edge so overflow:clip doesn't cut it */
 .landing-hero::after {
   content: 'KIWALAN NATIONAL HIGH SCHOOL';
   position: absolute;
-  bottom: 20px;
+  bottom: 48px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: clamp(1rem, 2.2vw, 1.8rem);
+  font-size: clamp(0.7rem, 1.4vw, 1.2rem);
   font-weight: 900;
   letter-spacing: 0.22em;
-  color: rgba(255,255,255,0.028);
+  color: rgba(255,255,255,0.03);
   white-space: nowrap;
   pointer-events: none;
   text-transform: uppercase;
@@ -1582,14 +1581,15 @@
   z-index: 1;
   display: grid;
   grid-template-columns: 48fr 52fr;
+  /* Grid rows should stretch to the hero height */
+  grid-template-rows: 1fr;
   align-items: center;
   width: 100%;
   max-width: 1440px;
   margin: 0 auto;
-  /* Use padding for breathing room — not fixed height */
-  padding: clamp(56px,7vh,88px) clamp(40px,6vw,96px);
+  /* Reduced vertical padding so content isn't buried in whitespace */
+  padding: clamp(40px,5vh,64px) clamp(40px,6vw,96px);
   gap: 0;
-  /* Fill the hero's full height so the student can anchor to the bottom */
   flex: 1 1 auto;
 }
 
@@ -1766,28 +1766,27 @@
 }
 
 /* ── RIGHT COLUMN ── */
-/* Visual container stretches to the full grid row height.
-   The student image is absolutely positioned within it. */
+/* align-self:stretch makes the visual fill the grid row's height.
+   The student image is absolutely positioned inside this container. */
 .hero-visual {
   position: relative;
   align-self: stretch;
-  /* height:100% lets abs-pos children (student) use percentage heights */
-  height: 100%;
-  /* Minimum so it never collapses on very short viewports */
-  min-height: 480px;
+  /* Explicit min-height gives abs-pos children a real reference */
+  min-height: clamp(480px, calc(100svh - 200px), 720px);
   overflow: visible;
 }
 
-/* The student image — fills the visual column height, bottom-anchored */
+/* The student image — large, bottom-anchored, contained within hero-visual */
 .hero-student-img {
   position: absolute;
   bottom: 0;
   right: 0;
-  /* Fill the column's height; max-width/max-height prevent oversizing */
+  /* Height relative to the hero-visual container's computed height.
+     hero-visual uses align-self:stretch so it gets the full grid row height. */
   height: 100%;
   width: auto;
-  max-width: 700px;
-  max-height: 780px;
+  max-height: 720px;
+  max-width: 680px;
   object-fit: contain;
   object-position: bottom right;
   pointer-events: none;
@@ -1843,10 +1842,10 @@
   margin-top: 3px;
 }
 
-/* Cards stacked on the right edge of the visual container — matching reference */
-.hero-card-student  { top: 10%;    right: 0;   animation-delay: 0s;   }
-.hero-card-teacher  { top: 40%;    right: 0;   animation-delay: 1.4s; }
-.hero-card-parent   { bottom: 12%; right: 0;   animation-delay: 2.8s; }
+/* Cards stacked on the right edge — positioned to avoid face and tablet */
+.hero-card-student  { top: 8%;     right: 0;   animation-delay: 0s;   }
+.hero-card-teacher  { top: 38%;    right: 0;   animation-delay: 1.4s; }
+.hero-card-parent   { bottom: 18%; right: 0;   animation-delay: 2.8s; }
 
 @keyframes hero-float {
   0%, 100% { transform: translateY(0px); }
@@ -1879,19 +1878,19 @@
 /* ── RESPONSIVE ── */
 /* 1200px–1279px: slight padding reduction */
 @media (max-width: 1279px) {
-  .hero-layout { padding: clamp(40px,5vh,72px) clamp(32px,5vw,64px); }
-  .hero-student-img { max-width: 640px; max-height: 720px; }
+  .hero-layout { padding: clamp(36px,5vh,60px) clamp(32px,5vw,64px); }
+  .hero-student-img { max-width: 620px; max-height: 680px; }
 }
 
 /* Laptop 992px–1199px */
 @media (max-width: 1199px) {
   .hero-layout {
     grid-template-columns: 48fr 52fr;
-    padding: clamp(36px,5vh,64px) clamp(28px,4vw,52px);
+    padding: clamp(32px,4.5vh,56px) clamp(28px,4vw,52px);
     gap: 0;
   }
-  .hero-visual { min-height: clamp(500px, calc(100svh - 110px), 760px); }
-  .hero-student-img { max-width: 580px; max-height: 660px; }
+  .hero-visual { min-height: clamp(440px, calc(100svh - 200px), 680px); }
+  .hero-student-img { max-width: 560px; max-height: 620px; }
   .hero-heading-line1,
   .hero-heading-line2 { font-size: clamp(2.3rem, 3.8vw, 3.6rem); }
 }
@@ -1900,14 +1899,14 @@
 @media (max-width: 1023px) {
   .hero-layout {
     grid-template-columns: 1fr 1fr;
-    padding: 40px 28px 56px;
+    padding: 36px 28px 48px;
     gap: 0;
   }
   .hero-visual {
-    min-height: clamp(420px, 54vw, 600px);
+    min-height: clamp(380px, 52vw, 560px);
     align-self: stretch;
   }
-  .hero-student-img { max-width: 480px; max-height: 560px; }
+  .hero-student-img { max-width: 460px; max-height: 520px; }
   .hero-card { min-width: 148px; max-width: 176px; padding: 9px 12px; }
   .hero-card-icon { width: 30px; height: 30px; }
 }
