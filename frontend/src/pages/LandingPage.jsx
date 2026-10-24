@@ -359,28 +359,49 @@ export default function LandingPage() {
       </header>
 
       {/* ── Mobile nav drawer ────────────────────────────────────── */}
-      <div className={`landing-nav-mobile${mobileMenuOpen ? ' open' : ''}`} aria-hidden={!mobileMenuOpen}>
-        <button
-          type="button"
-          className="landing-nav-mobile-overlay"
-          aria-label="Close menu"
-          onClick={() => setMobileMenuOpen(false)}
-        />
-        <nav className="landing-nav-mobile-panel" aria-label="Mobile navigation">
+      <div
+        className={`landing-nav-mobile${mobileMenuOpen ? ' open' : ''}`}
+        aria-hidden={!mobileMenuOpen}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Navigation menu"
+      >
+        {/* Top bar: logo + close button */}
+        <div className="mobile-nav-topbar">
+          <div className="landing-nav-brand">
+            <img src="/knhs-seal.png" alt="Kiwalan National High School seal" className="landing-nav-seal" />
+            <Logo size="sm" />
+          </div>
+          <button
+            type="button"
+            className="mobile-nav-close"
+            aria-label="Close navigation menu"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            <Icon name="close" size={22} />
+          </button>
+        </div>
+
+        {/* Nav links */}
+        <nav className="mobile-nav-links" aria-label="Mobile navigation">
           <a href="#problem" onClick={() => setMobileMenuOpen(false)}>The Problem</a>
           <a href="#features" onClick={() => setMobileMenuOpen(false)}>Features</a>
           <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)}>How it Works</a>
           <a href="#roles" onClick={() => setMobileMenuOpen(false)}>Roles</a>
           <a href="#security" onClick={() => setMobileMenuOpen(false)}>Security</a>
           <a href="#faq" onClick={() => setMobileMenuOpen(false)}>FAQ</a>
+        </nav>
+
+        {/* Full-width CTA pinned at bottom */}
+        <div className="mobile-nav-cta">
           <Link
-            className="btn btn-primary"
+            className="btn btn-primary mobile-nav-cta-btn"
             to={dashboardHref}
             onClick={() => setMobileMenuOpen(false)}
           >
-            {signedIn ? 'Open dashboard' : 'Sign in'}
+            {signedIn ? 'Open dashboard' : 'Sign in to TRACK'}
           </Link>
-        </nav>
+        </div>
       </div>
 
       <main className="landing-main" id="main-content" tabIndex={-1}>

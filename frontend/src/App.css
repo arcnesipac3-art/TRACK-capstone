@@ -1377,48 +1377,113 @@
   flex: 0 0 auto;
 }
 
-/* Mobile nav drawer */
+/* Mobile nav — full-screen white overlay (eGov style) */
 .landing-nav-mobile {
   display: none;
   position: fixed;
   inset: 0;
   z-index: 50;
+  background: #fff;
+  flex-direction: column;
+  animation: mobile-nav-in 0.22s ease;
 }
-.landing-nav-mobile-overlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(10, 22, 48, 0.5);
+
+.landing-nav-mobile.open {
+  display: flex;
+}
+
+@keyframes mobile-nav-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Top bar — logo left, X right */
+.mobile-nav-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  height: 68px;
+  border-bottom: 1px solid #f1f3f5;
+  flex-shrink: 0;
+}
+
+/* Close button */
+.mobile-nav-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: none;
   border: none;
-  width: 100%;
+  color: #374151;
   cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.15s ease;
 }
-.landing-nav-mobile-panel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(280px, 85vw);
-  background: var(--surface);
-  box-shadow: var(--shadow-lg);
+.mobile-nav-close:hover { background: #f3f4f6; }
+.mobile-nav-close:focus-visible {
+  outline: 2px solid #155DFC;
+  outline-offset: 2px;
+}
+
+/* Nav links — large, spaced, full-width */
+.mobile-nav-links {
   display: flex;
   flex-direction: column;
-  padding: 20px;
-  gap: 8px;
+  flex: 1 1 auto;
+  padding: 8px 0;
   overflow-y: auto;
 }
-.landing-nav-mobile.open { display: block; }
-.landing-nav-mobile-panel a,
-.landing-nav-mobile-panel .btn {
+
+.mobile-nav-links a {
   display: block;
-  padding: 12px 14px;
-  border-radius: var(--radius-sm);
+  padding: 18px 28px;
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: #374151;
+  text-decoration: none;
+  border-bottom: 1px solid #f1f3f5;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.mobile-nav-links a:first-child {
+  border-top: 1px solid #f1f3f5;
+}
+
+.mobile-nav-links a:hover {
+  background: #f9fafb;
+  color: #155DFC;
+}
+
+/* Full-width CTA at the bottom */
+.mobile-nav-cta {
+  padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  flex-shrink: 0;
+  border-top: 1px solid #f1f3f5;
+}
+
+.mobile-nav-cta-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 16px;
+  background: #155DFC;
+  color: #fff;
+  border-radius: 12px;
   font-size: 1rem;
   font-weight: 600;
-  color: var(--navy-800);
   text-decoration: none;
+  transition: background 0.15s ease;
 }
-.landing-nav-mobile-panel a:hover { background: var(--gray-100); }
-.landing-nav-mobile-panel .btn { text-align: center; margin-top: 8px; }
+
+.mobile-nav-cta-btn:hover {
+  background: #1148d4;
+  text-decoration: none;
+  color: #fff;
+}
 
 /* --- Hero ---
    Content-height on purpose. The preview, features and How it works sections
