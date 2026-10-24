@@ -435,11 +435,15 @@ export default function LandingPage() {
         </section>
 
         {/* ── Solution callout ──────────────────────────────────── */}
-        <section className="landing-solution" aria-labelledby="solution-heading" data-reveal>
-          <div className="landing-section solution-inner">
-            <p className="ls-eyebrow">The Solution</p>
-            <h2 id="solution-heading">TRACK brings every school record into one secure, easy-to-use portal.</h2>
-            <p className="ls-lede">
+        <section className="solution-section" aria-labelledby="solution-heading" data-reveal>
+          <div className="solution-card">
+            <p className="solution-pill">
+              <span aria-hidden="true">→</span> The Solution
+            </p>
+            <h2 id="solution-heading">
+              TRACK brings every school record into one secure, easy-to-use portal.
+            </h2>
+            <p className="solution-quote">
               &ldquo;No more chasing teachers on chat. Your school, in your browser.&rdquo;
             </p>
           </div>
