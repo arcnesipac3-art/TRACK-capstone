@@ -95,8 +95,17 @@ export default function LoginPage() {
       {/* ── Left panel ──────────────────────────────────────────────── */}
       <aside className="auth-aside">
         <div className="aside-brand">
-          <Logo variant="light" size="lg" />
-          <p className="aside-school">Kiwalan National High School</p>
+          <div className="aside-brand-row">
+            <img
+              src="/knhs-seal.png"
+              alt="Kiwalan National High School seal"
+              className="aside-knhs-seal"
+            />
+            <div className="aside-brand-text">
+              <Logo variant="light" />
+              <p className="aside-school">Kiwalan National High School</p>
+            </div>
+          </div>
         </div>
 
         <div className="aside-copy">

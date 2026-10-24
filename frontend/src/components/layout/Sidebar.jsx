@@ -154,9 +154,17 @@ export default function Sidebar({ onNavigate, variant = 'fixed' }) {
       </ul>
 
       <div className="sidebar-footer">
-        Kiwalan National High School
-        <br />
-        Iligan City, Philippines
+        <img
+          src="/knhs-seal.png"
+          alt=""
+          aria-hidden="true"
+          className="sidebar-knhs-seal"
+        />
+        <div>
+          Kiwalan National High School
+          <br />
+          Iligan City, Philippines
+        </div>
       </div>
     </nav>
   )

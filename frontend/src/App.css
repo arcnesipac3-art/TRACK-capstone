@@ -232,10 +232,23 @@
 }
 
 .sidebar-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 14px 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   font-size: 0.74rem;
   color: #8ba5cd;
+}
+
+.sidebar-knhs-seal {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  object-fit: contain;
+  mix-blend-mode: screen;
+  opacity: 0.85;
 }
 
 /* ---------------------------------------------------------------------
@@ -1004,6 +1017,29 @@
   gap: 8px;
 }
 
+.aside-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.aside-knhs-seal {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  object-fit: contain;
+  /* The original image has a black background — blend it away on the navy aside */
+  mix-blend-mode: screen;
+  filter: brightness(1.05);
+}
+
+.aside-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .aside-school {
   font-size: 0.82rem;
   font-weight: 600;
@@ -1319,6 +1355,14 @@
   font-weight: 700;
   letter-spacing: 0.07em;
   text-transform: uppercase;
+}
+
+.hero-knhs-seal {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  object-fit: contain;
 }
 
 .landing-hero h1 {

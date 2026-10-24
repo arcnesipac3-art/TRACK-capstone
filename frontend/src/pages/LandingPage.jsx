@@ -226,7 +226,12 @@ export default function LandingPage() {
         <section className="landing-hero" aria-labelledby="hero-heading">
           <div className="landing-hero-inner">
             <span className="hero-kicker">
-              <Icon name="gradCap" size={14} />
+              <img
+                src="/knhs-seal.png"
+                alt=""
+                aria-hidden="true"
+                className="hero-knhs-seal"
+              />
               Kiwalan National High School · Iligan City
             </span>
 
