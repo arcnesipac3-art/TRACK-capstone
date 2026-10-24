@@ -2120,7 +2120,8 @@
   max-width: none;
   margin: 0;
   padding: 72px 40px;
-  background: linear-gradient(135deg, #050d1a 0%, #0f2044 50%, #0a1f3d 100%);
+  background: #f4f6fa;
+  border-top: 1px solid var(--border);
 }
 .cta-card {
   display: flex;
@@ -2128,30 +2129,65 @@
   align-items: center;
   justify-content: center;
   text-align: center;
-  gap: 16px;
+  gap: 28px;
   max-width: 720px;
   margin: 0 auto;
-  padding: 52px 48px;
-  background: transparent;
-  background-image: none;
-  border-radius: var(--radius-lg);
-  box-shadow: none;
-  color: var(--on-navy);
-}
-.cta-card h2 {
-  font-size: clamp(1.5rem, 2.8vw, 2rem);
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  padding: 60px 56px;
+  background: linear-gradient(135deg, #0b1d44 0%, #0f2044 55%, #0d2a5a 100%);
+  border-radius: 24px;
+  box-shadow:
+    0 8px 32px rgba(10, 22, 60, 0.22),
+    0 2px 8px rgba(10, 22, 60, 0.12);
   color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle decorative ring — purely visual */
+.cta-card::before {
+  content: '';
+  position: absolute;
+  right: -80px;
+  bottom: -80px;
+  width: 300px;
+  height: 300px;
+  border: 2px solid rgba(255, 255, 255, 0.06);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.cta-card::after {
+  content: '';
+  position: absolute;
+  right: -20px;
+  bottom: -20px;
+  width: 180px;
+  height: 180px;
+  border: 2px solid rgba(255, 255, 255, 0.04);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.cta-copy { position: relative; z-index: 1; }
+
+.cta-card h2 {
+  font-size: clamp(1.6rem, 2.8vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: #fff;
+  margin: 0 0 10px;
 }
 .cta-card p {
-  margin-top: 4px;
-  max-width: 52ch;
-  font-size: 0.94rem;
-  line-height: 1.6;
-  color: rgba(255, 255, 255, 0.72);
+  margin: 0;
+  max-width: 48ch;
+  font-size: 0.96rem;
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.7);
 }
-.cta-actions { flex: 0 0 auto; }
+.cta-actions {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 1;
+}
 .btn-light {
   background: var(--surface);
   color: var(--navy-800);
@@ -2443,7 +2479,7 @@
   .faq-list { max-width: 760px; }
 
   /* The call to action stacks once it has less than a full desktop to run in. */
-  .cta-card { padding: 36px 32px; }
+  .cta-card { padding: 44px 36px; border-radius: 20px; }
 
   .auth-layout { grid-template-columns: minmax(0, 1fr); }
   .auth-aside { display: none; }
@@ -2503,7 +2539,7 @@
   .how-steps { grid-template-columns: minmax(0, 1fr); }
 
   .landing-cta { padding: 48px 16px; }
-  .cta-card { padding: 28px 22px; }
+  .cta-card { padding: 36px 24px; border-radius: 18px; }
   .cta-actions { width: 100%; }
   .cta-actions .btn { width: 100%; justify-content: center; }
 
