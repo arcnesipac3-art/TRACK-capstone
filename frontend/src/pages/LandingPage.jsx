@@ -265,6 +265,36 @@ export default function LandingPage() {
     }
   }, [mobileMenuOpen])
 
+  // Smooth-scroll all in-page anchor links (#section) inside .landing.
+  // Since .landing is the scroll container (not html/body), native
+  // scroll-behavior:smooth on html doesn't apply here. We intercept every
+  // click on an <a href="#..."> and manually scroll the container so the
+  // target sits just below the sticky nav (NAV_H offset).
+  useEffect(() => {
+    const container = rootRef.current
+    if (!container) return undefined
+    const NAV_H = 72 // matches .landing-nav height
+
+    function handleAnchorClick(e) {
+      const anchor = e.target.closest('a[href^="#"]')
+      if (!anchor) return
+      const id = anchor.getAttribute('href').slice(1)
+      if (!id) return
+      const target = document.getElementById(id)
+      if (!target) return
+      e.preventDefault()
+      const targetTop = target.getBoundingClientRect().top
+      const containerTop = container.getBoundingClientRect().top
+      const offset = targetTop - containerTop + container.scrollTop - NAV_H
+      container.scrollTo({ top: offset, behavior: 'smooth' })
+      // Close mobile menu if open
+      setMobileMenuOpen(false)
+    }
+
+    container.addEventListener('click', handleAnchorClick)
+    return () => container.removeEventListener('click', handleAnchorClick)
+  }, [])
+
   useEffect(() => {
     const root = rootRef.current
     if (!root || typeof IntersectionObserver === 'undefined') return undefined

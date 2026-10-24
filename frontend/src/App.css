@@ -1246,6 +1246,15 @@
      correctly when html/body/root are constrained to height:100%. */
   overflow-y: auto;
   height: 100%;
+  /* Smooth scrolling for the .landing scroll container */
+  scroll-behavior: smooth;
+}
+
+/* Offset section targets by the sticky nav height (72px) so they land
+   correctly when the smooth-scroll handler positions them. Also covers
+   any native :target jumps (e.g., back/forward navigation). */
+.landing section[id] {
+  scroll-margin-top: 72px;
 }
 
 /* The main element wraps the preview + all sections.
@@ -2657,6 +2666,9 @@
 }
 /* No waiting on scroll for readers who asked for less motion. */
 @media (prefers-reduced-motion: reduce) {
+  .landing {
+    scroll-behavior: auto;
+  }
   .landing.reveal-ready [data-reveal] {
     opacity: 1;
     transform: none;
