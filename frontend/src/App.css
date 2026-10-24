@@ -2568,3 +2568,49 @@
   }
   .receipt-print .form-actions { display: none; }
 }
+
+/* ---------------------------------------------------------------------------
+ * Tabs (shared — AdminFeesPage, SectionsPage, and any future tabbed pages)
+ * ------------------------------------------------------------------------- */
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tab {
+  flex: 1 0 auto;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-weight: 500;
+  font-size: 0.85rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.tab:hover {
+  background: var(--surface-2);
+  color: var(--navy-900);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--navy-500);
+  outline-offset: -2px;
+}
+
+.tab.active {
+  background: #fff;
+  color: var(--navy-900);
+  font-weight: 650;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
