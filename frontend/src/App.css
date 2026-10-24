@@ -1493,11 +1493,115 @@
   color: var(--text-muted);
 }
 
+/* Eyebrow label above section headings */
+.ls-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--navy-600);
+  margin: 0 0 10px;
+}
+
 /* Tonal band, so the three sections reading down the page alternate. */
 .landing-band {
   background: var(--surface-alt);
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
+}
+
+/* --- Solution callout --- */
+.landing-solution {
+  background: var(--navy-800);
+  border-top: 1px solid var(--navy-700);
+  border-bottom: 1px solid var(--navy-700);
+}
+.landing-solution .ls-eyebrow { color: var(--brand-cyan); }
+.landing-solution h2 {
+  color: #fff;
+  max-width: 54ch;
+}
+.landing-solution .ls-lede {
+  color: var(--on-navy-muted);
+  font-style: italic;
+  margin-bottom: 0;
+}
+.solution-inner { padding-top: 52px; padding-bottom: 52px; }
+
+/* --- Problem cards --- */
+.problem-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.problem-card {
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.problem-card h3 {
+  font-size: 1rem;
+  margin: 12px 0 6px;
+  color: var(--navy-800);
+}
+.problem-card p { font-size: 0.88rem; color: var(--text-muted); line-height: 1.55; margin: 0; }
+.problem-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--red-100);
+  color: var(--red-700);
+}
+
+/* --- Trust cards --- */
+.trust-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.trust-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 22px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.trust-card h3 { font-size: 0.96rem; margin: 0 0 6px; color: var(--navy-800); }
+.trust-card p { font-size: 0.87rem; color: var(--text-muted); line-height: 1.55; margin: 0; }
+.trust-icon {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--blue-50);
+  color: var(--navy-700);
+  margin-top: 2px;
+}
+
+/* --- Footer brand logos --- */
+.foot-brand-logos {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.foot-knhs-seal {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: contain;
+  mix-blend-mode: screen;
+  opacity: 0.8;
+  flex: 0 0 auto;
 }
 
 /* --- Feature cards --- */
@@ -2046,6 +2150,9 @@
   .landing-hero { padding: 48px 18px 42px; }
   .landing-preview { padding: 30px 18px 4px; }
   .landing-section { padding: 44px 18px; }
+  .solution-inner { padding-top: 38px; padding-bottom: 38px; }
+  .problem-grid { grid-template-columns: minmax(0, 1fr); }
+  .trust-grid { grid-template-columns: minmax(0, 1fr); }
   .landing-foot { padding: 34px 18px 0; }
   .how-steps { grid-template-columns: minmax(0, 1fr); }
 
