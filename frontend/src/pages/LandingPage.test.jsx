@@ -75,7 +75,7 @@ describe('LandingPage', () => {
     ).toBeInTheDocument()
     expect(document.querySelectorAll('.feature-card')).toHaveLength(8)
     expect(document.querySelectorAll('.role-card')).toHaveLength(4)
-    expect(document.querySelectorAll('.faq-item')).toHaveLength(6)
+    expect(document.querySelectorAll('.faq-item')).toHaveLength(8)
     expect(document.querySelector('.cta-card')).toBeInTheDocument()
     expect(document.querySelectorAll('[data-reveal]')).toHaveLength(6)
   })

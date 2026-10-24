@@ -1936,52 +1936,182 @@
   border-radius: 50%;
 }
 
-/* --- Questions --- */
-/* Native <details>, so the accordion works with the keyboard and with a screen
-   reader without a line of JavaScript. */
+/* --- FAQ Section --- */
+/* ================================================================
+   Redesigned FAQ — centered rounded-card accordion, white band
+   ================================================================ */
+
+.faq-section {
+  background: #fff;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 96px 40px;
+  width: 100%;
+}
+
+.faq-section-inner {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+/* Centered header block */
+.faq-header {
+  text-align: center;
+  margin-bottom: 48px;
+}
+
+/* Small blue "FAQ" eyebrow */
+.faq-eyebrow {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #155DFC;
+  background: #EEF3FF;
+  border: 1px solid #C7D9FF;
+  border-radius: 999px;
+  padding: 4px 14px;
+  margin: 0 0 18px;
+}
+
+/* Main heading: dark navy + blue accent on "Questions" */
+.faq-heading {
+  font-size: clamp(1.9rem, 3.5vw, 2.6rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--navy-900);
+  margin: 0 0 14px;
+}
+
+.faq-heading-accent {
+  color: #155DFC;
+}
+
+/* Muted blue-gray subtitle */
+.faq-subheading {
+  font-size: 1rem;
+  color: #5c7199;
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Accordion list — vertical stack with gaps between cards */
 .faq-list {
   display: flex;
   flex-direction: column;
-  gap: 0;
-  max-width: 860px;
-  border-top: 1px solid var(--border);
+  gap: 14px;
+  max-width: 800px;
+  margin: 0 auto;
+  /* Reset any old border-top from the previous design */
+  border-top: none;
 }
+
+/* Individual card */
 .faq-item {
-  background: var(--surface);
-  border: none;
-  border-bottom: 1px solid var(--border);
-  border-radius: 0;
-  box-shadow: none;
+  background: #fff;
+  border: 1.5px solid #E4EAFE;
+  border-radius: 16px;
+  box-shadow: 0 1px 4px rgba(21, 93, 252, 0.04);
+  overflow: hidden;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
 }
-.faq-item summary {
+
+/* Expanded state */
+.faq-item.faq-item--open {
+  background: #F7F9FF;
+  border-color: #A5BEFF;
+  box-shadow:
+    0 4px 16px rgba(21, 93, 252, 0.1),
+    0 1px 4px rgba(21, 93, 252, 0.06);
+}
+
+/* Trigger button — full-width, flex row */
+.faq-summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 16px 4px;
+  gap: 20px;
+  width: 100%;
+  padding: 20px 24px;
+  background: transparent;
+  border: none;
   cursor: pointer;
-  list-style: none;
-  font-size: 0.96rem;
-  font-weight: 700;
-  color: var(--navy-800);
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  border-radius: 16px;
 }
-.faq-item summary::-webkit-details-marker { display: none; }
-.faq-item summary:hover { color: var(--navy-600); }
-.faq-item .faq-chev {
+
+.faq-summary:focus-visible {
+  outline: 2px solid #155DFC;
+  outline-offset: -2px;
+  border-radius: 16px;
+}
+
+/* Question text */
+.faq-question {
+  font-size: 0.97rem;
+  font-weight: 700;
+  color: var(--navy-900);
+  line-height: 1.4;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Chevron icon */
+.faq-chev {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  color: var(--text-subtle);
-  transition: transform var(--ease);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #EEF3FF;
+  color: #155DFC;
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s ease;
 }
-.faq-item[open] .faq-chev { transform: rotate(180deg); }
-.faq-item[open] summary { padding-bottom: 10px; }
-.faq-item .faq-answer {
-  padding: 0 4px 18px;
-  max-width: 68ch;
-  font-size: 0.9rem;
-  line-height: 1.58;
-  color: var(--text-muted);
+
+.faq-item--open .faq-chev {
+  transform: rotate(180deg);
+  background: #155DFC;
+  color: #fff;
+}
+
+/* Animated panel wrapper — CSS grid trick for smooth height animation */
+.faq-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  /* Override the browser's `hidden` attribute display:none so animation works */
+}
+
+/* When hidden attr is removed by React, unhide via our own rule */
+.faq-body:not([hidden]) {
+  grid-template-rows: 1fr;
+}
+
+/* When hidden, keep it in flow but collapsed */
+.faq-body[hidden] {
+  display: grid !important;
+  grid-template-rows: 0fr;
+}
+
+.faq-body-inner {
+  overflow: hidden;
+}
+
+/* Answer text */
+.faq-answer {
+  padding: 0 24px 20px;
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.7;
+  color: #5c7199;
 }
 
 /* --- Closing call to action --- */
@@ -2307,6 +2437,11 @@
   .landing-foot { padding: 48px 24px 0; }
   .landing-foot-inner { grid-template-columns: 1fr 1fr; gap: 20px 32px; }
 
+  /* FAQ — tablet (768–1023px): max-width 760px, comfortable padding */
+  .faq-section { padding: 80px 32px; }
+  .faq-section-inner { max-width: 760px; }
+  .faq-list { max-width: 760px; }
+
   /* The call to action stacks once it has less than a full desktop to run in. */
   .cta-card { padding: 36px 32px; }
 
@@ -2343,6 +2478,12 @@
   .welcome-block .welcome-hi { font-size: 1.2rem; }
 
   .card-header { padding: 12px 14px; }
+
+  /* FAQ — small mobile (480–767px) */
+  .faq-section { padding: 64px 24px; }
+  .faq-heading { font-size: clamp(1.7rem, 6vw, 2.1rem); }
+  .faq-summary { padding: 18px 20px; }
+  .faq-answer { padding: 0 20px 18px; }
   .card-body { padding: 14px; }
   .activity-item { padding: 11px 14px; }
 
@@ -2368,8 +2509,13 @@
 
   .landing-foot-inner { grid-template-columns: minmax(0, 1fr); }
   .landing-foot .foot-bottom { justify-content: flex-start; }
-  .faq-item summary { padding: 14px 4px; font-size: 0.93rem; }
-  .faq-item .faq-answer { padding: 0 4px 16px; }
+
+  /* FAQ responsive — phones (<480px) */
+  .faq-section { padding: 56px 20px; }
+  .faq-heading { font-size: clamp(1.5rem, 7vw, 2rem); }
+  .faq-header { margin-bottom: 32px; }
+  .faq-summary { padding: 16px; }
+  .faq-answer { padding: 0 16px 16px; font-size: 0.88rem; }
 
   .hero-stats { gap: 16px; flex-direction: column; align-items: center; }
   .hero-stat-value { font-size: 1.6rem; }

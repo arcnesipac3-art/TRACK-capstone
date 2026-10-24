@@ -191,6 +191,58 @@ const FAQS = [
   },
 ]
 
+/* ── FAQ Accordion ────────────────────────────────────────────────────────── */
+
+function FaqAccordion({ items }) {
+  const [openIndex, setOpenIndex] = useState(null)
+
+  function toggle(idx) {
+    setOpenIndex((prev) => (prev === idx ? null : idx))
+  }
+
+  return (
+    <div className="faq-list" role="list">
+      {items.map((item, idx) => {
+        const isOpen = openIndex === idx
+        const panelId = `faq-panel-${idx}`
+        const triggerId = `faq-trigger-${idx}`
+        return (
+          <div
+            className={`faq-item${isOpen ? ' faq-item--open' : ''}`}
+            key={item.q}
+            role="listitem"
+          >
+            <button
+              id={triggerId}
+              className="faq-summary"
+              type="button"
+              aria-expanded={isOpen}
+              aria-controls={panelId}
+              onClick={() => toggle(idx)}
+            >
+              <span className="faq-question">{item.q}</span>
+              <span className="faq-chev" aria-hidden="true">
+                <Icon name="chevronDown" size={18} />
+              </span>
+            </button>
+            <div
+              id={panelId}
+              role="region"
+              aria-labelledby={triggerId}
+              className="faq-body"
+              hidden={!isOpen}
+            >
+              <div className="faq-body-inner">
+                <p className="faq-answer">{item.a}</p>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 /* ── Component ────────────────────────────────────────────────────────────── */
 
 export default function LandingPage() {
@@ -489,24 +541,17 @@ export default function LandingPage() {
         </section>
 
         {/* ── FAQ ───────────────────────────────────────────────── */}
-        <section className="landing-band" id="faq" aria-labelledby="faq-heading" data-reveal>
-          <div className="landing-section">
-            <p className="ls-eyebrow">FAQ</p>
-            <h2 id="faq-heading">Frequently asked questions.</h2>
-            <p className="ls-lede">Everything you need to know about TRACK.</p>
-            <div className="faq-list">
-              {FAQS.map((item) => (
-                <details className="faq-item" key={item.q}>
-                  <summary>
-                    <span>{item.q}</span>
-                    <span className="faq-chev" aria-hidden="true">
-                      <Icon name="chevronDown" size={16} />
-                    </span>
-                  </summary>
-                  <p className="faq-answer">{item.a}</p>
-                </details>
-              ))}
+        <section className="faq-section" id="faq" aria-labelledby="faq-heading" data-reveal>
+          <div className="faq-section-inner">
+            <div className="faq-header">
+              <p className="faq-eyebrow">FAQ</p>
+              <h2 id="faq-heading" className="faq-heading">
+                Frequently Asked{' '}
+                <span className="faq-heading-accent">Questions</span>
+              </h2>
+              <p className="faq-subheading">Everything you need to know about TRACK.</p>
             </div>
+            <FaqAccordion items={FAQS} />
           </div>
         </section>
 
