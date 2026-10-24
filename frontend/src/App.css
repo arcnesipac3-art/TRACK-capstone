@@ -971,10 +971,10 @@
    --------------------------------------------------------------------- */
 
 .auth-layout {
-  min-height: 100vh;
+  min-height: 100dvh;
   display: grid;
-  /* Aside is slightly narrower than the form panel on desktop. */
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr);
+  /* 48% branding panel / 52% form panel */
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1fr);
 }
 
 /* ── Left aside ────────────────────────────────────────────────────── */
@@ -983,42 +983,49 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 36px;
-  padding: 48px 44px;
-  background: var(--navy-800);
+  /* No fixed gap — use margin on children for flexibility */
+  padding: 48px 44px 0;
+  background: #102448;
   color: #fff;
   overflow: hidden;
 }
 
-/* Decorative rings */
-.auth-aside::after {
-  content: "";
-  position: absolute;
-  right: -140px;
-  bottom: -140px;
-  width: 380px;
-  height: 380px;
-  border: 2px solid rgba(255, 255, 255, 0.07);
-  border-radius: 50%;
-  pointer-events: none;
-}
+/* Subtle diagonal glow in the upper-right */
 .auth-aside::before {
   content: "";
   position: absolute;
-  right: -60px;
-  bottom: -60px;
-  width: 240px;
-  height: 240px;
-  border: 2px solid rgba(255, 255, 255, 0.05);
+  top: -80px;
+  right: -80px;
+  width: 420px;
+  height: 420px;
+  background: radial-gradient(circle, rgba(37,99,235,0.22) 0%, transparent 65%);
   border-radius: 50%;
   pointer-events: none;
+  z-index: 0;
+}
+
+/* Subtle glow bottom-left */
+.auth-aside::after {
+  content: "";
+  position: absolute;
+  left: -60px;
+  bottom: -60px;
+  width: 260px;
+  height: 260px;
+  background: radial-gradient(circle, rgba(37,99,235,0.14) 0%, transparent 65%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
 }
 
 /* Brand block */
 .auth-aside .aside-brand {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-bottom: 32px;
 }
 
 .aside-brand-row {
@@ -1028,12 +1035,11 @@
 }
 
 .aside-knhs-seal {
-  width: 64px;
-  height: 64px;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   flex: 0 0 auto;
   object-fit: contain;
-  /* The original image has a black background — blend it away on the navy aside */
   mix-blend-mode: screen;
   filter: brightness(1.05);
 }
@@ -1041,7 +1047,7 @@
 .aside-brand-text {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .aside-school {
@@ -1054,19 +1060,22 @@
 
 /* Copy block */
 .auth-aside .aside-copy {
+  position: relative;
+  z-index: 1;
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
-  position: relative;
+  /* Let the student image show underneath */
+  min-height: 0;
 }
 
 .aside-tagline {
-  font-size: 0.88rem;
+  font-size: 0.86rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 255, 255, 0.52);
   letter-spacing: 0.01em;
-  line-height: 1.5;
+  line-height: 1.55;
   margin: 0;
   padding-bottom: 18px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
@@ -1076,14 +1085,14 @@
 .aside-roles {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .aside-role-card {
   display: flex;
   align-items: flex-start;
-  gap: 13px;
-  padding: 13px 14px;
+  gap: 12px;
+  padding: 11px 13px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: var(--radius-md);
@@ -1096,8 +1105,8 @@
 
 .aside-role-icon {
   flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   display: grid;
   place-items: center;
   border-radius: var(--radius-sm);
@@ -1107,24 +1116,55 @@
 }
 
 .aside-role-label {
-  font-size: 0.86rem;
+  font-size: 0.84rem;
   font-weight: 700;
   color: #fff;
   line-height: 1.3;
 }
 
 .aside-role-desc {
-  font-size: 0.79rem;
+  font-size: 0.77rem;
   color: var(--on-navy-muted);
   line-height: 1.45;
   margin-top: 2px;
 }
 
-/* Footer */
-.auth-aside .aside-foot {
+/* Student image in the aside — bottom-right, behind role cards */
+.aside-student-img {
   position: relative;
-  font-size: 0.78rem;
-  color: rgba(255, 255, 255, 0.35);
+  z-index: 0;
+  /* Push to the bottom and right */
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  /* Negative margin pulls image into the bottom padding area */
+  margin-top: auto;
+  margin-right: -44px;
+  /* Glow behind the student */
+  filter: drop-shadow(0 0 40px rgba(37,99,235,0.25));
+  pointer-events: none;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.aside-student-img img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: clamp(180px, 60%, 280px);
+  max-height: clamp(240px, 45vh, 380px);
+  object-fit: contain;
+  object-position: bottom right;
+}
+
+/* Footer — city label */
+.auth-aside .aside-foot {
+  position: absolute;
+  bottom: 20px;
+  left: 44px;
+  z-index: 2;
+  font-size: 0.76rem;
+  color: rgba(255, 255, 255, 0.32);
   margin: 0;
 }
 
@@ -1135,7 +1175,9 @@
   align-items: center;
   justify-content: center;
   padding: 48px 36px;
-  background: var(--bg);
+  /* Soft off-white matching spec */
+  background: #F5F7FB;
+  min-height: 100%;
 }
 
 .auth-card {
@@ -1145,22 +1187,49 @@
 
 .auth-mobile-brand { display: none; }
 
+/* Small TRACK brand mark above heading */
+.auth-brand-mark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
 /* Heading block */
-.auth-heading { margin-bottom: 26px; }
+.auth-heading { margin-bottom: 24px; }
 .auth-heading h1 {
-  font-size: 1.6rem;
+  font-size: 1.55rem;
   font-weight: 750;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
   margin: 0 0 5px;
 }
 .auth-lede {
   color: var(--text-muted);
-  font-size: 0.92rem;
+  font-size: 0.9rem;
   margin: 0;
 }
 
-/* Form */
-.auth-form { display: flex; flex-direction: column; gap: 16px; }
+/* Form fields — consistent 48px input height */
+.auth-form { display: flex; flex-direction: column; gap: 14px; }
+
+.auth-form .input {
+  min-height: 48px;
+  padding: 11px 14px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+}
+
+.auth-form .btn-primary {
+  min-height: 48px;
+  background: #2164F3;
+  border-radius: 8px;
+  font-size: 0.97rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.auth-form .btn-primary:hover:not(:disabled) {
+  background: #1a52d4;
+}
 
 /* Error banner */
 .auth-error {
@@ -1180,6 +1249,32 @@
   flex: 0 0 auto;
   margin-top: 1px;
 }
+
+/* Divider between form and note */
+.auth-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 20px 0 16px;
+}
+
+/* Footer note */
+.auth-note {
+  font-size: 0.82rem;
+  color: var(--text-subtle);
+  line-height: 1.55;
+  margin: 0 0 10px;
+}
+
+.back-home {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.back-home:hover { color: var(--navy-800); text-decoration: none; }
 
 /* Password toggle — icon button */
 .password-toggle {
@@ -1204,32 +1299,6 @@
   color: var(--text);
 }
 .password-wrap .input { padding-right: 46px; }
-
-/* Divider between form and note */
-.auth-divider {
-  height: 1px;
-  background: var(--border);
-  margin: 22px 0 16px;
-}
-
-/* Footer note */
-.auth-note {
-  font-size: 0.82rem;
-  color: var(--text-subtle);
-  line-height: 1.55;
-  margin: 0 0 10px;
-}
-
-.back-home {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-decoration: none;
-}
-.back-home:hover { color: var(--navy-800); text-decoration: none; }
 
 /* ---------------------------------------------------------------------
    Landing page
@@ -3334,15 +3403,11 @@
   /* The call to action stacks once it has less than a full desktop to run in. */
   .cta-card { padding: 44px 36px; border-radius: 20px; }
 
-  .auth-layout { grid-template-columns: minmax(0, 1fr); }
-  .auth-aside { display: none; }
-  .auth-mobile-brand {
-    display: flex;
-    align-items: center;
-    margin-bottom: 20px;
-  }
-  .auth-panel { padding: 32px 20px; align-items: flex-start; }
-  .auth-card { max-width: none; }
+  /* Tablet: tighter aside, smaller image */
+  .auth-layout { grid-template-columns: minmax(0, 0.85fr) minmax(0, 1fr); }
+  .auth-aside { padding: 36px 28px 0; }
+  .auth-aside .aside-foot { left: 28px; }
+  .aside-student-img img { max-height: clamp(200px, 36vh, 300px); }
 }
 
 /* Mobile */
@@ -3420,6 +3485,31 @@
 @media (max-width: 767px) {
   .landing-nav > .btn,
   .landing-nav > .btn.btn-primary { display: none; }
+}
+
+/* Auth — mobile: single column, aside collapses to compact header */
+@media (max-width: 767px) {
+  .auth-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+  }
+  .auth-aside {
+    padding: 24px 20px 20px;
+    /* Compact on mobile — no full-height treatment */
+    min-height: 0;
+    overflow: hidden;
+  }
+  /* Hide decorative glows and student image on mobile to keep it clean */
+  .auth-aside::before,
+  .auth-aside::after { display: none; }
+  .aside-student-img { display: none; }
+  .aside-copy { flex: none; }
+  .aside-roles { display: none; }
+  .aside-tagline { padding-bottom: 0; border-bottom: none; }
+  .auth-aside .aside-foot { display: none; }
+  .auth-panel { padding: 28px 20px; align-items: flex-start; }
+  .auth-card { max-width: none; }
+  .auth-mobile-brand { display: flex; align-items: center; margin-bottom: 16px; }
 }
 
 /* Landing page: the feature cards drop to one column a little before the rest

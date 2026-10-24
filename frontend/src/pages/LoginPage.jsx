@@ -129,6 +129,16 @@ export default function LoginPage() {
         </div>
 
         <p className="aside-foot">Iligan City, Philippines</p>
+
+        {/* Student PNG — decorative, bottom-right of the branding panel */}
+        <div className="aside-student-img" aria-hidden="true">
+          <img
+            src="/student.png"
+            alt=""
+            width="280"
+            height="420"
+          />
+        </div>
       </aside>
 
       {/* ── Right panel ─────────────────────────────────────────────── */}
