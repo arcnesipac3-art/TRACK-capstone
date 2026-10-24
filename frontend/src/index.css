@@ -420,6 +420,7 @@ img, svg { display: block; }
 .stat-card .stat-hint {
   font-size: 0.82rem;
   color: var(--text-muted);
+  margin-top: auto;
 }
 
 .stat-card.tone-green .stat-value { color: var(--green-700); }
