@@ -1377,112 +1377,120 @@
   flex: 0 0 auto;
 }
 
-/* Mobile nav — full-screen white overlay (eGov style) */
-.landing-nav-mobile {
-  display: none;
+/* Mobile nav — dropdown panel below the navbar */
+/* ------------------------------------------------------------------ */
+
+/* Only render on mobile — on desktop the hamburger is hidden so the panel
+   never mounts, but guard it in CSS too. */
+@media (min-width: 768px) {
+  .mob-nav { display: none !important; }
+}
+
+/* The panel mounts with JS (conditional render), so no .open toggle needed.
+   Position: fixed so it sits flush below the sticky nav and above everything. */
+.mob-nav {
   position: fixed;
-  inset: 0;
-  z-index: 50;
-  background: #fff;
-  flex-direction: column;
-  animation: mobile-nav-in 0.22s ease;
-}
-
-.landing-nav-mobile.open {
+  top: 68px; /* matches .landing-nav height on mobile (≤767px breakpoint) */
+  left: 0;
+  right: 0;
+  z-index: 49;
+  background: #ffffff;
   display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 68px);
+  box-shadow: 0 8px 24px rgba(15, 32, 68, 0.12);
+  border-top: 2px solid #E8ECF4;
+  overflow: hidden;
+  animation: mob-nav-slide 0.18s ease-out;
 }
 
-@keyframes mobile-nav-in {
-  from { opacity: 0; transform: translateY(-8px); }
+@keyframes mob-nav-slide {
+  from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Top bar — logo left, X right */
-.mobile-nav-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
-  height: 68px;
-  border-bottom: 1px solid #f1f3f5;
+/* Hairline divider at the very top of the panel */
+.mob-nav-divider {
+  height: 1px;
+  background: #F1F3F5;
   flex-shrink: 0;
 }
 
-/* Close button */
-.mobile-nav-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: none;
-  border: none;
-  color: #374151;
-  cursor: pointer;
-  border-radius: 8px;
-  transition: background 0.15s ease;
-}
-.mobile-nav-close:hover { background: #f3f4f6; }
-.mobile-nav-close:focus-visible {
-  outline: 2px solid #155DFC;
-  outline-offset: 2px;
-}
-
-/* Nav links — large, spaced, full-width */
-.mobile-nav-links {
+/* Scrollable link area */
+.mob-nav-links {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
-  padding: 8px 0;
   overflow-y: auto;
+  flex: 1 1 auto;
+  -webkit-overflow-scrolling: touch;
 }
 
-.mobile-nav-links a {
-  display: block;
-  padding: 18px 28px;
-  font-size: 1.15rem;
+.mob-nav-links a {
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  height: 52px;
+  font-size: 1rem;
   font-weight: 500;
-  color: #374151;
+  color: #1E2A3A;
   text-decoration: none;
-  border-bottom: 1px solid #f1f3f5;
-  transition: background 0.12s ease, color 0.12s ease;
+  border-bottom: 1px solid #F1F3F5;
+  transition: background 0.1s ease, color 0.1s ease;
+  white-space: nowrap;
 }
 
-.mobile-nav-links a:first-child {
-  border-top: 1px solid #f1f3f5;
-}
-
-.mobile-nav-links a:hover {
-  background: #f9fafb;
+.mob-nav-links a:hover,
+.mob-nav-links a:focus-visible {
+  background: #F5F8FF;
   color: #155DFC;
+  outline: none;
 }
 
-/* Full-width CTA at the bottom */
-.mobile-nav-cta {
-  padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+.mob-nav-links a:focus-visible {
+  outline: 2px solid #155DFC;
+  outline-offset: -2px;
+}
+
+/* CTA button row */
+.mob-nav-cta {
   flex-shrink: 0;
-  border-top: 1px solid #f1f3f5;
+  padding: 16px 24px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: #fff;
+  border-top: 1px solid #F1F3F5;
 }
 
-.mobile-nav-cta-btn {
+.mob-nav-cta-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  padding: 16px;
+  height: 48px;
   background: #155DFC;
   color: #fff;
-  border-radius: 12px;
+  border-radius: 14px;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 700;
   text-decoration: none;
-  transition: background 0.15s ease;
+  letter-spacing: 0.01em;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
 }
 
-.mobile-nav-cta-btn:hover {
-  background: #1148d4;
+.mob-nav-cta-btn:hover {
+  background: #1148D4;
+  box-shadow: 0 4px 14px rgba(21, 93, 252, 0.32);
   text-decoration: none;
   color: #fff;
+}
+
+.mob-nav-cta-btn:focus-visible {
+  outline: 2px solid #155DFC;
+  outline-offset: 2px;
+}
+
+/* Narrow phones: tighter padding */
+@media (max-width: 479px) {
+  .mob-nav-links a { padding: 0 20px; height: 50px; font-size: 0.97rem; }
+  .mob-nav-cta { padding: 14px 20px calc(14px + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* --- Hero ---

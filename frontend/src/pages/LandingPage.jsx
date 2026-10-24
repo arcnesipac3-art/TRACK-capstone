@@ -346,63 +346,52 @@ export default function LandingPage() {
         <Link className="btn btn-primary" to={dashboardHref} style={{ flexShrink: 0 }}>
           {signedIn ? 'Open dashboard' : 'Sign in'}
         </Link>
-        {/* Mobile hamburger — visible only on small screens via CSS */}
+        {/* Mobile hamburger / close — visible only on small screens via CSS */}
         <button
           type="button"
           className="landing-nav-menu-btn"
-          aria-label="Open navigation menu"
+          aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
           aria-expanded={mobileMenuOpen}
-          onClick={() => setMobileMenuOpen(true)}
+          onClick={() => setMobileMenuOpen((v) => !v)}
         >
-          <Icon name="menu" size={20} />
+          <Icon name={mobileMenuOpen ? 'close' : 'menu'} size={20} />
         </button>
       </header>
 
-      {/* ── Mobile nav drawer ────────────────────────────────────── */}
-      <div
-        className={`landing-nav-mobile${mobileMenuOpen ? ' open' : ''}`}
-        aria-hidden={!mobileMenuOpen}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Navigation menu"
-      >
-        {/* Top bar: logo + close button */}
-        <div className="mobile-nav-topbar">
-          <div className="landing-nav-brand">
-            <img src="/knhs-seal.png" alt="Kiwalan National High School seal" className="landing-nav-seal" />
-            <Logo size="sm" />
+      {/* ── Mobile nav dropdown ──────────────────────────────────── */}
+      {mobileMenuOpen && (
+        <div
+          className="mob-nav"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Navigation menu"
+        >
+          {/* Divider / header row already comes from the navbar above;
+              a thin separator reinforces the panel edge */}
+          <div className="mob-nav-divider" aria-hidden="true" />
+
+          {/* Scrollable link area */}
+          <nav className="mob-nav-links" aria-label="Mobile navigation">
+            <a href="#problem"     onClick={() => setMobileMenuOpen(false)}>The Problem</a>
+            <a href="#features"    onClick={() => setMobileMenuOpen(false)}>Features</a>
+            <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)}>How it Works</a>
+            <a href="#roles"       onClick={() => setMobileMenuOpen(false)}>Roles</a>
+            <a href="#security"    onClick={() => setMobileMenuOpen(false)}>Security</a>
+            <a href="#faq"         onClick={() => setMobileMenuOpen(false)}>FAQ</a>
+          </nav>
+
+          {/* Full-width CTA */}
+          <div className="mob-nav-cta">
+            <Link
+              className="mob-nav-cta-btn"
+              to={dashboardHref}
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              {signedIn ? 'Open dashboard' : 'Sign in to TRACK'}
+            </Link>
           </div>
-          <button
-            type="button"
-            className="mobile-nav-close"
-            aria-label="Close navigation menu"
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            <Icon name="close" size={22} />
-          </button>
         </div>
-
-        {/* Nav links */}
-        <nav className="mobile-nav-links" aria-label="Mobile navigation">
-          <a href="#problem" onClick={() => setMobileMenuOpen(false)}>The Problem</a>
-          <a href="#features" onClick={() => setMobileMenuOpen(false)}>Features</a>
-          <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)}>How it Works</a>
-          <a href="#roles" onClick={() => setMobileMenuOpen(false)}>Roles</a>
-          <a href="#security" onClick={() => setMobileMenuOpen(false)}>Security</a>
-          <a href="#faq" onClick={() => setMobileMenuOpen(false)}>FAQ</a>
-        </nav>
-
-        {/* Full-width CTA pinned at bottom */}
-        <div className="mobile-nav-cta">
-          <Link
-            className="btn btn-primary mobile-nav-cta-btn"
-            to={dashboardHref}
-            onClick={() => setMobileMenuOpen(false)}
-          >
-            {signedIn ? 'Open dashboard' : 'Sign in to TRACK'}
-          </Link>
-        </div>
-      </div>
+      )}
 
       <main className="landing-main" id="main-content" tabIndex={-1}>
 
