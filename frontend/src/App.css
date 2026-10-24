@@ -1236,14 +1236,17 @@
   display: flex;
   flex-direction: column;
   background: var(--surface);
+  /* Prevent absolute-positioned glow pseudo-elements from causing horizontal scroll */
+  overflow-x: hidden;
 }
 
-/* Flex passthrough so the hero keeps absorbing free space (and the footer stays
-   at the bottom) now that the page content lives inside a <main> landmark. */
+/* The main element wraps the preview + all sections.
+   White background starts here so it shows behind the preview overlap. */
 .landing-main {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
+  background: var(--surface);
 }
 
 /* Off-screen until focused, so keyboard users can jump past the navigation. */
@@ -1276,17 +1279,20 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 14px 32px;
+  padding: 12px 32px;
   border-bottom: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  /* Prevent children from ever overflowing the nav bar width */
+  min-width: 0;
 }
 
 .landing-nav-brand {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex: 0 0 auto;
 }
 
 .landing-nav-seal {
@@ -1309,6 +1315,7 @@
   color: var(--text-muted);
   font-size: 0.92rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 .landing-nav-links a:hover {
   background: var(--gray-100);
@@ -1316,16 +1323,75 @@
   text-decoration: none;
 }
 
+/* Mobile hamburger button — hidden on desktop */
+.landing-nav-menu-btn {
+  display: none;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--navy-800);
+  cursor: pointer;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+/* Mobile nav drawer */
+.landing-nav-mobile {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+}
+.landing-nav-mobile-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 22, 48, 0.5);
+  border: none;
+  width: 100%;
+  cursor: pointer;
+}
+.landing-nav-mobile-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(280px, 85vw);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  gap: 8px;
+  overflow-y: auto;
+}
+.landing-nav-mobile.open { display: block; }
+.landing-nav-mobile-panel a,
+.landing-nav-mobile-panel .btn {
+  display: block;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--navy-800);
+  text-decoration: none;
+}
+.landing-nav-mobile-panel a:hover { background: var(--gray-100); }
+.landing-nav-mobile-panel .btn { text-align: center; margin-top: 8px; }
+
 /* --- Hero ---
    Content-height on purpose. The preview, features and How it works sections
    below give the in-page anchors plenty of scroll distance, so the hero no
    longer has to be padded out to a full screen. */
 .landing-hero {
   position: relative;
-  overflow: hidden;
-  padding: 96px 32px 80px;
+  /* NO overflow:hidden here — the preview section overlaps the bottom edge */
+  padding: 96px 32px 120px;
   background: linear-gradient(135deg, #050d1a 0%, #0f2044 50%, #0a1f3d 100%);
-  border-bottom: 1px solid var(--border);
+  border-bottom: none;
 }
 /* Restrained brand-cyan glow behind the headline. */
 .landing-hero::before {
@@ -1463,14 +1529,19 @@
 }
 .hero-stat { text-align: center; }
 
-/* --- Product preview --- */
+/* --- Product preview ---
+   The preview wrapper sits in normal flow AFTER the hero.
+   A negative top margin pulls it up to overlap the hero bottom.
+   The wrapper itself has enough bottom padding so the next section
+   starts below the visible preview image, not behind it. */
 .landing-preview {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   width: 100%;
   max-width: 1080px;
-  margin: -40px auto 0;
-  padding: 0 32px 8px;
+  /* Pull the preview up into the hero; hero has padding-bottom:120px to absorb this */
+  margin: -80px auto 0;
+  padding: 0 32px 64px;
 }
 
 .preview-window {
@@ -2258,10 +2329,11 @@
   .filter-bar { padding: 12px; }
   .filter-bar .field { min-width: 0; width: 100%; }
 
-  .landing-nav { padding: 12px 18px; }
+  .landing-nav { padding: 10px 18px; }
   .landing-nav-links { display: none; }
-  .landing-hero { padding: 48px 18px 42px; }
-  .landing-preview { padding: 30px 18px 4px; }
+  .landing-nav-menu-btn { display: flex; }
+  .landing-hero { padding: 56px 20px 100px; }
+  .landing-preview { margin-top: -60px; padding: 0 16px 48px; }
   .landing-section { padding: 44px 18px; }
   .solution-inner { padding-top: 38px; padding-bottom: 38px; }
   .problem-grid { grid-template-columns: minmax(0, 1fr); }
@@ -2270,18 +2342,17 @@
   .how-steps { grid-template-columns: minmax(0, 1fr); }
 
   .landing-cta { padding: 44px 18px; }
-  .cta-card {
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 26px 22px;
-  }
+  .cta-card { padding: 28px 22px; }
   .cta-actions { width: 100%; }
-  .cta-actions .btn { width: 100%; }
+  .cta-actions .btn { width: 100%; justify-content: center; }
 
   .landing-foot-inner { grid-template-columns: minmax(0, 1fr); }
   .landing-foot .foot-bottom { justify-content: flex-start; }
-  .faq-item summary { padding: 14px 16px; font-size: 0.93rem; }
-  .faq-item .faq-answer { padding: 0 16px 16px; }
+  .faq-item summary { padding: 14px 4px; font-size: 0.93rem; }
+  .faq-item .faq-answer { padding: 0 4px 16px; }
+
+  .hero-stats { gap: 20px; }
+  .hero-stat-value { font-size: 1.6rem; }
 
   .popover { position: fixed; top: var(--topbar-h); right: 8px; left: 8px; width: auto; }
 
@@ -2290,6 +2361,11 @@
   .quick-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .quick-action { padding: 12px; min-height: 54px; gap: 10px; }
   .quick-action .qa-icon { width: 30px; height: 30px; }
+}
+
+/* On mobile, hide the Sign In button in the navbar (it lives in the drawer) */
+@media (max-width: 767px) {
+  .landing-nav > .btn { display: none; }
 }
 
 /* Landing page: the feature cards drop to one column a little before the rest
@@ -2306,6 +2382,9 @@
     flex-direction: column;
     align-items: stretch;
   }
+  .landing-preview { margin-top: -40px; padding: 0 12px 36px; }
+  .hero-stats { gap: 16px; padding-top: 20px; margin-top: 24px; }
+  .hero-stat-value { font-size: 1.4rem; }
 }
 
 /* Tables become stacked list cards on small screens */

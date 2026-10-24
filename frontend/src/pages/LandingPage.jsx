@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Icon from '../components/Icon'
 import Logo from '../components/Logo'
@@ -196,9 +196,22 @@ const FAQS = [
 export default function LandingPage() {
   const { isAuthenticated, user } = useAuth()
   const rootRef = useRef(null)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const signedIn = isAuthenticated && Boolean(user)
   const dashboardHref = signedIn ? dashboardPath(user.role) : '/login'
+
+  // Close mobile menu on route change or escape key
+  useEffect(() => {
+    if (!mobileMenuOpen) return
+    const handleKey = (e) => { if (e.key === 'Escape') setMobileMenuOpen(false) }
+    document.addEventListener('keydown', handleKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', handleKey)
+      document.body.style.overflow = ''
+    }
+  }, [mobileMenuOpen])
 
   useEffect(() => {
     const root = rootRef.current
@@ -248,10 +261,45 @@ export default function LandingPage() {
           <a href="#roles">Roles</a>
           <a href="#faq">FAQ</a>
         </nav>
-        <Link className="btn btn-primary" to={dashboardHref}>
+        <Link className="btn btn-primary" to={dashboardHref} style={{ flexShrink: 0 }}>
           {signedIn ? 'Open dashboard' : 'Sign in'}
         </Link>
+        {/* Mobile hamburger — visible only on small screens via CSS */}
+        <button
+          type="button"
+          className="landing-nav-menu-btn"
+          aria-label="Open navigation menu"
+          aria-expanded={mobileMenuOpen}
+          onClick={() => setMobileMenuOpen(true)}
+        >
+          <Icon name="menu" size={20} />
+        </button>
       </header>
+
+      {/* ── Mobile nav drawer ────────────────────────────────────── */}
+      <div className={`landing-nav-mobile${mobileMenuOpen ? ' open' : ''}`} aria-hidden={!mobileMenuOpen}>
+        <button
+          type="button"
+          className="landing-nav-mobile-overlay"
+          aria-label="Close menu"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+        <nav className="landing-nav-mobile-panel" aria-label="Mobile navigation">
+          <a href="#problem" onClick={() => setMobileMenuOpen(false)}>The Problem</a>
+          <a href="#features" onClick={() => setMobileMenuOpen(false)}>Features</a>
+          <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)}>How it Works</a>
+          <a href="#roles" onClick={() => setMobileMenuOpen(false)}>Roles</a>
+          <a href="#security" onClick={() => setMobileMenuOpen(false)}>Security</a>
+          <a href="#faq" onClick={() => setMobileMenuOpen(false)}>FAQ</a>
+          <Link
+            className="btn btn-primary"
+            to={dashboardHref}
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            {signedIn ? 'Open dashboard' : 'Sign in'}
+          </Link>
+        </nav>
+      </div>
 
       <main className="landing-main" id="main-content" tabIndex={-1}>
 
