@@ -971,12 +971,14 @@
    --------------------------------------------------------------------- */
 
 .auth-layout {
-  min-height: 100dvh;
+  /* Exactly viewport height — no scrolling */
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
   display: grid;
-  /* 48% branding panel / 52% form panel */
   grid-template-columns: minmax(0, 0.92fr) minmax(0, 1fr);
-  /* Allow student image to overflow the left panel into the right */
-  overflow: visible;
+  /* Student is positioned relative to this container */
+  position: relative;
 }
 
 /* ── Left aside ────────────────────────────────────────────────────── */
@@ -988,36 +990,49 @@
   padding: 44px 40px 56px;
   background: #0f2144;
   color: #fff;
-  /* Must be visible so student can overflow into the right panel */
-  overflow: visible;
+  /* Fill the full grid height — no scroll on this panel */
+  height: 100%;
+  overflow: hidden;
 }
 
-/* Large decorative ring — lower-right, behind student */
+/* Large concentric decorative rings — lower-right, behind student */
 .auth-aside::before {
   content: "";
   position: absolute;
-  right: -80px;
-  bottom: -80px;
-  width: 380px;
-  height: 380px;
-  border: 2px solid rgba(255,255,255,0.08);
+  right: -100px;
+  bottom: -100px;
+  width: 440px;
+  height: 440px;
+  border: 2px solid rgba(255,255,255,0.07);
   border-radius: 50%;
   pointer-events: none;
-  z-index: 0;
+  z-index: 1;
 }
 
-/* Inner smaller ring */
 .auth-aside::after {
   content: "";
   position: absolute;
-  right: -20px;
-  bottom: -20px;
-  width: 240px;
-  height: 240px;
+  right: -30px;
+  bottom: -30px;
+  width: 280px;
+  height: 280px;
   border: 2px solid rgba(255,255,255,0.05);
   border-radius: 50%;
   pointer-events: none;
-  z-index: 0;
+  z-index: 1;
+}
+
+/* Decorative glow circle behind the student */
+.aside-student-glow {
+  position: absolute;
+  right: -60px;
+  bottom: -40px;
+  width: 360px;
+  height: 360px;
+  background: radial-gradient(circle, rgba(37,99,235,0.35) 0%, rgba(14,40,120,0.2) 45%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* Brand block */
@@ -1127,13 +1142,14 @@
   margin-top: 2px;
 }
 
-/* Student image — large, right-anchored, overflows into the right panel */
+/* Student image — positioned relative to auth-layout, spanning boundary */
 .aside-student-img {
   position: absolute;
   bottom: 0;
-  /* Overflow past the panel's right edge so student sits across the boundary */
-  right: -120px;
-  z-index: 10;
+  /* Center student on the left-panel's right edge (~47% across the layout) */
+  left: 44%;
+  transform: translateX(-50%);
+  z-index: 20;
   pointer-events: none;
   user-select: none;
 }
@@ -1142,13 +1158,12 @@
   display: block;
   width: auto;
   height: auto;
-  max-width: clamp(280px, 55%, 420px);
-  max-height: clamp(400px, 75vh, 580px);
+  max-width: clamp(300px, 28vw, 460px);
+  max-height: clamp(440px, 82vh, 620px);
   object-fit: contain;
   object-position: bottom center;
-  /* Blend out the black background on the dark panel side */
   mix-blend-mode: screen;
-  filter: brightness(1.08) contrast(1.0);
+  filter: brightness(1.08);
 }
 
 /* Footer — city label with location pin icon feel */

@@ -133,13 +133,8 @@ export default function LoginPage() {
           Iligan City, Philippines
         </p>
 
-        {/* Student PNG — decorative, bottom-right of the branding panel */}
-        <div className="aside-student-img" aria-hidden="true">
-          <img
-            src="/student2.png"
-            alt=""
-          />
-        </div>
+        {/* Glow circle behind where student will appear */}
+        <div className="aside-student-glow" aria-hidden="true" />
       </aside>
 
       {/* ── Right panel ─────────────────────────────────────────────── */}
@@ -256,6 +251,11 @@ export default function LoginPage() {
           </Link>
         </div>
       </main>
+
+      {/* Student PNG — spans the panel boundary, positioned relative to auth-layout */}
+      <div className="aside-student-img" aria-hidden="true">
+        <img src="/student2.png" alt="" />
+      </div>
     </div>
   )
 }
