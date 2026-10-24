@@ -1762,8 +1762,6 @@
   width: auto;
   object-fit: contain;
   object-position: bottom center;
-  /* Removes black background from photo */
-  mix-blend-mode: lighten;
   pointer-events: none;
   user-select: none;
 }

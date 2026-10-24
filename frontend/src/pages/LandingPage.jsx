@@ -452,7 +452,7 @@ export default function LandingPage() {
             {/* ── Right: student photo + floating role cards ── */}
             <div className="hero-visual" aria-hidden="true">
               <img
-                src="/student.png"
+                src="/student-transparent.png"
                 alt="A KNHS student in school uniform holding a tablet"
                 className="hero-student-img"
               />
