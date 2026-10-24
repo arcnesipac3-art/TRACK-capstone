@@ -120,12 +120,10 @@
    Statistic grid
    --------------------------------------------------------------------- */
 
-/* auto-fit (not fixed columns): a department admin holding three blocks
-   gets three full-width cards instead of a trailing empty column, and the
-   grid steps down to 2 / 1 columns naturally on smaller screens. */
+/* Fixed 5-column grid so the 10 stat cards always land in exactly 2 rows. */
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 16px;
   align-items: stretch;
 }
@@ -207,8 +205,8 @@
 
 @media (max-width: 767px) {
   .dash-hero .page-title { font-size: 1.38rem; }
-  /* Two comfortable columns on phones (200px tracks collapse to one). */
-  .stat-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  /* Two comfortable columns on phones. */
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stat-grid .stat-card { min-height: 104px; }
   .dash-meta { gap: 6px 10px; }
 }
