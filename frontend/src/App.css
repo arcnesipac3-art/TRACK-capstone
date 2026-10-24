@@ -816,8 +816,9 @@
 
 .quick-actions {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
+  align-items: stretch;
 }
 
 .quick-action {
@@ -834,6 +835,7 @@
   color: var(--text);
   text-align: left;
   min-height: 58px;
+  height: 100%;
   cursor: pointer;
   transition: border-color var(--ease), box-shadow var(--ease),
     background var(--ease);
@@ -1920,9 +1922,8 @@
   .popover { position: fixed; top: var(--topbar-h); right: 8px; left: 8px; width: auto; }
 
   .btn { min-height: 42px; }
-  /* Phones: two comfortable columns instead of one long single-column list
-     (auto-fit at 200px would collapse to a single track at 375–390px). */
-  .quick-actions { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  /* Phones: two comfortable columns instead of one long single-column list */
+  .quick-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .quick-action { padding: 12px; min-height: 54px; gap: 10px; }
   .quick-action .qa-icon { width: 30px; height: 30px; }
 }
