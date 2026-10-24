@@ -100,6 +100,21 @@ body,
   height: 100%;
 }
 
+/* Smooth scrolling for in-page anchor links (navbar section jumps).
+   Disabled for users who prefer reduced motion. */
+html {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+}
+
+/* Offset anchor scroll targets by the sticky navbar height so headings
+   don't disappear behind the bar when jumping to a section. */
+:target {
+  scroll-margin-top: 72px;
+}
+
 body {
   margin: 0;
   font-family: var(--font);
