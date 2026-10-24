@@ -641,33 +641,54 @@ export default function LandingPage() {
       {/* ── Footer ────────────────────────────────────────────── */}
       <footer className="landing-foot">
         <div className="landing-foot-inner">
+
+          {/* Brand column */}
           <div className="foot-brand">
-            <div className="foot-brand-logos">
+            <button
+              type="button"
+              className="foot-logo-btn"
+              aria-label="Back to top"
+              onClick={() => {
+                const container = document.querySelector('.landing')
+                if (container) container.scrollTo({ top: 0, behavior: 'smooth' })
+              }}
+            >
               <img src="/knhs-seal.png" alt="KNHS seal" className="foot-knhs-seal" />
               <Logo variant="light" />
-            </div>
-            <p className="foot-school">Kiwalan National High School</p>
-            <p className="foot-place">Iligan City, Philippines</p>
-            <p className="foot-acronym">
-              TRACK · Tracking Requirements, Attendance &amp; Communication
+            </button>
+            <p className="foot-tagline">
+              Tracking Requirements, Attendance &amp; Communication for
+              Kiwalan National High School.
+            </p>
+            <p className="foot-dept">
+              Kiwalan National High School · Iligan City, Philippines
             </p>
           </div>
 
-          <nav className="foot-col" aria-label="Footer sections">
-            <p className="foot-col-title">On this page</p>
+          {/* On this page */}
+          <nav className="foot-col" aria-label="Page sections">
+            <p className="foot-col-title">On This Page</p>
             <a href="#problem">The Problem</a>
             <a href="#features">Features</a>
             <a href="#how-it-works">How it Works</a>
             <a href="#roles">Who it&rsquo;s for</a>
             <a href="#security">Security</a>
             <a href="#faq">FAQ</a>
-            <Link to={dashboardHref}>{signedIn ? 'Open dashboard' : 'Sign in'}</Link>
           </nav>
+
+          {/* Account */}
+          <nav className="foot-col" aria-label="Account links">
+            <p className="foot-col-title">Account</p>
+            <Link to={dashboardHref}>{signedIn ? 'Open dashboard' : 'Sign in to TRACK'}</Link>
+            <a href="#faq">How to get an account</a>
+            <a href="#security">Data &amp; Privacy</a>
+          </nav>
+
         </div>
 
         <div className="foot-bottom">
-          <p>© {SITE_YEAR} TRACK · Kiwalan National High School</p>
-          <p>Accounts are issued by the school registrar.</p>
+          <p>© {SITE_YEAR} TRACK · Kiwalan National High School · Iligan City, Philippines</p>
+          <p>Accounts are issued and controlled by the school registrar.</p>
         </div>
       </footer>
     </div>

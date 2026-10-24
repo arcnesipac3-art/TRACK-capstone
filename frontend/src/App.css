@@ -2055,23 +2055,6 @@
   margin: 0;
 }
 
-/* --- Footer brand logos --- */
-.foot-brand-logos {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 10px;
-}
-.foot-knhs-seal {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  object-fit: contain;
-  mix-blend-mode: screen;
-  opacity: 0.8;
-  flex: 0 0 auto;
-}
-
 /* Feature and trust CSS moved above to eGov-style blocks */
 
 /* --- How it works (eGov-style 3-step cards with connector line) --- */
@@ -2575,73 +2558,129 @@
 }
 .btn-light:hover:not(:disabled) { background: var(--blue-50); }
 
-/* --- Footer --- */
+/* --- Footer (eGov-style dark, 3-column) --- */
 .landing-foot {
-  padding: 60px 40px 0;
-  background: var(--navy-900);
-  color: var(--on-navy);
+  background: #0d1117;
+  color: #e5e7eb;
+  padding: 72px 48px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
+
 .landing-foot-inner {
   max-width: 1120px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, auto));
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 40px 64px;
   align-items: start;
-  gap: 24px 56px;
-}
-.landing-foot .foot-brand { max-width: 46ch; }
-.landing-foot .logo { margin-bottom: 10px; }
-.landing-foot .foot-school {
-  font-size: 0.95rem;
-  font-weight: 650;
-}
-.landing-foot .foot-place,
-.landing-foot .foot-acronym {
-  font-size: 0.82rem;
-  color: var(--on-navy-muted);
-}
-.landing-foot .foot-acronym {
-  margin-top: 10px;
-  font-size: 0.82rem;
+  padding-bottom: 56px;
 }
 
-.landing-foot .foot-col {
+/* Brand column */
+.foot-brand {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  min-width: 168px;
+  gap: 0;
 }
-.landing-foot .foot-col-title {
+
+/* Logo button — clickable, scrolls to top */
+.foot-logo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  margin-bottom: 18px;
+  border-radius: 6px;
+  transition: opacity 0.15s ease;
+}
+.foot-logo-btn:hover { opacity: 0.85; }
+.foot-logo-btn:focus-visible {
+  outline: 2px solid var(--cyan-400);
+  outline-offset: 4px;
+}
+
+.foot-knhs-seal {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: contain;
+  mix-blend-mode: screen;
+  opacity: 0.9;
+  flex-shrink: 0;
+}
+
+.foot-tagline {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  line-height: 1.65;
+  margin: 0 0 10px;
+  max-width: 38ch;
+}
+
+.foot-dept {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* Nav columns */
+.foot-col {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.foot-col-title {
   font-size: 0.7rem;
   font-weight: 700;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #7f9ac4;
+  color: #6b7280;
+  margin: 0 0 4px;
 }
-.landing-foot .foot-col a {
-  color: var(--on-navy-muted);
-  font-size: 0.88rem;
-  font-weight: 550;
+
+.foot-col a,
+.foot-col .btn {
+  color: #9ca3af;
+  font-size: 0.875rem;
+  font-weight: 450;
   text-decoration: none;
+  transition: color 0.15s ease;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  width: fit-content;
 }
-.landing-foot .foot-col a:hover {
+
+.foot-col a:hover,
+.foot-col .btn:hover {
   color: #fff;
   text-decoration: none;
 }
-/* The default blue focus ring is hard to see on navy. */
-.landing-foot a:focus-visible { outline-color: var(--cyan-400); }
 
-.landing-foot .foot-bottom {
+.landing-foot a:focus-visible,
+.foot-logo-btn:focus-visible {
+  outline-color: var(--cyan-400);
+}
+
+/* Bottom bar */
+.foot-bottom {
   max-width: 1120px;
-  margin: 28px auto 0;
-  padding: 16px 0 24px;
-  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  margin: 0 auto;
+  padding: 20px 0 28px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 6px 18px;
   font-size: 0.76rem;
-  color: var(--on-navy-muted);
+  color: #4b5563;
 }
 
 /* --- Scroll reveal ---
@@ -2854,8 +2893,8 @@
   .landing-preview { margin-top: -90px; padding: 0 24px 60px; }
   .landing-section { padding: 60px 24px; }
   .landing-cta { padding: 60px 24px; }
-  .landing-foot { padding: 48px 24px 0; }
-  .landing-foot-inner { grid-template-columns: 1fr 1fr; gap: 20px 32px; }
+  .landing-foot { padding: 56px 24px 0; }
+  .landing-foot-inner { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px 40px; }
 
   /* FAQ — tablet (768–1023px): max-width 760px, comfortable padding */
   .faq-section { padding: 80px 32px; }
@@ -2921,7 +2960,7 @@
   .landing-section { padding: 48px 16px; }
   .problem-grid { grid-template-columns: minmax(0, 1fr); }
   .trust-grid { grid-template-columns: minmax(0, 1fr); }
-  .landing-foot { padding: 40px 16px 0; }
+  .landing-foot { padding: 40px 20px 0; }
   .how-steps { grid-template-columns: minmax(0, 1fr); }
   .how-steps-wrap::before { display: none; }
   .how-section { padding: 56px 20px; }
@@ -2932,7 +2971,7 @@
   .cta-actions { width: 100%; }
   .cta-actions .btn { width: 100%; justify-content: center; }
 
-  .landing-foot-inner { grid-template-columns: minmax(0, 1fr); }
+  .landing-foot-inner { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .landing-foot .foot-bottom { justify-content: flex-start; }
 
   /* FAQ responsive — phones (<480px) */
