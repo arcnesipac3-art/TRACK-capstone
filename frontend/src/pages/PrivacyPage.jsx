@@ -42,6 +42,29 @@ export default function PrivacyPage() {
     }
   }, [])
 
+  // Smooth-scroll TOC links within the res-page scroll container
+  useEffect(() => {
+    const container = pageRef.current
+    if (!container) return undefined
+    const NAV_H = 80 // nav height + a little breathing room
+
+    function handleClick(e) {
+      const anchor = e.target.closest('.lp-toc-list a[href^="#"]')
+      if (!anchor) return
+      const id = anchor.getAttribute('href').slice(1)
+      const target = document.getElementById(id)
+      if (!target) return
+      e.preventDefault()
+      const targetTop = target.getBoundingClientRect().top
+      const containerTop = container.getBoundingClientRect().top
+      const offset = targetTop - containerTop + container.scrollTop - NAV_H
+      container.scrollTo({ top: offset, behavior: 'smooth' })
+    }
+
+    container.addEventListener('click', handleClick)
+    return () => container.removeEventListener('click', handleClick)
+  }, [])
+
   return (
     <div className="res-page" ref={pageRef}>
       <PublicNav />

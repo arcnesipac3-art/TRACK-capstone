@@ -372,7 +372,17 @@ export default function LandingPage() {
       { root: container, threshold: 0.3, rootMargin: '-10% 0px -55% 0px' },
     )
     els.forEach((el) => observer.observe(el))
-    return () => observer.disconnect()
+
+    // Reset to Home when scrolled back to the very top
+    function handleScroll() {
+      if (container.scrollTop === 0) setActiveSection('')
+    }
+    container.addEventListener('scroll', handleScroll, { passive: true })
+
+    return () => {
+      observer.disconnect()
+      container.removeEventListener('scroll', handleScroll)
+    }
   }, [])
 
   useEffect(() => {
