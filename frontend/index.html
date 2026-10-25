@@ -35,6 +35,30 @@
 
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <!-- Campus backdrops are CSS backgrounds, so they can't be lazy-loaded —
+         deferring them would only delay the hero paint. Instead we warm both
+         origins (the generator API and the CDN it redirects to, which caches
+         the bytes for ~30 days) and fetch the images at the highest priority
+         so they are decoded by the time the landing/login panels paint,
+         instead of flashing the flat navy fallback. -->
+    <link rel="preconnect" href="https://coresg-normal.trae.ai" />
+    <link rel="dns-prefetch" href="https://coresg-normal.trae.ai" />
+    <link rel="preconnect" href="https://lf-cdn.trae.ai" crossorigin />
+    <link rel="dns-prefetch" href="https://lf-cdn.trae.ai" />
+    <link
+      rel="preload"
+      as="image"
+      fetchpriority="high"
+      href="https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Wide%20architectural%20photograph%20of%20a%20Philippine%20public%20high%20school%20campus%2C%20Kiwalan%20National%20High%20School%2C%20two-storey%20concrete%20classroom%20building%20painted%20white%20and%20green%2C%20open%20walkway%20with%20no%20roof%20or%20canopy%2C%20flagpole%2C%20tropical%20palm%20trees%2C%20blue%20sky%2C%20bright%20daylight&amp;image_size=landscape_16_9"
+    />
+    <link
+      rel="preload"
+      as="image"
+      fetchpriority="low"
+      href="https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Tall%20portrait%20photograph%20of%20a%20Philippine%20public%20high%20school%20campus%2C%20Kiwalan%20National%20High%20School%2C%20two-storey%20concrete%20classroom%20building%20painted%20white%20and%20green%2C%20open%20walkway%20with%20no%20roof%20or%20canopy%2C%20flagpole%2C%20tropical%20palm%20trees%2C%20blue%20sky%2C%20bright%20daylight&amp;image_size=portrait_16_9"
+    />
+
     <title>TRACK · Tracking Requirements, Attendance &amp; Communication</title>
   </head>
   <body>
