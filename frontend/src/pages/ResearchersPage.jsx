@@ -81,6 +81,7 @@ export default function ResearchersPage() {
           <Link to="/#how-it-works">How It Works</Link>
           <Link to="/#roles">Roles</Link>
           <Link to="/#faq">FAQ</Link>
+          <Link to="/location">Find Us</Link>
         </nav>
         <Link className="btn btn-primary" to={dashboardHref}>
           {signedIn ? 'Open dashboard' : 'Sign In'}
@@ -151,7 +152,7 @@ export default function ResearchersPage() {
               Kiwalan National High School.
             </p>
             <p className="foot-dept">
-              Kiwalan National High School · Iligan City, Philippines
+              Purok 10 Mato-og, Kiwalan, Iligan City, Philippines
             </p>
           </div>
 
@@ -179,6 +180,7 @@ export default function ResearchersPage() {
           <nav className="foot-col" aria-label="About us links">
             <p className="foot-col-title">ABOUT US</p>
             <Link to="/about">About TRACK</Link>
+            <Link to="/location">Location</Link>
             <Link to="/researchers">Researchers</Link>
             <Link to="/terms">Terms &amp; Conditions</Link>
             <Link to="/privacy">Privacy Policy</Link>
@@ -187,7 +189,7 @@ export default function ResearchersPage() {
 
         <div className="foot-bottom">
           <p>© {SITE_YEAR} Arc Aaron R. Capisen &amp; Ameroden L. Sarip · TRACK</p>
-          <p>Kiwalan National High School · Iligan City, Philippines</p>
+          <p>Purok 10 Mato-og, Kiwalan, Iligan City, Philippines</p>
         </div>
       </footer>
     </div>

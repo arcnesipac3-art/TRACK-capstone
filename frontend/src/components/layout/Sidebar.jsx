@@ -161,7 +161,7 @@ export default function Sidebar({ onNavigate, variant = 'fixed' }) {
           className="sidebar-knhs-seal"
         />
         <div>
-          Kiwalan National High School
+          Purok 10 Mato-og, Kiwalan
           <br />
           Iligan City, Philippines
         </div>

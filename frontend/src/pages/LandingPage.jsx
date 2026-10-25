@@ -365,11 +365,13 @@ export default function LandingPage() {
           <Logo size="sm" />
         </div>
         <nav className="landing-nav-links" aria-label="Landing sections">
+          <a href="#">Home</a>
           <a href="#problem">The Problem</a>
           <a href="#features">Features</a>
           <a href="#how-it-works">How It Works</a>
           <a href="#roles">Roles</a>
           <a href="#faq">FAQ</a>
+          <Link to="/location">Find Us</Link>
         </nav>
         <Link className="btn btn-primary" to={dashboardHref} style={{ flexShrink: 0 }}>
           {signedIn ? 'Open dashboard' : 'Sign In'}
@@ -400,12 +402,14 @@ export default function LandingPage() {
 
           {/* Scrollable link area */}
           <nav className="mob-nav-links" aria-label="Mobile navigation">
+            <a href="#"            onClick={() => setMobileMenuOpen(false)}>Home</a>
             <a href="#problem"     onClick={() => setMobileMenuOpen(false)}>The Problem</a>
             <a href="#features"    onClick={() => setMobileMenuOpen(false)}>Features</a>
             <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)}>How It Works</a>
             <a href="#roles"       onClick={() => setMobileMenuOpen(false)}>Roles</a>
             <a href="#security"    onClick={() => setMobileMenuOpen(false)}>Security</a>
             <a href="#faq"         onClick={() => setMobileMenuOpen(false)}>FAQ</a>
+            <Link to="/location"   onClick={() => setMobileMenuOpen(false)}>Find Us</Link>
           </nav>
 
           {/* Full-width CTA */}
@@ -770,7 +774,7 @@ export default function LandingPage() {
               Kiwalan National High School.
             </p>
             <p className="foot-dept">
-              Kiwalan National High School · Iligan City, Philippines
+              Purok 10 Mato-og, Kiwalan, Iligan City, Philippines
             </p>
           </div>
 
@@ -797,6 +801,7 @@ export default function LandingPage() {
           <nav className="foot-col" aria-label="About us links">
             <p className="foot-col-title">ABOUT US</p>
             <Link to="/about">About TRACK</Link>
+            <Link to="/location">Location</Link>
             <Link to="/researchers">Researchers</Link>
             <Link to="/terms">Terms &amp; Conditions</Link>
             <Link to="/privacy">Privacy Policy</Link>
@@ -805,7 +810,7 @@ export default function LandingPage() {
         </div>
 
         <div className="foot-bottom">
-          <p>© {SITE_YEAR} TRACK · Kiwalan National High School · Iligan City, Philippines</p>
+          <p>© {SITE_YEAR} TRACK · Purok 10 Mato-og, Kiwalan, Iligan City, Philippines</p>
           <p>Accounts are issued and controlled by the school registrar.</p>
         </div>
       </footer>

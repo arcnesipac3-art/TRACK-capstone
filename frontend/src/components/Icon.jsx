@@ -215,6 +215,33 @@ const PATHS = {
       <path d="M22 4 12 14.01l-3-3" />
     </>
   ),
+  mapPin: (
+    <>
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </>
+  ),
+  building: (
+    <>
+      <rect x="4" y="2" width="16" height="20" rx="2" />
+      <path d="M9 22v-4h6v4" />
+      <path d="M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01" />
+    </>
+  ),
+  trees: (
+    <>
+      <path d="M12 22v-9" />
+      <path d="M12 13c-4 0-6-3-6-6 0-3 2-5 6-5s6 2 6 5c0 3-2 6-6 6z" />
+      <path d="M8 13c-3 0-5-2-5-5 0-2 2-4 5-4s5 2 5 4c0 3-2 5-5 5z" />
+      <path d="M16 13c3 0 5-2 5-5 0-2-2-4-5-4s-5 2-5 4c0 3 2 5 5 5z" />
+    </>
+  ),
+  mapPin: (
+    <>
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </>
+  ),
 }
 
 export default function Icon({ name, size = 18, className }) {

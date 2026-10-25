@@ -10,6 +10,7 @@ import LoginPage from './pages/LoginPage'
 import AboutPage from './pages/AboutPage'
 import TermsPage from './pages/TermsPage'
 import PrivacyPage from './pages/PrivacyPage'
+import LocationPage from './pages/LocationPage'
 import NotFoundPage from './pages/NotFoundPage'
 import ResearchersPage from './pages/ResearchersPage'
 import UnauthorizedPage from './pages/UnauthorizedPage'
@@ -70,6 +71,7 @@ export default function App() {
     pathname === '/login' ||
     pathname === '/researchers' ||
     pathname === '/about' ||
+    pathname === '/location' ||
     pathname === '/terms' ||
     pathname === '/privacy'
   useLayoutEffect(() => {
@@ -83,6 +85,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/researchers" element={<ResearchersPage />} />
       <Route path="/about" element={<AboutPage />} />
+      <Route path="/location" element={<LocationPage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />

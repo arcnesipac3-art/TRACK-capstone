@@ -47,9 +47,10 @@ export default function TermsPage() {
           <Link to="/#how-it-works">How It Works</Link>
           <Link to="/#roles">Roles</Link>
           <Link to="/#faq">FAQ</Link>
+          <Link to="/location">Find Us</Link>
         </nav>
-        <Link className="btn btn-primary" to="/login">
-          Sign In
+        <Link className="btn btn-primary" to={dashboardHref}>
+          {signedIn ? 'Open dashboard' : 'Sign In'}
         </Link>
       </header>
 
@@ -118,7 +119,7 @@ export default function TermsPage() {
               Kiwalan National High School.
             </p>
             <p className="foot-dept">
-              Kiwalan National High School · Iligan City, Philippines
+              Purok 10 Mato-og, Kiwalan, Iligan City, Philippines
             </p>
           </div>
 
@@ -142,13 +143,14 @@ export default function TermsPage() {
           <nav className="foot-col" aria-label="About us links">
             <p className="foot-col-title">ABOUT US</p>
             <Link to="/about">About TRACK</Link>
+            <Link to="/location">Location</Link>
             <Link to="/researchers">Researchers</Link>
             <Link to="/terms">Terms &amp; Conditions</Link>
             <Link to="/privacy">Privacy Policy</Link>
           </nav>
         </div>
         <div className="foot-bottom">
-          <p>© {SITE_YEAR} TRACK · Kiwalan National High School · Iligan City, Philippines</p>
+          <p>© {SITE_YEAR} TRACK · Purok 10 Mato-og, Kiwalan, Iligan City, Philippines</p>
           <p>Accounts are issued and controlled by the school registrar.</p>
         </div>
       </footer>
