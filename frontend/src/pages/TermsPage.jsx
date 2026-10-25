@@ -12,6 +12,13 @@ const SITE_YEAR = new Date().getFullYear()
 const HERO_BG_URL =
   'https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Cinematic%20wide%20photograph%20of%20a%20clean%20minimalist%20office%20setting%2C%20organized%20documents%20on%20a%20desk%2C%20soft%20morning%20light%2C%20professional%20atmosphere%2C%20neutral%20tones&image_size=landscape_16_9'
 
+const TOC = [
+  { id: 'acceptance',  label: '1. Acceptance of Terms' },
+  { id: 'accounts',   label: '2. User Accounts' },
+  { id: 'authorized',  label: '3. Authorized Use' },
+  { id: 'termination', label: '4. Termination' },
+]
+
 export default function TermsPage() {
   const { isAuthenticated, user } = useAuth()
   const signedIn = isAuthenticated && Boolean(user)
@@ -40,39 +47,53 @@ export default function TermsPage() {
       <PublicNav />
 
       <main className="res-main">
-        <section className="res-hero" aria-labelledby="terms-heading">
-          <div className="res-hero-inner">
-            <p className="res-eyebrow">Legal</p>
-            <h1 id="terms-heading">Terms &amp; Conditions.</h1>
-            <p className="res-lede">
+        <section className="lp-hero" aria-labelledby="terms-heading">
+          <div className="lp-hero-inner">
+            <p className="lp-eyebrow">Legal</p>
+            <h1 id="terms-heading">Terms &amp; Conditions</h1>
+            <p className="lp-lede">
               Please read these terms carefully before using the TRACK School Management System.
             </p>
+            <p className="lp-meta">Last Updated: October 2026</p>
           </div>
         </section>
 
-        <section className="res-content-section">
-          <div className="res-container res-container--narrow">
-            <div className="res-legal-text">
-              <p className="res-updated">Last Updated: October 2026</p>
-              
+        <section className="lp-layout">
+          {/*  Table of contents  */}
+          <details className="lp-toc" open>
+            <summary>Table of Contents</summary>
+            <nav className="lp-toc-list" aria-label="Terms & conditions sections">
+              {TOC.map((item) => (
+                <a key={item.id} href={`#${item.id}`}>{item.label}</a>
+              ))}
+            </nav>
+          </details>
+
+          {/*  Document body  */}
+          <article className="lp-doc">
+            <section className="lp-section" id="acceptance">
               <h2>1. Acceptance of Terms</h2>
               <p>
-                By accessing and using TRACK, you agree to be bound by these Terms and 
-                Conditions and all applicable laws and regulations of the Republic of the 
+                By accessing and using TRACK, you agree to be bound by these Terms and
+                Conditions and all applicable laws and regulations of the Republic of the
                 Philippines.
               </p>
+            </section>
 
+            <section className="lp-section" id="accounts">
               <h2>2. User Accounts</h2>
               <p>
-                Accounts are issued by the Kiwalan National High School registrar. Users are 
-                responsible for maintaining the confidentiality of their login credentials. 
-                Any unauthorized use of your account must be reported immediately to the 
+                Accounts are issued by the Kiwalan National High School registrar. Users are
+                responsible for maintaining the confidentiality of their login credentials.
+                Any unauthorized use of your account must be reported immediately to the
                 school administration.
               </p>
+            </section>
 
+            <section className="lp-section" id="authorized">
               <h2>3. Authorized Use</h2>
               <p>
-                TRACK is intended solely for the use of KNHS students, parents, teachers, 
+                TRACK is intended solely for the use of KNHS students, parents, teachers,
                 and administrators. You agree not to:
               </p>
               <ul>
@@ -80,15 +101,23 @@ export default function TermsPage() {
                 <li>Attempt to gain unauthorized access to other user accounts.</li>
                 <li>Submit false information regarding attendance or requirements.</li>
               </ul>
+            </section>
 
+            <section className="lp-section" id="termination">
               <h2>4. Termination</h2>
               <p>
-                The school administration reserves the right to suspend or terminate access 
-                to TRACK for any user who violates these terms or engages in conduct that 
+                The school administration reserves the right to suspend or terminate access
+                to TRACK for any user who violates these terms or engages in conduct that
                 compromises the integrity of the school's data.
               </p>
+            </section>
+
+            <div className="lp-review-note">
+              <strong>Review note:</strong> Additional clauses  including intellectual
+              property rights, limitation of liability, and governing law  should be
+              reviewed and finalized by the project owner before publication.
             </div>
-          </div>
+          </article>
         </section>
       </main>
 
@@ -135,7 +164,7 @@ export default function TermsPage() {
           </nav>
         </div>
         <div className="foot-bottom">
-          <p>© {SITE_YEAR} TRACK · Purok 10 Mato-og, Kiwalan, Iligan City, Philippines</p>
+          <p> {SITE_YEAR} TRACK  Purok 10 Mato-og, Kiwalan, Iligan City, Philippines</p>
           <p>Accounts are issued and controlled by the school registrar.</p>
         </div>
       </footer>
