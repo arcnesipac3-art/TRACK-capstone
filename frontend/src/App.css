@@ -995,43 +995,46 @@
   overflow: hidden;
 }
 
-/* Top-right highlight */
+/* Top-right radial highlight */
 .auth-aside::before {
   content: "";
   position: absolute;
-  top: -150px;
-  right: -150px;
-  width: 540px;
-  height: 540px;
-  background: radial-gradient(circle, rgba(37, 99, 235, 0.26) 0%, transparent 65%);
+  top: -120px;
+  right: -120px;
+  width: 480px;
+  height: 480px;
+  background: radial-gradient(circle, rgba(37,99,235,0.22) 0%, transparent 65%);
   border-radius: 50%;
   pointer-events: none;
   z-index: 0;
 }
 
-/* Thick dim ring behind the student */
+/* Large glowing ring — centred on where the student stands (bottom-right) */
 .auth-aside::after {
   content: "";
   position: absolute;
-  left: 370px;
-  top: 565px;
-  width: 600px;
-  height: 600px;
-  box-sizing: border-box;
-  border: 42px solid rgba(59, 130, 246, 0.2);
+  /* student is at left:49% of auth-layout, roughly right:-10% of aside */
+  right: -100px;
+  bottom: -100px;
+  width: 580px;
+  height: 580px;
+  /* Multi-layer: outer glow + inner bright ring */
+  background:
+    radial-gradient(circle at 50% 50%, rgba(37,99,235,0.0) 38%, rgba(37,99,235,0.32) 42%, rgba(37,99,235,0.18) 50%, rgba(37,99,235,0.06) 60%, transparent 72%),
+    radial-gradient(circle at 50% 50%, rgba(99,160,255,0.15) 0%, transparent 55%);
   border-radius: 50%;
   pointer-events: none;
   z-index: 1;
 }
 
-/* Soft bottom-left glow */
+/* Secondary inner glow — warmer blue core behind the student */
 .aside-student-glow {
   position: absolute;
-  left: -80px;
-  bottom: -120px;
-  width: 560px;
-  height: 560px;
-  background: radial-gradient(circle, rgba(37, 99, 235, 0.16) 0%, transparent 65%);
+  right: -40px;
+  bottom: -60px;
+  width: 380px;
+  height: 380px;
+  background: radial-gradient(circle, rgba(59,130,246,0.28) 0%, rgba(37,99,235,0.14) 40%, transparent 68%);
   border-radius: 50%;
   pointer-events: none;
   z-index: 1;
