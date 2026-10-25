@@ -987,26 +987,8 @@
   display: flex;
   flex-direction: column;
   padding: 58px 40px 78px 63px;
-  /* Single scale control for the bottom-right composition (the student figure
-     and both glows behind it). Anything expressed as a multiple of this stays
-     locked to the artwork at every viewport size, so the figure never drifts
-     out of the halo as the window changes. Height drives the size. The frame is
-     50/57 as wide as it is tall, so the height is scaled to keep the figure at
-     the same rendered scale as the full-length artwork it was cropped from — a
-     shorter box showing the same figure at the same size. The 53vw ceiling
-     stops the frame from outgrowing the aside on tall windows: 0.877 × 53vw =
-     46.5vw, comfortably inside the 52vw aside. Because the upper bound is
-     relative, the portrait keeps growing on large displays instead of freezing
-     at a fixed pixel height. */
-  --student-h: clamp(228px, 55vh, 53vw);
-  /* Sink the whole composition (figure and both glows) past the aside's bottom
-     edge, so the aside's overflow clip hides the bottom of the artwork — the
-     legless lower body never shows. A share of --student-h, so exactly the same
-     amount is hidden at every viewport. */
-  --student-drop: calc(var(--student-h) * -0.02);
   /* Campus backdrop — the school photograph sits under navy washes that stay
-     dense over the brand row, tagline and role cards, then clear toward the
-     bottom where the student stands. Flat navy fallback shows while loading. */
+     dense over the brand row, tagline and role cards. Flat navy fallback shows while loading. */
   background:
     linear-gradient(180deg,
       rgba(10,34,77,0.94) 0%,
@@ -1038,39 +1020,6 @@
   border-radius: 50%;
   pointer-events: none;
   z-index: 0;
-}
-
-/* Large glowing ring — centred on where the student stands (bottom-right).
-   Scales with the figure via --student-h so it never drifts off the corner. */
-.auth-aside::after {
-  content: "";
-  position: absolute;
-  right: calc(var(--student-h) * -0.18);
-  bottom: calc(var(--student-h) * -0.18 + var(--student-drop));
-  width: calc(var(--student-h) * 0.97);
-  height: calc(var(--student-h) * 0.97);
-  /* Multi-layer: outer glow + inner bright ring */
-  background:
-    radial-gradient(circle at 50% 50%, rgba(37,99,235,0.0) 38%, rgba(37,99,235,0.32) 42%, rgba(37,99,235,0.18) 50%, rgba(37,99,235,0.06) 60%, transparent 72%),
-    radial-gradient(circle at 50% 50%, rgba(99,160,255,0.15) 0%, transparent 55%);
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* Secondary inner glow — warmer blue core behind the student.
-   Offsets and size are multiples of --student-h, so the halo stays centred on
-   the figure's torso at every viewport instead of sitting in a fixed corner. */
-.aside-student-glow {
-  position: absolute;
-  right: calc(var(--student-h) * -0.21);
-  bottom: calc(var(--student-h) * 0.14 + var(--student-drop));
-  width: calc(var(--student-h) * 0.66);
-  height: calc(var(--student-h) * 0.66);
-  background: radial-gradient(circle, rgba(59,130,246,0.28) 0%, rgba(37,99,235,0.14) 40%, transparent 68%);
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 1;
 }
 
 /* Brand row */
@@ -1177,32 +1126,6 @@
   color: rgba(255, 255, 255, 0.92);
   line-height: 1.4;
   margin-top: 2px;
-}
-
-/* Student image — anchored to the seam between the aside and the form panel */
-.aside-student-img {
-  position: absolute;
-  /* Right edge sits exactly on the aside/panel border. The frame is sized from
-     the artwork's own 50:57 aspect ratio rather than a width clamp, so the crop
-     applied to the PNG below stays the same proportion at every viewport. */
-  right: 0;
-  /* Sunk below the aside's bottom edge, so the overflow clip cuts the figure
-     above the legless lower body instead of showing it. */
-  bottom: var(--student-drop);
-  height: var(--student-h);
-  aspect-ratio: 50 / 57;
-  z-index: 10;
-  pointer-events: none;
-  user-select: none;
-}
-
-.aside-student-img img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  object-fit: contain;
-  object-position: bottom right;
 }
 
 /* Location footer */
