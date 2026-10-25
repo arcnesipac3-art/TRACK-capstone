@@ -2481,34 +2481,9 @@
   .hero-note    { text-align: center; }
   .hero-stats   { justify-content: center; }
   .hero-stat:first-child { padding-left: clamp(16px,2vw,24px); }
-  /* Student below the copy. The box hugs the image's own aspect ratio and
-     the picture is laid out in normal flow, so it can never be cropped,
-     clipped by the hero, or pushed past the right edge of the screen. */
-  .hero-visual {
-    position: relative;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    width: 100%;          /* full row width so centering works */
-    height: auto;
-    min-height: 0;
-    align-self: center;
-    margin: 0 auto;
-  }
-  .hero-student-img {
-    position: static;
-    width: auto;          /* let the image keep its natural width */
-    max-width: min(320px, 80vw); /* cap so it doesn't overflow */
-    height: auto;
-    max-height: none;
-    transform: none;
-    object-fit: contain;
-    object-position: center bottom;
-    display: block;
-    margin: 0 auto;       /* centres within the flex container */
-  }
-  /* Hide floating role cards on mobile — too cramped */
-  .hero-card-float { display: none; }
+  /* Hide student image on mobile — the visual column stacks below text
+     and the portrait crowds the small screen without adding value */
+  .hero-visual { display: none; }
 }
 
 /* Small mobile ≤479px */
@@ -5729,4 +5704,368 @@
   .rp-portrait-img,
   .rp-card { transition: none; }
   .rp-hero::before { transition: none; }
+}
+
+/* ==========================================================================
+   ap-* — About page redesign
+   ========================================================================== */
+
+/* ── Hero ─────────────────────────────────────────────────────────────────── */
+.ap-hero {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  min-height: clamp(260px, 36vh, 400px);
+  background-color: #041631;
+  color: #fff;
+  overflow: clip;
+}
+
+/* Background photo — fades in after decode (same mechanism as rp-hero) */
+.ap-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--res-hero-bg, none);
+  background-position: center 55%;
+  background-size: cover;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 800ms ease;
+}
+.res-page.bg-ready .ap-hero::before { opacity: 1; }
+
+/* Gradient overlay — navy heavy on the left, lighter on the right */
+.ap-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg,
+      rgba(4, 22, 49, 0.60) 0%,
+      rgba(4, 22, 49, 0.78) 55%,
+      rgba(4, 22, 49, 0.97) 100%),
+    linear-gradient(90deg,
+      rgba(4, 22, 49, 0.90) 0%,
+      rgba(4, 22, 49, 0.60) 50%,
+      rgba(4, 22, 49, 0.25) 100%);
+}
+
+.ap-hero-inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: clamp(48px, 8vh, 88px) clamp(24px, 5vw, 64px) clamp(44px, 7vh, 68px);
+}
+
+/* Eyebrow */
+.ap-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #7fb0ff;
+  margin: 0 0 16px;
+}
+.ap-eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 20px;
+  height: 2px;
+  background: #7fb0ff;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+/* Heading */
+.ap-hero h1 {
+  font-size: clamp(1.9rem, 3.8vw, 2.9rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.12;
+  color: #fff;
+  margin: 0 0 16px;
+  max-width: 22ch;
+}
+.ap-heading-accent { color: #4DD0E1; }
+
+/* Description */
+.ap-lede {
+  font-size: clamp(0.93rem, 1.3vw, 1.02rem);
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.76);
+  max-width: 58ch;
+  margin: 0 0 24px;
+}
+
+/* Badges row */
+.ap-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ap-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.82);
+  letter-spacing: 0.03em;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+/* ── Mission + Values section ──────────────────────────────────────────────── */
+.ap-section {
+  background: #EEF3FA;
+  padding: clamp(44px, 6vh, 72px) 0 clamp(48px, 7vh, 80px);
+}
+
+.ap-container {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 clamp(20px, 4vw, 48px);
+}
+
+/* Section header */
+.ap-section-header {
+  text-align: center;
+  margin-bottom: clamp(28px, 4vh, 44px);
+}
+.ap-section-header h2 {
+  font-size: clamp(1.55rem, 2.8vw, 2.1rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: #0d2244;
+  margin: 0 0 10px;
+}
+.ap-section-sub {
+  font-size: 0.96rem;
+  line-height: 1.65;
+  color: #5c7199;
+  max-width: 52ch;
+  margin: 0 auto;
+}
+
+/* Two-column card grid */
+.ap-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+/* Individual card */
+.ap-card {
+  background: #fff;
+  border: 1.5px solid #dce8f8;
+  border-radius: 16px;
+  padding: 28px 28px 32px;
+  box-shadow: 0 2px 12px rgba(18, 59, 112, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.ap-card h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0d2244;
+  margin: 0 0 14px;
+}
+.ap-card > p {
+  font-size: 0.91rem;
+  line-height: 1.68;
+  color: #4a627f;
+  margin: 0 0 12px;
+}
+.ap-card > p:last-of-type { margin-bottom: 0; }
+
+/* Card icon badge */
+.ap-card-icon {
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e3edf9;
+  color: #123B70;
+  border-radius: 50%;
+  margin-bottom: 18px;
+  flex-shrink: 0;
+}
+
+/* Values list */
+.ap-values {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.ap-value-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 0;
+}
+.ap-value-sep {
+  height: 1px;
+  background: #e8f0f8;
+  margin: 0;
+  grid-column: 1 / -1;
+}
+/* Separator sits between rows via adjacent sibling trick */
+.ap-value-row + .ap-value-row {
+  border-top: 1px solid #e8f0f8;
+}
+
+.ap-value-dot {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e3edf9;
+  color: #123B70;
+  border-radius: 50%;
+  margin-top: 1px;
+}
+.ap-value-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.ap-value-body strong {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0d2244;
+  display: block;
+}
+.ap-value-body span {
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: #5c7199;
+}
+
+/* ── Capabilities strip ────────────────────────────────────────────────────── */
+.ap-caps {
+  background: #fff;
+  border-top: 1px solid #e0eaf5;
+  padding: clamp(36px, 5vh, 56px) 0;
+}
+.ap-caps-heading {
+  text-align: center;
+  font-size: clamp(1.2rem, 2vw, 1.55rem);
+  font-weight: 700;
+  color: #0d2244;
+  margin: 0 0 clamp(24px, 3.5vh, 36px);
+  letter-spacing: -0.015em;
+}
+
+.ap-caps-grid {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+
+.ap-cap {
+  flex: 1 1 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 0 clamp(16px, 3vw, 32px);
+  position: relative;
+}
+.ap-cap:first-child { padding-left: 0; }
+.ap-cap:last-child  { padding-right: 0; }
+
+/* Vertical divider between caps */
+.ap-cap-div {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #dce8f8;
+}
+
+.ap-cap-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #e3edf9;
+  color: #123B70;
+  border-radius: 10px;
+  margin-top: 2px;
+}
+.ap-cap-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ap-cap-body strong {
+  font-size: 0.91rem;
+  font-weight: 700;
+  color: #0d2244;
+  display: block;
+}
+.ap-cap-body span {
+  font-size: 0.83rem;
+  line-height: 1.55;
+  color: #5c7199;
+}
+
+/* ── Entrance animations ── */
+.ap-hero-inner > * { animation: hero-rise 580ms cubic-bezier(.22,1,.36,1) both; }
+.ap-eyebrow        { animation-delay: 40ms;  }
+.ap-hero h1        { animation-delay: 110ms; }
+.ap-lede           { animation-delay: 185ms; }
+.ap-badges         { animation-delay: 255ms; }
+.ap-section-header { animation: hero-rise 600ms cubic-bezier(.22,1,.36,1) 60ms both; }
+.ap-card:nth-child(1) { animation: hero-rise 600ms cubic-bezier(.22,1,.36,1) 140ms both; }
+.ap-card:nth-child(2) { animation: hero-rise 600ms cubic-bezier(.22,1,.36,1) 220ms both; }
+.ap-caps-grid         { animation: hero-rise 600ms cubic-bezier(.22,1,.36,1) 300ms both; }
+
+/* ── Responsive ── */
+@media (max-width: 767px) {
+  .ap-hero-inner { padding: 40px 20px 44px; }
+  .ap-cards { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .ap-card  { padding: 22px 20px 26px; }
+  .ap-caps-grid {
+    flex-direction: column;
+    gap: 20px;
+  }
+  .ap-cap { padding: 0; }
+  .ap-cap-div { display: none; }
+}
+
+@media (max-width: 479px) {
+  .ap-hero h1 { font-size: 1.7rem; }
+  .ap-section { padding: 32px 0 40px; }
+  .ap-caps    { padding: 28px 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ap-hero-inner > *,
+  .ap-section-header,
+  .ap-card,
+  .ap-caps-grid { animation: none; }
+  .ap-hero::before { transition: none; }
 }
