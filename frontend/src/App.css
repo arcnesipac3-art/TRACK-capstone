@@ -1444,7 +1444,7 @@
      with calc(100svh - var(--navbar-height)) so the dark section always ends
      exactly at the bottom of the first screen — no white strip below it.
      The responsive blocks below re-declare it wherever the nav changes height. */
-  --navbar-height: 70px;
+  --navbar-height: 56px;
   background: var(--surface);
   /* Prevent absolute-positioned glow pseudo-elements from causing horizontal scroll */
   overflow-x: hidden;
@@ -3600,7 +3600,7 @@
 /* Large desktop: cap content width, keep sidebar */
 @media (min-width: 1440px) {
   .app-content { padding: 32px 36px 56px; }
-  .landing { --navbar-height: 70px; }
+  .landing { --navbar-height: 56px; }
   .landing-nav { padding: 0 clamp(40px, 4.4vw, 84px); }
 }
 
@@ -3624,7 +3624,7 @@
   .problem-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .trust-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* Landing page — tablet */
-  .landing { --navbar-height: 70px; }
+  .landing { --navbar-height: 56px; }
   .landing-nav { padding: 0 24px; }
   .landing-preview { padding: 0 20px 60px; }
   .landing-section { padding: 60px 24px; }
@@ -3679,7 +3679,7 @@
   .filter-bar { padding: 12px; }
   .filter-bar .field { min-width: 0; width: 100%; }
 
-  .landing { --navbar-height: 64px; }
+  .landing { --navbar-height: 52px; }
   .landing-nav { padding: 0 16px; }
   .landing-nav-links { display: none; }
   .landing-nav-menu-btn { display: flex; }
