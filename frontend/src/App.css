@@ -4684,7 +4684,10 @@
   display: flex;
   flex-direction: column;
   background: var(--surface);
-  /* Own scroll container, like .landing — the nav is position:sticky. */
+  /* Own scroll container, like .landing — the nav is position:sticky.
+     Define --navbar-height so mob-nav fixed positioning uses the correct
+     top offset on these pages (64px desktop, 56px mobile). */
+  --navbar-height: 64px;
   overflow-x: hidden;
   overflow-y: auto;
 }
@@ -4871,6 +4874,7 @@
   color: var(--navy-800);
   cursor: pointer;
   flex: 0 0 auto;
+  margin-left: auto; /* always sits at the right edge */
 }
 
 /* Hide nav links and show hamburger at tablet/mobile */
@@ -4879,11 +4883,12 @@
   /* Override the higher-specificity desktop rule (.pub-nav-cta.btn.btn-primary) */
   .pub-nav-cta,
   .pub-nav-cta.btn.btn-primary { margin-left: auto; display: none !important; }
-  .pub-nav-menu-btn { display: flex; }
+  .pub-nav-menu-btn { display: flex; margin-left: auto; }
 }
 
 @media (max-width: 767px) {
   .pub-nav { padding: 0 16px; height: 56px; }
+  .res-page { --navbar-height: 56px; }
 }
 
 .res-main {
