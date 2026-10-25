@@ -52,19 +52,30 @@ export function AuthProvider({ children }) {
   const [bootstrapError, setBootstrapError] = useState(null)
 
   const loadSession = useCallback(async (opts = {}) => {
+    // Abort the session check after 10 seconds so the app never freezes
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000)
     try {
-      const me = await api.me()
+      const me = await api.get('/auth/me/', { signal: controller.signal })
+      clearTimeout(timeoutId)
       setUser(normalizeUser(me))
       setStatus('authenticated')
       setBootstrapError(null)
       return normalizeUser(me)
     } catch (err) {
+      clearTimeout(timeoutId)
+      if (err.name === 'AbortError') {
+        // Timed out — treat as anonymous so the app doesn't stay stuck
+        setUser(null)
+        setStatus('anonymous')
+        setBootstrapError('Session check timed out. Please sign in.')
+        return null
+      }
       if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
         setUser(null)
         setStatus('anonymous')
         setBootstrapError(null)
       } else if (opts.silent !== true) {
-        // Network/server problem — do not pretend the user is signed out
         setStatus((prev) => (prev === 'loading' ? 'anonymous' : prev))
         setBootstrapError(err.message)
       }
