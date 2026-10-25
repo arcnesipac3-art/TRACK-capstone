@@ -1,4 +1,4 @@
-import { lazy, useEffect, useLayoutEffect } from 'react'
+import { lazy, useEffect } from 'react'
 import { Route, Routes, useLocation } from 'react-router-dom'
 import './App.css'
 
@@ -54,17 +54,6 @@ export default function App() {
     const target = document.getElementById(decodeURIComponent(hash.slice(1)))
     if (target) target.scrollIntoView()
   }, [hash, pathname])
-
-  // React Router swaps the two public pages by unmounting one and mounting the
-  // other, so the arriving page used to land on the light `--bg` and flash
-  // through its dark top half. Painting the body navy while a public route is
-  // active gives the route fade (index.css) a dark backdrop to sit on. The
-  // layout effect applies it before the new page's first paint, and it is
-  // cleared on every other route so in-app navigation is untouched.
-  const isPublicRoute = pathname === '/' || pathname === '/login'
-  useLayoutEffect(() => {
-    document.body.classList.toggle('route-fade-stage', isPublicRoute)
-  }, [isPublicRoute])
 
   return (
     <Routes>

@@ -970,13 +970,41 @@
    AUTH PAGES — Login / Sign-in
    ===================================================================== */
 
-/* Outer container — 52 / 48 split */
+/* Outer container — 52 / 48 split.
+   The student figure and its two glows are children of this element (they must
+   be, to straddle the seam without being clipped by the aside), so the scale
+   variables live here. Declaring them on .auth-aside would leave the siblings
+   without a value, and every var() in their size/margin would be invalid. */
 .auth-layout {
   height: 100dvh;
   overflow: hidden;
   display: grid;
   grid-template-columns: minmax(0, 52fr) minmax(0, 48fr);
   position: relative;
+  /* Single scale control for the bottom-right composition (the student figure
+     and both glows behind it). Anything expressed as a multiple of this stays
+     locked to the artwork at every viewport size, so the figure never drifts
+     out of the halo as the window changes. Height drives the size. The frame is
+     50/57 as wide as it is tall, so the height is scaled to keep the figure at
+     the same rendered scale as the full-length artwork it was cropped from — a
+     shorter box showing the same figure at the same size. The 42vh mid bound
+     keeps the figure tucked into the bottom-right corner, just clear of the
+     role cards, and the 44vw ceiling stops it from outgrowing the aside on tall
+     windows: 0.877 × 44vw = 38.6vw, comfortably inside the 52vw aside. Because
+     the upper bound is relative, the portrait keeps growing on large displays
+     instead of freezing at a fixed pixel height. */
+  --student-h: clamp(190px, 42vh, 44vw);
+  /* Sink the whole composition (figure and both glows) past the layout's bottom
+     edge, so the overflow clip hides the bottom of the artwork — the legless
+     lower body never shows. A share of --student-h, so exactly the same amount
+     is hidden at every viewport. */
+  --student-drop: calc(var(--student-h) * -0.015);
+  /* Horizontal placement of the whole composition, in multiples of --student-h.
+     Positive pushes it right, past the seam and over the form panel; negative
+     pulls it left, deeper into the branding panel. The figure and both glows
+     read this same value, so the halo stays centred on the artwork however far
+     it is nudged. */
+  --student-x: -0.12;
 }
 
 /* ════════════════════════════
@@ -987,23 +1015,6 @@
   display: flex;
   flex-direction: column;
   padding: 58px 40px 78px 63px;
-  /* Single scale control for the bottom-right composition (the student figure
-     and both glows behind it). Anything expressed as a multiple of this stays
-     locked to the artwork at every viewport size, so the figure never drifts
-     out of the halo as the window changes. Height drives the size. The frame is
-     50/57 as wide as it is tall, so the height is scaled to keep the figure at
-     the same rendered scale as the full-length artwork it was cropped from — a
-     shorter box showing the same figure at the same size. The 53vw ceiling
-     stops the frame from outgrowing the aside on tall windows: 0.877 × 53vw =
-     46.5vw, comfortably inside the 52vw aside. Because the upper bound is
-     relative, the portrait keeps growing on large displays instead of freezing
-     at a fixed pixel height. */
-  --student-h: clamp(228px, 55vh, 53vw);
-  /* Sink the whole composition (figure and both glows) past the aside's bottom
-     edge, so the aside's overflow clip hides the bottom of the artwork — the
-     legless lower body never shows. A share of --student-h, so exactly the same
-     amount is hidden at every viewport. */
-  --student-drop: calc(var(--student-h) * -0.02);
   /* Campus backdrop — the school photograph sits under navy washes that stay
      dense over the brand row, tagline and role cards, then clear toward the
      bottom where the student stands. Flat navy fallback shows while loading. */
@@ -1041,11 +1052,13 @@
 }
 
 /* Large glowing ring — centred on where the student stands (bottom-right).
-   Scales with the figure via --student-h so it never drifts off the corner. */
-.auth-aside::after {
+   Positioned relative to .auth-layout to allow seam overlap. */
+.aside-student-ring {
   content: "";
   position: absolute;
-  right: calc(var(--student-h) * -0.18);
+  /* --student-x + the difference between the ring's radius (0.485) and the
+     figure's half-width (0.439), so the two share a centre at any offset. */
+  right: calc(48% - (var(--student-h) * (var(--student-x) + 0.046)));
   bottom: calc(var(--student-h) * -0.18 + var(--student-drop));
   width: calc(var(--student-h) * 0.97);
   height: calc(var(--student-h) * 0.97);
@@ -1063,7 +1076,9 @@
    the figure's torso at every viewport instead of sitting in a fixed corner. */
 .aside-student-glow {
   position: absolute;
-  right: calc(var(--student-h) * -0.21);
+  /* Tracks --student-x like the ring, keeping the warm core where it always sat
+     relative to the figure's centre (slightly right of it, as a rim light). */
+  right: calc(48% - (var(--student-h) * (var(--student-x) + 0.078)));
   bottom: calc(var(--student-h) * 0.14 + var(--student-drop));
   width: calc(var(--student-h) * 0.66);
   height: calc(var(--student-h) * 0.66);
@@ -1179,15 +1194,15 @@
   margin-top: 2px;
 }
 
-/* Student image — anchored to the seam between the aside and the form panel */
+/* Student image — sits in the bottom-right of the branding panel. Positioned
+   relative to .auth-layout (not the aside) so it is free to cross the seam
+   without being clipped by the aside's own boundaries. */
 .aside-student-img {
   position: absolute;
-  /* Right edge sits exactly on the aside/panel border. The frame is sized from
-     the artwork's own 50:57 aspect ratio rather than a width clamp, so the crop
-     applied to the PNG below stays the same proportion at every viewport. */
-  right: 0;
-  /* Sunk below the aside's bottom edge, so the overflow clip cuts the figure
-     above the legless lower body instead of showing it. */
+  /* Anchored to the seam (48% from the right) then offset by --student-x, which
+     is what moves the figure left or right. No transform, so the ring and glow
+     (which use the same variable) always stay in register with it. */
+  right: calc(48% - (var(--student-h) * var(--student-x)));
   bottom: var(--student-drop);
   height: var(--student-h);
   aspect-ratio: 50 / 57;
@@ -1202,7 +1217,7 @@
   height: 100%;
   max-width: none;
   object-fit: contain;
-  object-position: bottom right;
+  object-position: bottom center;
 }
 
 /* Location footer */
@@ -1499,7 +1514,7 @@
     height: auto;
   }
   .auth-aside::before { width: 200px; height: 200px; top: -60px; right: -60px; }
-  .auth-aside::after  { display: none; }
+  .aside-student-ring { display: none; }
   .aside-student-glow { display: none; }
   .aside-roles { display: none; }
   .aside-tagline { font-size: 15px; }

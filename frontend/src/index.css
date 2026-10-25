@@ -642,36 +642,6 @@ img, svg { display: block; }
   border: 0;
 }
 
-/* ---------------------------------------------------------------------
-   Route transition — landing ⇄ sign-in
-   ---------------------------------------------------------------------
-   React Router swaps the two public pages by unmounting one and mounting the
-   other, so the incoming page used to pop in and briefly flash the light body
-   background through its dark top half. App.jsx paints the body navy while a
-   public route is active (`.route-fade-stage`) and the arriving page fades in
-   over it, so the two dark pages read as one continuous cross-fade. Every
-   other route stays instant. */
-body.route-fade-stage {
-  background: var(--navy-900);
-}
-body.route-fade-stage .landing,
-body.route-fade-stage .auth-layout {
-  animation: route-page-in 300ms ease-out both;
-}
-
-@keyframes route-page-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* No backdrop flash for users who opt out of motion — just navigate. */
-@media (prefers-reduced-motion: reduce) {
-  body.route-fade-stage .landing,
-  body.route-fade-stage .auth-layout {
-    animation: none;
-  }
-}
-
 /* Alias used by form labels whose visible text would only repeat the control. */
 .sr-only {
   position: absolute;

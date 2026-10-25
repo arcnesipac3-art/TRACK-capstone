@@ -130,16 +130,8 @@ export default function LoginPage() {
 
         <p className="aside-foot">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          Iligan City, Phlippines
+          Iligan City, Philippines
         </p>
-
-        {/* Glow circle behind where student will appear */}
-        <div className="aside-student-glow" aria-hidden="true" />
-
-        {/* Student cut-out — inside the aside so it never bleeds into the form panel */}
-        <div className="aside-student-img" aria-hidden="true">
-          <img src="/student2.webp" alt="" />
-        </div>
       </aside>
 
       {/* ── Right panel ─────────────────────────────────────────────── */}
@@ -256,6 +248,12 @@ export default function LoginPage() {
         </div>
       </main>
 
+      {/* Student Figure — positioned relative to the layout to allow seam overlap */}
+      <div className="aside-student-ring" aria-hidden="true" />
+      <div className="aside-student-glow" aria-hidden="true" />
+      <div className="aside-student-img" aria-hidden="true">
+        <img src="/student2.webp" alt="" />
+      </div>
     </div>
   )
 }
