@@ -1952,10 +1952,7 @@
 .hero-stat:first-child { padding-left: 0; }
 
 .hero-stat-sep {
-  width: 1px;
-  background: rgba(255,255,255,0.14);
-  align-self: stretch;
-  flex-shrink: 0;
+  display: none;
 }
 
 /* Large bold number, blue word */
