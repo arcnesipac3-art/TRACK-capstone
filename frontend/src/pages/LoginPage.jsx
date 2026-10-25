@@ -94,7 +94,7 @@ export default function LoginPage() {
     <div className="auth-layout">
       {/* ── Left panel ──────────────────────────────────────────────── */}
       <aside className="auth-aside">
-        <div className="aside-brand animate-text">
+        <div className="aside-brand">
           <div className="aside-brand-row">
             <img
               src="/knhs-seal.png"
@@ -108,14 +108,14 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="aside-copy animate-text delay-100">
+        <div className="aside-copy">
           <p className="aside-tagline">
             Tracking Requirements, Attendance &amp; Communication for KNHS
           </p>
 
           <div className="aside-roles">
-            {ROLES.map((role, idx) => (
-              <div className={`aside-role-card animate-card delay-${200 + idx * 100}`} key={role.label}>
+            {ROLES.map((role) => (
+              <div className="aside-role-card" key={role.label}>
                 <span className="aside-role-icon" aria-hidden="true">
                   <Icon name={role.icon} size={17} />
                 </span>
@@ -128,16 +128,16 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="aside-foot animate-text delay-600">
+        <p className="aside-foot">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-          Iligan City, Philippines
+          Iligan City, Phlippines
         </p>
 
         {/* Glow circle behind where student will appear */}
-        <div className="aside-student-glow animate-fade-in delay-700" aria-hidden="true" />
+        <div className="aside-student-glow" aria-hidden="true" />
 
         {/* Student cut-out — inside the aside so it never bleeds into the form panel */}
-        <div className="aside-student-img animate-student delay-400" aria-hidden="true">
+        <div className="aside-student-img" aria-hidden="true">
           <img src="/student2.webp" alt="" />
         </div>
       </aside>
@@ -149,12 +149,12 @@ export default function LoginPage() {
             <Logo />
           </div>
 
-          <div className="auth-heading animate-text delay-100">
+          <div className="auth-heading">
             <h1>Welcome back</h1>
             <p className="auth-lede">Sign in to your TRACK account.</p>
           </div>
 
-          <form className="auth-form animate-text delay-200" onSubmit={handleSubmit} noValidate>
+          <form className="auth-form" onSubmit={handleSubmit} noValidate>
             {formError && (
               <div className="auth-error" role="alert">
                 <span className="auth-error-icon" aria-hidden="true">
