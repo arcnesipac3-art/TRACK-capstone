@@ -135,6 +135,11 @@ export default function LoginPage() {
 
         {/* Glow circle behind where student will appear */}
         <div className="aside-student-glow" aria-hidden="true" />
+
+        {/* Student PNG — inside the aside so it never bleeds into the form panel */}
+        <div className="aside-student-img" aria-hidden="true">
+          <img src="/student2.png" alt="" />
+        </div>
       </aside>
 
       {/* ── Right panel ─────────────────────────────────────────────── */}
@@ -251,10 +256,6 @@ export default function LoginPage() {
         </div>
       </main>
 
-      {/* Student PNG — spans the panel boundary, positioned relative to auth-layout */}
-      <div className="aside-student-img" aria-hidden="true">
-        <img src="/student2.png" alt="" />
-      </div>
     </div>
   )
 }
