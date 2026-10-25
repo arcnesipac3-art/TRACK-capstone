@@ -2466,6 +2466,7 @@
     padding: 40px 20px 0;
     gap: 32px;
     flex: none;
+    justify-items: center; /* centre both columns when stacked */
   }
   .hero-content {
     align-items: center;
@@ -2488,7 +2489,7 @@
     display: flex;
     align-items: flex-end;
     justify-content: center;
-    width: min(100%, 360px);
+    width: 100%;          /* full row width so centering works */
     height: auto;
     min-height: 0;
     align-self: center;
@@ -2496,15 +2497,15 @@
   }
   .hero-student-img {
     position: static;
-    width: 100%;
+    width: auto;          /* let the image keep its natural width */
+    max-width: min(320px, 80vw); /* cap so it doesn't overflow */
     height: auto;
-    max-width: none;
     max-height: none;
     transform: none;
     object-fit: contain;
     object-position: center bottom;
     display: block;
-    margin: 0 auto;
+    margin: 0 auto;       /* centres within the flex container */
   }
   /* Hide floating role cards on mobile — too cramped */
   .hero-card-float { display: none; }
