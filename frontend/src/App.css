@@ -2251,7 +2251,6 @@
 .hero-card-parent-wrap  .hero-card { animation-delay: 800ms; }
 
 @media (prefers-reduced-motion: reduce) {
-@media (prefers-reduced-motion: reduce) {
   .hero-kicker,
   .hero-heading-line1,
   .hero-heading-line2,
@@ -2493,6 +2492,7 @@
     height: auto;
     min-height: 0;
     align-self: center;
+    margin: 0 auto;       /* centres the column itself */
   }
   .hero-student-img {
     position: static;
@@ -2503,6 +2503,8 @@
     transform: none;
     object-fit: contain;
     object-position: center bottom;
+    display: block;
+    margin: 0 auto;       /* belt-and-suspenders centre */
   }
   /* Cards: right side */
   .hero-card-student-wrap { top: 6%;    right: 0; }
@@ -5411,4 +5413,313 @@
   .res-feature-list { animation: none; }
   /* The backdrop still arrives, it just doesn't fade. */
   .res-hero::before { transition: none; }
+}
+
+/* ==========================================================================
+   rp-* — Researchers page redesign
+   Uses its own namespace so it doesn't affect other res-* pages.
+   ========================================================================== */
+
+/* ── Hero ─────────────────────────────────────────────────────────────────── */
+.rp-hero {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-end;
+  min-height: clamp(280px, 38vh, 420px);
+  background-color: #041631;
+  color: #fff;
+  overflow: clip;
+}
+
+/* Background image layer — fades in after decode */
+.rp-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--res-hero-bg, none);
+  background-position: center 40%;
+  background-size: cover;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 800ms ease;
+}
+.res-page.bg-ready .rp-hero::before { opacity: 1; }
+
+/* Dark gradient overlay — keeps text readable regardless of photo */
+.rp-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg,
+      rgba(4, 22, 49, 0.55) 0%,
+      rgba(4, 22, 49, 0.72) 55%,
+      rgba(4, 22, 49, 0.96) 100%),
+    linear-gradient(90deg,
+      rgba(4, 22, 49, 0.70) 0%,
+      rgba(4, 22, 49, 0.40) 60%,
+      rgba(4, 22, 49, 0.20) 100%);
+}
+
+.rp-hero-inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: clamp(48px, 8vh, 88px) clamp(24px, 5vw, 64px) clamp(44px, 7vh, 72px);
+}
+
+/* Eyebrow label */
+.rp-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #7fb0ff;
+  margin: 0 0 16px;
+}
+.rp-eyebrow::before {
+  content: '';
+  display: inline-block;
+  width: 20px;
+  height: 2px;
+  background: #7fb0ff;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+/* Main heading */
+.rp-hero h1 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  color: #fff;
+  margin: 0 0 16px;
+  max-width: 20ch;
+}
+
+/* Description */
+.rp-lede {
+  font-size: clamp(0.95rem, 1.4vw, 1.05rem);
+  line-height: 1.65;
+  color: rgba(255, 255, 255, 0.78);
+  max-width: 58ch;
+  margin: 0 0 24px;
+}
+
+/* Location badge */
+.rp-location-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: rgba(255, 255, 255, 0.10);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.80);
+  letter-spacing: 0.02em;
+  width: fit-content;
+}
+
+/* ── Team section ──────────────────────────────────────────────────────────── */
+.rp-team {
+  flex: 1 0 auto;
+  background: #EEF3FA;
+  padding: clamp(48px, 7vh, 80px) 0 clamp(56px, 8vh, 96px);
+}
+
+.rp-container {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 clamp(20px, 4vw, 48px);
+}
+
+/* Section header */
+.rp-team-header {
+  text-align: center;
+  margin-bottom: clamp(32px, 5vh, 52px);
+}
+
+.rp-team-header h2 {
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: #0d2244;
+  margin: 0 0 12px;
+}
+
+.rp-team-sub {
+  font-size: 0.97rem;
+  line-height: 1.65;
+  color: #5c7199;
+  max-width: 54ch;
+  margin: 0 auto;
+}
+
+/* Two-column card grid */
+.rp-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+/* ── Profile card ──────────────────────────────────────────────────────────── */
+.rp-card {
+  background: #fff;
+  border: 1.5px solid #dce8f8;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px rgba(18, 59, 112, 0.07);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+.rp-card:hover {
+  box-shadow: 0 8px 32px rgba(18, 59, 112, 0.13);
+  transform: translateY(-3px);
+  border-color: #a8c8f0;
+}
+
+/* Top accent line by role */
+.rp-card--lead   { border-top: 3px solid #123B70; }
+.rp-card--partner { border-top: 3px solid #2196F3; }
+
+/* ── Portrait ── */
+.rp-portrait-wrap {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #e8f0f9;
+  position: relative;
+}
+
+.rp-portrait-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* student.png is a full-body plate — frame head/shoulders */
+  object-position: center 12%;
+  display: block;
+  transition: transform 0.35s ease;
+}
+.rp-card:hover .rp-portrait-img {
+  transform: scale(1.03);
+}
+
+/* student.png (partner) shows feet — keep head centred, don't crop it */
+.rp-card--partner .rp-portrait-img {
+  object-position: center 8%;
+}
+
+/* ── Card body ── */
+.rp-card-body {
+  padding: 24px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+
+/* Role label */
+.rp-role {
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin: 0 0 8px;
+}
+.rp-card--lead   .rp-role { color: #123B70; }
+.rp-card--partner .rp-role { color: #2196F3; }
+
+/* Name */
+.rp-name {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: #0d2244;
+  margin: 0 0 12px;
+  line-height: 1.25;
+}
+
+/* Bio */
+.rp-bio {
+  font-size: 0.91rem;
+  line-height: 1.65;
+  color: #4a627f;
+  margin: 0 0 20px;
+  flex: 1 1 auto;
+}
+
+/* Skill tags */
+.rp-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.rp-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.rp-card--lead   .rp-tag {
+  background: #e8eef9;
+  color: #123B70;
+  border: 1px solid #c5d5ed;
+}
+.rp-card--partner .rp-tag {
+  background: #e3f2fd;
+  color: #1565c0;
+  border: 1px solid #bbdefb;
+}
+
+/* ── Entrance animations ── */
+.rp-hero-inner > * { animation: hero-rise 580ms cubic-bezier(.22,1,.36,1) both; }
+.rp-eyebrow        { animation-delay: 40ms;  }
+.rp-hero h1        { animation-delay: 110ms; }
+.rp-lede           { animation-delay: 190ms; }
+.rp-location-badge { animation-delay: 260ms; }
+
+.rp-team-header    { animation: hero-rise 600ms cubic-bezier(.22,1,.36,1) 60ms both; }
+.rp-card:nth-child(1) { animation: hero-rise 600ms cubic-bezier(.22,1,.36,1) 140ms both; }
+.rp-card:nth-child(2) { animation: hero-rise 600ms cubic-bezier(.22,1,.36,1) 220ms both; }
+
+/* ── Responsive ── */
+@media (max-width: 767px) {
+  .rp-hero-inner { padding: 40px 20px 44px; }
+  .rp-grid { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .rp-card-body { padding: 20px 20px 24px; }
+  .rp-portrait-wrap { aspect-ratio: 3 / 2; }
+}
+
+@media (max-width: 479px) {
+  .rp-hero h1 { font-size: 1.75rem; }
+  .rp-team { padding: 36px 0 48px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rp-hero-inner > *,
+  .rp-team-header,
+  .rp-card { animation: none; }
+  .rp-portrait-img,
+  .rp-card { transition: none; }
+  .rp-hero::before { transition: none; }
 }

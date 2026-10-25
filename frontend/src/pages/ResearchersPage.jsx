@@ -8,18 +8,11 @@ import { dashboardPath } from '../utils/format'
 
 const SITE_YEAR = new Date().getFullYear()
 
-/* Research-flavoured backdrop for the hero band — bound thesis papers and
-   research manuscripts rather than the campus exterior, so the band reads as
-   scholarship before a word of the copy is read. Kept here (not in the
-   stylesheet) so the URL can be handed to the browser *after* first paint,
-   keeping the image off this route's critical path. */
+/* School-campus backdrop — fits the "research team" context without using
+   AI-generated thesis images. Loaded lazily after first paint. */
 const HERO_BG_URL =
-  'https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Cinematic%20wide%20photograph%20of%20a%20stack%20of%20bound%20thesis%20papers%20and%20research%20manuscripts%20on%20a%20desk%2C%20printed%20pages%20showing%20charts%2C%20tables%20and%20citations%2C%20spiral-bound%20research%20papers%2C%20warm%20directional%20light%2C%20shallow%20depth%20of%20field%2C%20scholarly%20atmosphere&image_size=landscape_16_9'
+  'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=1920&q=80'
 
-/* The two researchers behind TRACK, in the order they are credited. Each keeps
-   the KNHS student artwork already used elsewhere in the app — student2.webp
-   (the bust crop) for the developer, student.png (the full-body plate) for the
-   partner researcher. */
 const RESEARCHERS = [
   {
     photo: '/student2.webp',
@@ -41,15 +34,10 @@ const RESEARCHERS = [
 
 export default function ResearchersPage() {
   const { isAuthenticated, user } = useAuth()
-
   const signedIn = isAuthenticated && Boolean(user)
   const dashboardHref = signedIn ? dashboardPath(user.role) : '/login'
-
   const pageRef = useRef(null)
 
-  // Lazy-load the hero's campus backdrop: the band paints its flat navy first,
-  // the URL is handed over only after mount, and `bg-ready` fades the photo in
-  // once it has decoded — so it never sits on the route's critical path.
   useEffect(() => {
     const root = pageRef.current
     if (!root) return undefined
@@ -57,14 +45,9 @@ export default function ResearchersPage() {
     let cancelled = false
     const img = new Image()
     img.decoding = 'async'
-    img.onload = () => {
-      if (!cancelled) root.classList.add('bg-ready')
-    }
+    img.onload = () => { if (!cancelled) root.classList.add('bg-ready') }
     img.src = HERO_BG_URL
-    return () => {
-      cancelled = true
-      img.onload = null
-    }
+    return () => { cancelled = true; img.onload = null }
   }, [])
 
   return (
@@ -72,57 +55,73 @@ export default function ResearchersPage() {
       <PublicNav />
 
       <main className="res-main">
-        {/* ── Hero ──────────────────────────────────────────────── */}
-        <section className="res-hero" aria-labelledby="res-heading">
-          <div className="res-hero-inner">
-            <p className="res-eyebrow">Research Thesis Team</p>
-            <h1 id="res-heading">The researchers behind TRACK.</h1>
-            <p className="res-lede">
-              TRACK is a research thesis project for Kiwalan National High School, Iligan City —
-              researched and built by two students.
+
+        {/* ── Hero ── */}
+        <section className="rp-hero" aria-labelledby="rp-heading">
+          <div className="rp-hero-inner">
+            <p className="rp-eyebrow">Meet the Team</p>
+            <h1 id="rp-heading">The people behind TRACK.</h1>
+            <p className="rp-lede">
+              A student-led research project built to help KNHS monitor
+              requirements, attendance, and school communication.
             </p>
+            <div className="rp-location-badge" aria-label="Location">
+              <Icon name="mapPin" size={13} aria-hidden="true" />
+              KNHS · Iligan City, Philippines
+            </div>
           </div>
         </section>
 
-        {/* ── Team ──────────────────────────────────────────────── */}
-        <section className="res-team" aria-label="Researchers">
-          <div className="res-container">
-            <div className="res-team-grid">
+        {/* ── Researchers ── */}
+        <section className="rp-team" aria-labelledby="rp-team-heading">
+          <div className="rp-container">
+
+            <div className="rp-team-header">
+              <h2 id="rp-team-heading">Meet the researchers</h2>
+              <p className="rp-team-sub">
+                Two students from Kiwalan National High School who researched,
+                designed, and built TRACK from the ground up.
+              </p>
+            </div>
+
+            <div className="rp-grid">
               {RESEARCHERS.map((person) => (
-                <article className={`res-card res-card--${person.tone}`} key={person.name}>
-                  <div className="res-portrait">
-                    <span className="res-portrait-glow" aria-hidden="true" />
+                <article
+                  className={`rp-card rp-card--${person.tone}`}
+                  key={person.name}
+                >
+                  {/* Portrait */}
+                  <div className="rp-portrait-wrap">
                     <img
                       src={person.photo}
                       alt={`Portrait of ${person.name}`}
-                      className="res-portrait-img"
+                      className="rp-portrait-img"
                       loading="lazy"
                       decoding="async"
                     />
                   </div>
-                  <div className="res-card-body">
-                    <p className="res-role">{person.role}</p>
-                    <h2 className="res-name">{person.name}</h2>
-                    <p className="res-bio">{person.bio}</p>
-                    <ul className="res-focus">
+
+                  {/* Body */}
+                  <div className="rp-card-body">
+                    <p className="rp-role">{person.role}</p>
+                    <h3 className="rp-name">{person.name}</h3>
+                    <p className="rp-bio">{person.bio}</p>
+                    <ul className="rp-tags" aria-label="Skills">
                       {person.focus.map((item) => (
-                        <li key={item}>
-                          <span className="res-mark" aria-hidden="true">
-                            <Icon name="check" size={11} />
-                          </span>
-                          {item}
-                        </li>
+                        <li key={item} className="rp-tag">{item}</li>
                       ))}
                     </ul>
                   </div>
                 </article>
               ))}
             </div>
+
           </div>
         </section>
+
       </main>
 
-      {/* ── Footer ────────────────────────────────────────────────── */}
+      {/* ── Footer ── */}
       <footer className="landing-foot">
         <div className="landing-foot-inner">
           <div className="foot-brand">
@@ -134,13 +133,9 @@ export default function ResearchersPage() {
               Tracking Requirements, Attendance &amp; Communication for
               Kiwalan National High School.
             </p>
-            <p className="foot-dept">
-              Purok 10 Mato-og, Kiwalan, Iligan City, Philippines
-            </p>
+            <p className="foot-dept">Purok 10 Mato-og, Kiwalan, Iligan City, Philippines</p>
           </div>
 
-          {/* Site — mirrors the landing footer, with the section links routed
-              back through "/" so they scroll the landing page. */}
           <nav className="foot-col" aria-label="Site sections">
             <p className="foot-col-title">Site</p>
             <Link to="/">Home</Link>
@@ -151,7 +146,6 @@ export default function ResearchersPage() {
             <Link to="/#faq">FAQ</Link>
           </nav>
 
-          {/* Account */}
           <nav className="foot-col" aria-label="Account links">
             <p className="foot-col-title">Account</p>
             <Link to={dashboardHref}>{signedIn ? 'Open dashboard' : 'Sign in to TRACK'}</Link>
@@ -159,9 +153,8 @@ export default function ResearchersPage() {
             <Link to="/#security">Data &amp; Privacy</Link>
           </nav>
 
-          {/* About us column — matching the eGovPH footer structure */}
           <nav className="foot-col" aria-label="About us links">
-            <p className="foot-col-title">ABOUT US</p>
+            <p className="foot-col-title">About Us</p>
             <Link to="/about">About TRACK</Link>
             <Link to="/location">Location</Link>
             <Link to="/researchers">Researchers</Link>
