@@ -1019,16 +1019,16 @@
      washes to maintain text contrast while letting the architecture shine. */
   background:
     linear-gradient(180deg,
-      rgba(10,34,77,0.92) 0%,
-      rgba(10,34,77,0.82) 35%,
-      rgba(10,34,77,0.48) 75%,
-      rgba(10,34,77,0.24) 100%),
-    linear-gradient(90deg,
       rgba(10,34,77,0.82) 0%,
-      rgba(10,34,77,0.42) 65%,
-      rgba(10,34,77,0.18) 100%),
-    radial-gradient(120% 80% at 12% 92%, rgba(37, 99, 235, 0.12) 0%, transparent 62%),
-    url("https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Cinematic%20architectural%20photograph%20of%20Kiwalan%20National%20High%20School%2C%20Philippines.%20Two-storey%20concrete%20classroom%20building%2C%20white%20and%20green%20paint%2C%20wide%20open%20walkway%20with%20no%20roof%20or%20canopy%2C%20lush%20tropical%20greenery%20and%20palm%20trees%2C%20golden%20hour%20lighting%20with%20deep%20shadows%2C%20cinematic%20atmosphere%2C%20professional%20photography%2C%208k&image_size=portrait_16_9")
+      rgba(10,34,77,0.62) 35%,
+      rgba(10,34,77,0.28) 75%,
+      rgba(10,34,77,0.12) 100%),
+    linear-gradient(90deg,
+      rgba(10,34,77,0.72) 0%,
+      rgba(10,34,77,0.32) 65%,
+      rgba(10,34,77,0.08) 100%),
+    radial-gradient(120% 80% at 12% 92%, rgba(37, 99, 235, 0.08) 0%, transparent 62%),
+    url("https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Bright%20cinematic%20architectural%20photograph%20of%20a%20modern%20Philippine%20high%20school%20campus%20with%20white%20concrete%20buildings%2C%20green%20accents%2C%20tropical%20palm%20trees%2C%20blue%20sky%2C%20bright%20daylight%2C%20professional%20photography&image_size=portrait_16_9")
       center 28% / cover no-repeat,
     #0a224d;
   color: #fff;
