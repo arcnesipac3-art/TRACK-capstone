@@ -1245,18 +1245,18 @@
 
 .auth-input-wrap .auth-input-icon {
   position: absolute;
-  left: 18px;
+  left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  color: #7b8caa;
+  color: #8a99b3;
   pointer-events: none;
   display: flex;
   align-items: center;
   z-index: 1;
 }
-.auth-input-icon svg { width: 26px; height: 26px; }
+.auth-input-icon svg { width: 16px; height: 16px; }
 
-.auth-input-wrap .input { padding-left: 64px; }
+.auth-input-wrap .input { padding-left: 40px; }
 
 /* All form inputs */
 .auth-form .input {
