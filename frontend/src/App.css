@@ -5595,14 +5595,14 @@
   transform: scale(1.03);
 }
 
-/* student.png (partner) shows feet — keep head centred, don't crop it */
-.rp-card--partner .rp-portrait-img {
-  object-position: center 8%;
+/* student2.webp (lead) — anchor to top so face is fully visible */
+.rp-card--lead .rp-portrait-img {
+  object-position: center 0%;
 }
 
-/* student2.webp (lead) — shift up slightly to show uniform/chest */
-.rp-card--lead .rp-portrait-img {
-  object-position: center 15%;
+/* student.png (partner) — shift down slightly to show uniform/chest */
+.rp-card--partner .rp-portrait-img {
+  object-position: center 20%;
 }
 
 /* ── Card body ── */
