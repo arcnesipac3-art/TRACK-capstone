@@ -9,6 +9,46 @@ import { dashboardPath } from '../utils/format'
 const SITE_YEAR = new Date().getFullYear()
 const REVEAL_SETTLE_MS = 600
 
+/* ── Animated counter hook ────────────────────────────────────────────────── */
+function StatCounter({ value, label, sublabel }) {
+  const [count, setCount] = useState(0)
+  const [fired, setFired] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el || fired) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return
+        setFired(true)
+        observer.disconnect()
+        const duration = 900
+        const start = performance.now()
+        function tick(now) {
+          const p = Math.min((now - start) / duration, 1)
+          const eased = 1 - Math.pow(1 - p, 3)
+          setCount(Math.round(eased * value))
+          if (p < 1) requestAnimationFrame(tick)
+        }
+        requestAnimationFrame(tick)
+      },
+      { threshold: 0.5 },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [fired, value])
+
+  return (
+    <div className="hero-stat" ref={ref}>
+      <div className="hero-stat-value">
+        {count} <span className="hero-stat-word">{label}</span>
+      </div>
+      <div className="hero-stat-label" style={{ whiteSpace: 'pre-line' }}>{sublabel}</div>
+    </div>
+  )
+}
+
 /* Campus backdrop for the hero. Kept here (not in the stylesheet) so the URL
    can be handed to the browser *after* first paint — a CSS background would be
    fetched the moment the stylesheet is parsed, competing with the app bundle
@@ -256,6 +296,9 @@ export default function LandingPage() {
   const { isAuthenticated, user } = useAuth()
   const rootRef = useRef(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [activeSection, setActiveSection] = useState('')
+  const [activeRole, setActiveRole] = useState(null)
+  const [expandedFeature, setExpandedFeature] = useState(null)
 
   const signedIn = isAuthenticated && Boolean(user)
   const dashboardHref = signedIn ? dashboardPath(user.role) : '/login'
@@ -286,7 +329,13 @@ export default function LandingPage() {
       const anchor = e.target.closest('a[href^="#"]')
       if (!anchor) return
       const id = anchor.getAttribute('href').slice(1)
-      if (!id) return
+      // Empty id means href="#" — smooth-scroll to the very top
+      if (!id) {
+        e.preventDefault()
+        container.scrollTo({ top: 0, behavior: 'smooth' })
+        setMobileMenuOpen(false)
+        return
+      }
       const target = document.getElementById(id)
       if (!target) return
       e.preventDefault()
@@ -300,6 +349,26 @@ export default function LandingPage() {
 
     container.addEventListener('click', handleAnchorClick)
     return () => container.removeEventListener('click', handleAnchorClick)
+  }, [])
+
+  // Scroll-spy: track which section is currently in view and highlight nav
+  useEffect(() => {
+    const container = rootRef.current
+    if (!container || typeof IntersectionObserver === 'undefined') return undefined
+    const SECTIONS = ['problem', 'features', 'how-it-works', 'roles', 'security', 'faq']
+    const els = SECTIONS.map((id) => document.getElementById(id)).filter(Boolean)
+    if (!els.length) return undefined
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) setActiveSection(entry.target.id)
+        })
+      },
+      { root: container, threshold: 0.3, rootMargin: '-10% 0px -55% 0px' },
+    )
+    els.forEach((el) => observer.observe(el))
+    return () => observer.disconnect()
   }, [])
 
   useEffect(() => {
@@ -365,12 +434,12 @@ export default function LandingPage() {
           <Logo size="sm" />
         </div>
         <nav className="landing-nav-links" aria-label="Landing sections">
-          <a href="#">Home</a>
-          <a href="#problem">The Problem</a>
-          <a href="#features">Features</a>
-          <a href="#how-it-works">How It Works</a>
-          <a href="#roles">Roles</a>
-          <a href="#faq">FAQ</a>
+          <a href="#" className={!activeSection ? 'nav-active' : ''}>Home</a>
+          <a href="#problem" className={activeSection === 'problem' ? 'nav-active' : ''}>The Problem</a>
+          <a href="#features" className={activeSection === 'features' ? 'nav-active' : ''}>Features</a>
+          <a href="#how-it-works" className={activeSection === 'how-it-works' ? 'nav-active' : ''}>How It Works</a>
+          <a href="#roles" className={activeSection === 'roles' ? 'nav-active' : ''}>Roles</a>
+          <a href="#faq" className={activeSection === 'faq' ? 'nav-active' : ''}>FAQ</a>
           <Link to="/location">Find Us</Link>
         </nav>
         <Link className="btn btn-primary" to={dashboardHref} style={{ flexShrink: 0 }}>
@@ -460,20 +529,11 @@ export default function LandingPage() {
               <p className="hero-note">Accounts are issued by the school registrar.</p>
 
               <div className="hero-stats">
-                <div className="hero-stat">
-                  <div className="hero-stat-value">4 <span className="hero-stat-word">Roles</span></div>
-                  <div className="hero-stat-label">ADMINS · TEACHERS<br />STUDENTS · PARENTS</div>
-                </div>
+                <StatCounter value={4} label="Roles" sublabel={'ADMINS · TEACHERS\nSTUDENTS · PARENTS'} />
                 <div className="hero-stat-sep" aria-hidden="true" />
-                <div className="hero-stat">
-                  <div className="hero-stat-value">8 <span className="hero-stat-word">Features</span></div>
-                  <div className="hero-stat-label">REQUIREMENTS,<br />ATTENDANCE, FEES &amp; MORE</div>
-                </div>
+                <StatCounter value={8} label="Features" sublabel={'REQUIREMENTS,\nATTENDANCE, FEES & MORE'} />
                 <div className="hero-stat-sep" aria-hidden="true" />
-                <div className="hero-stat">
-                  <div className="hero-stat-value">1 <span className="hero-stat-word">Portal</span></div>
-                  <div className="hero-stat-label">EVERYTHING IN ONE PLACE</div>
-                </div>
+                <StatCounter value={1} label="Portal" sublabel="EVERYTHING IN ONE PLACE" />
               </div>
             </div>
 
@@ -606,15 +666,29 @@ export default function LandingPage() {
               </p>
             </div>
             <div className="feature-grid">
-              {FEATURES.map((feature) => (
-                <article className="feature-card" key={feature.title}>
-                  <span className="fc-icon" aria-hidden="true">
-                    <Icon name={feature.icon} size={22} />
-                  </span>
-                  <h3>{feature.title}</h3>
-                  <p>{feature.body}</p>
-                </article>
-              ))}
+              {FEATURES.map((feature) => {
+                const isExpanded = expandedFeature === feature.title
+                return (
+                  <article
+                    className={`feature-card${isExpanded ? ' feature-card--expanded' : ''}`}
+                    key={feature.title}
+                    onClick={() => setExpandedFeature((prev) => prev === feature.title ? null : feature.title)}
+                    style={{ cursor: 'pointer' }}
+                    aria-expanded={isExpanded}
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedFeature((prev) => prev === feature.title ? null : feature.title) } }}
+                  >
+                    <span className="fc-icon" aria-hidden="true">
+                      <Icon name={feature.icon} size={22} />
+                    </span>
+                    <h3>{feature.title}</h3>
+                    <p>{feature.body}</p>
+                    <span className="fc-expand-hint" aria-hidden="true">
+                      <Icon name={isExpanded ? 'chevronDown' : 'chevronRight'} size={14} />
+                    </span>
+                  </article>
+                )
+              })}
             </div>
           </div>
         </section>
@@ -660,7 +734,15 @@ export default function LandingPage() {
           </p>
           <div className="role-grid">
             {ROLES.map((role) => (
-              <article className="role-card" key={role.title}>
+              <article
+                className={`role-card${activeRole === role.title ? ' role-card--active' : ''}`}
+                key={role.title}
+                onClick={() => setActiveRole((prev) => prev === role.title ? null : role.title)}
+                style={{ cursor: 'pointer' }}
+                aria-pressed={activeRole === role.title}
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveRole((prev) => prev === role.title ? null : role.title) } }}
+              >
                 <span className="rc-icon" aria-hidden="true">
                   <Icon name={role.icon} size={18} />
                 </span>

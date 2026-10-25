@@ -1647,6 +1647,13 @@
   border-radius: 6px;
 }
 
+/* Active section highlight from scroll-spy */
+.landing-nav-links a.nav-active {
+  color: #155DFC;
+  background: #EEF3FF;
+  font-weight: 600;
+}
+
 /* CTA button — solid blue pill */
 .landing-nav > .btn.btn-primary {
   flex-shrink: 0;
@@ -1693,6 +1700,11 @@
    never mounts, but guard it in CSS too. */
 @media (min-width: 768px) {
   .mob-nav { display: none !important; }
+}
+/* res-nav pages hide their links at 1023px, so allow mob-nav up to 1023px
+   when it is rendered by a res-nav page (detected via sibling .res-nav). */
+@media (min-width: 1024px) {
+  .res-page .mob-nav { display: none !important; }
 }
 
 /* The panel mounts with JS (conditional render), so no .open toggle needed.
@@ -2800,6 +2812,31 @@
   filter: brightness(0.95) saturate(1.1);
 }
 
+/* Click-to-expand state */
+.feature-card--expanded {
+  border-color: #A5BEFF;
+  box-shadow: 0 8px 28px rgba(21, 93, 252, 0.14);
+  transform: translateY(-3px);
+  background: #F8FAFF;
+}
+.feature-card--expanded .fc-icon {
+  filter: brightness(0.95) saturate(1.2);
+}
+
+/* Expand hint chevron in bottom-right */
+.fc-expand-hint {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 12px;
+  color: #9CAECF;
+  transition: color 0.15s ease, transform 0.2s ease;
+}
+.feature-card:hover .fc-expand-hint,
+.feature-card--expanded .fc-expand-hint {
+  color: #155DFC;
+}
+
 .feature-card h3 {
   font-size: 0.97rem;
   font-weight: 700;
@@ -3141,6 +3178,20 @@
   transform: translateY(-4px);
   box-shadow: var(--shadow-lg);
 }
+
+/* Click-to-select active state */
+.role-card--active {
+  border-top-color: #155DFC;
+  border-color: #A5BEFF;
+  background: #F0F4FF;
+  box-shadow: 0 4px 20px rgba(21, 93, 252, 0.15);
+  transform: translateY(-4px);
+}
+.role-card--active .rc-icon {
+  background: linear-gradient(135deg, #155DFC, #1148D4);
+  box-shadow: 0 4px 12px rgba(21, 93, 252, 0.4);
+}
+.role-card--active h3 { color: #155DFC; }
 .role-card .rc-icon {
   width: 40px;
   height: 40px;
@@ -5149,6 +5200,7 @@
      aside and the CTA takes the right edge. */
   .res-nav-links { display: none; }
   .res-nav > .btn { margin-left: auto; }
+  .res-nav .landing-nav-menu-btn { display: flex; }
   .res-team-grid { grid-template-columns: minmax(0, 1fr); }
   .res-grid { grid-template-columns: 1fr; gap: 48px; }
 }
