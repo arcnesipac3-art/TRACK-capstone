@@ -998,12 +998,12 @@
      46.5vw, comfortably inside the 52vw aside. Because the upper bound is
      relative, the portrait keeps growing on large displays instead of freezing
      at a fixed pixel height. */
-  --student-h: clamp(228px, 50vh, 53vw);
+  --student-h: clamp(228px, 55vh, 53vw);
   /* Sink the whole composition (figure and both glows) past the aside's bottom
      edge, so the aside's overflow clip hides the bottom of the artwork — the
      legless lower body never shows. A share of --student-h, so exactly the same
      amount is hidden at every viewport. */
-  --student-drop: calc(var(--student-h) * -0.05);
+  --student-drop: calc(var(--student-h) * -0.02);
   /* Campus backdrop — the school photograph sits under navy washes that stay
      dense over the brand row, tagline and role cards, then clear toward the
      bottom where the student stands. Flat navy fallback shows while loading. */
