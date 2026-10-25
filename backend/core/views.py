@@ -217,7 +217,11 @@ class TokenLoginView(APIView):
             action="auth.login",
             target_model="User",
             target_id=str(user.pk),
-            description=f"{user.get_full_name()} signed in (mobile).",
+            description=(
+                f"{user.get_full_name()} signed in."
+                if request.headers.get("X-Client-Type") == "web"
+                else f"{user.get_full_name()} signed in (mobile)."
+            ),
             ip_address=_client_ip(request),
         )
         return Response({

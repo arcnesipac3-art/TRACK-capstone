@@ -86,8 +86,8 @@ function messageFrom(body, fallback) {
   return parts.length ? parts.join(' ') : fallback
 }
 
-async function request(path, { method = 'GET', body, params, signal } = {}) {
-  const headers = { Accept: 'application/json' }
+async function request(path, { method = 'GET', body, params, signal, headers: extraHeaders } = {}) {
+  const headers = { Accept: 'application/json', ...extraHeaders }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
 
   const token = getStoredToken()
@@ -166,6 +166,7 @@ export const api = {
     const data = await request('/auth/token/', {
       method: 'POST',
       body: { username, password },
+      headers: { 'X-Client-Type': 'web' },
     })
     setStoredToken(data.token)
     return data
