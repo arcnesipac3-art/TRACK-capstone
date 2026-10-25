@@ -990,8 +990,13 @@
   /* Single scale control for the bottom-right composition (the student figure
      and both glows behind it). Anything expressed as a multiple of this stays
      locked to the artwork at every viewport size, so the figure never drifts
-     off the seam or out of the halo as the window changes. */
-  --student-h: clamp(300px, 66vh, 560px);
+     off the seam or out of the halo as the window changes. Height drives the
+     size; the 70vw ceiling stops the frame from outgrowing the aside on tall
+     windows — the figure is 2/3 of this tall while the aside is 52vw wide, so
+     70vw caps it at 46.7vw and it can never reach the seam. Because the upper
+     bound is relative, the portrait keeps growing on large displays instead of
+     freezing at a fixed pixel height. */
+  --student-h: clamp(300px, 66vh, 70vw);
   --student-crop: 31%;
   /* Campus backdrop — the school photograph sits under navy washes that stay
      dense over the brand row, tagline and role cards, then clear toward the
