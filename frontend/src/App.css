@@ -990,14 +990,20 @@
   /* Single scale control for the bottom-right composition (the student figure
      and both glows behind it). Anything expressed as a multiple of this stays
      locked to the artwork at every viewport size, so the figure never drifts
-     off the seam or out of the halo as the window changes. Height drives the
-     size; the 70vw ceiling stops the frame from outgrowing the aside on tall
-     windows — the figure is 2/3 of this tall while the aside is 52vw wide, so
-     70vw caps it at 46.7vw and it can never reach the seam. Because the upper
-     bound is relative, the portrait keeps growing on large displays instead of
-     freezing at a fixed pixel height. */
-  --student-h: clamp(300px, 66vh, 70vw);
-  --student-crop: 31%;
+     out of the halo as the window changes. Height drives the size. The frame is
+     50/57 as wide as it is tall, so the height is scaled to keep the figure at
+     the same rendered scale as the full-length artwork it was cropped from — a
+     shorter box showing the same figure at the same size. The 53vw ceiling
+     stops the frame from outgrowing the aside on tall windows: 0.877 × 53vw =
+     46.5vw, comfortably inside the 52vw aside. Because the upper bound is
+     relative, the portrait keeps growing on large displays instead of freezing
+     at a fixed pixel height. */
+  --student-h: clamp(228px, 50vh, 53vw);
+  /* Sink the whole composition (figure and both glows) past the aside's bottom
+     edge, so the aside's overflow clip hides the bottom of the artwork — the
+     legless lower body never shows. A share of --student-h, so exactly the same
+     amount is hidden at every viewport. */
+  --student-drop: calc(var(--student-h) * -0.15);
   /* Campus backdrop — the school photograph sits under navy washes that stay
      dense over the brand row, tagline and role cards, then clear toward the
      bottom where the student stands. Flat navy fallback shows while loading. */
@@ -1040,7 +1046,7 @@
   content: "";
   position: absolute;
   right: calc(var(--student-h) * -0.18);
-  bottom: calc(var(--student-h) * -0.18);
+  bottom: calc(var(--student-h) * -0.18 + var(--student-drop));
   width: calc(var(--student-h) * 0.97);
   height: calc(var(--student-h) * 0.97);
   /* Multi-layer: outer glow + inner bright ring */
@@ -1058,7 +1064,7 @@
 .aside-student-glow {
   position: absolute;
   right: calc(var(--student-h) * -0.21);
-  bottom: calc(var(--student-h) * 0.14);
+  bottom: calc(var(--student-h) * 0.14 + var(--student-drop));
   width: calc(var(--student-h) * 0.66);
   height: calc(var(--student-h) * 0.66);
   background: radial-gradient(circle, rgba(59,130,246,0.28) 0%, rgba(37,99,235,0.14) 40%, transparent 68%);
@@ -1177,12 +1183,14 @@
 .aside-student-img {
   position: absolute;
   /* Right edge sits exactly on the aside/panel border. The frame is sized from
-     the artwork's own 2:3 aspect ratio rather than a width clamp, so the crop
+     the artwork's own 50:57 aspect ratio rather than a width clamp, so the crop
      applied to the PNG below stays the same proportion at every viewport. */
   right: 0;
-  bottom: 0;
+  /* Sunk below the aside's bottom edge, so the overflow clip cuts the figure
+     above the legless lower body instead of showing it. */
+  bottom: var(--student-drop);
   height: var(--student-h);
-  aspect-ratio: 2 / 3;
+  aspect-ratio: 50 / 57;
   z-index: 10;
   pointer-events: none;
   user-select: none;
@@ -1195,13 +1203,6 @@
   max-width: none;
   object-fit: contain;
   object-position: bottom right;
-  /* The artwork is a full-bleed portrait with the figure centred in the frame
-     (subject centroid ≈51% across). Sliding the whole frame right by a fixed
-     share of its own width tucks the empty right margin behind the seam, which
-     brings the figure to the edge — by the same amount at every size, because
-     the shift is a percentage of the frame and not a mix of viewport width and
-     viewport height. The aside's own overflow clip trims the overhang. */
-  transform: translateX(var(--student-crop));
 }
 
 /* Location footer */
