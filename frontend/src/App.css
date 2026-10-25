@@ -2286,9 +2286,9 @@
   will-change: transform, filter;
 }
 
-/* Student image hover — lift + brightness + blue glow from below */
+/* Student image hover — GPU-only: lift + scale + subtle brightness (no drop-shadow) */
 .hero-visual:hover .hero-student-img {
-  filter: brightness(1.07) drop-shadow(0 28px 44px rgba(37,99,235,0.45)) drop-shadow(0 6px 12px rgba(37,99,235,0.28));
+  filter: brightness(1.08);
   transform: translateX(-50%) translateY(-10px) scale(1.03);
 }
 
