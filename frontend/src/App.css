@@ -1273,7 +1273,7 @@
 .password-wrap .auth-input-icon svg { width: 16px; height: 16px; }
 
 /* Left padding = icon(16px) + left offset(12px) + gap(10px) = 38px */
-.auth-input-wrap .input { padding-left: 38px; }
+/* These must come AFTER .auth-form .input to win the cascade */
 
 /* Password wrapper — icon left, eye toggle right */
 .password-wrap {
@@ -1281,8 +1281,6 @@
   display: flex;
   align-items: center;
 }
-/* icon left + eye right */
-.password-wrap .input { padding-left: 38px; padding-right: 44px; }
 
 /* All form inputs — consistent height, size, radius */
 .auth-form .input {
@@ -1306,6 +1304,10 @@
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.13);
 }
 .auth-form .input[aria-invalid="true"] { border-color: var(--red-700); }
+
+/* Icon padding overrides — MUST come after .auth-form .input to win cascade */
+.auth-input-wrap .input { padding-left: 40px; }
+.password-wrap .input  { padding-left: 40px; padding-right: 44px; }
 
 /* Sign In button — same width as inputs, sits directly below last field */
 .auth-form .btn-primary {
