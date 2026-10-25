@@ -3460,8 +3460,8 @@
   max-width: 1120px;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
-  gap: 40px 64px;
+  grid-template-columns: minmax(0, 1.7fr) repeat(3, minmax(0, 1fr));
+  gap: 40px 48px;
   align-items: start;
   padding-bottom: 56px;
 }
@@ -4566,4 +4566,461 @@
   color: var(--navy-900);
   font-weight: 650;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+/* ---------------------------------------------------------------------------
+ * Researchers (public page)
+ * ------------------------------------------------------------------------- */
+.res-page {
+  min-height: 100vh;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  /* Own scroll container, like .landing — the nav is position:sticky. */
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.res-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: 56px;
+  padding: 0 clamp(24px, 4.4vw, 68px);
+  background: #fff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  box-shadow: 0 1px 8px rgba(15, 32, 68, 0.06);
+}
+
+.res-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  text-decoration: none;
+}
+.res-nav-seal {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.res-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.res-nav-links a {
+  padding: 8px 14px;
+  border-radius: 6px;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.res-nav-links a:hover { background: #f3f4f6; color: #111827; text-decoration: none; }
+
+/* CTA button — the same solid blue pill the landing nav uses, so the two
+   headers read as one. */
+.res-nav > .btn.btn-primary {
+  flex-shrink: 0;
+  background: #155DFC;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 26px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  text-decoration: none;
+}
+
+.res-nav > .btn.btn-primary:hover {
+  background: #1148d4;
+  box-shadow: 0 4px 12px rgba(21, 93, 252, 0.3);
+}
+
+.res-main {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Hero — cinematic navy band, same family as the landing hero --- */
+.res-hero {
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+  background-color: #041631;
+  color: #fff;
+  /* Clips the portrait so it can sit flush on the band's bottom edge. */
+  overflow: clip;
+}
+/* Campus photo, applied from JS after first paint and faded in once decoded.
+   It sits *under* the washes below, so the copy keeps its contrast whether or
+   not the image has arrived. */
+.res-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--res-hero-bg, none);
+  background-position: center 42%;
+  background-size: cover;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 900ms ease;
+}
+.res-page.bg-ready .res-hero::before { opacity: 1; }
+
+/* Navy washes + blue glows, layered above the photo but below the content,
+   mirroring the landing hero's ::after so both pages read as one family. */
+.res-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg,
+      rgba(4, 22, 49, 0.34) 0%,
+      rgba(4, 22, 49, 0.52) 52%,
+      rgba(4, 22, 49, 0.92) 100%),
+    linear-gradient(90deg,
+      #041631 0%,
+      rgba(4, 22, 49, 0.92) 42%,
+      rgba(4, 22, 49, 0.58) 68%,
+      rgba(4, 22, 49, 0.30) 100%),
+    radial-gradient(88% 120% at 88% -12%, rgba(15, 95, 205, 0.46) 0%, rgba(15, 95, 205, 0.20) 48%, transparent 76%),
+    radial-gradient(62% 60% at 8% 112%, rgba(15, 100, 210, 0.30) 0%, transparent 72%);
+}
+
+.res-hero-inner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: clamp(56px, 10vh, 104px) clamp(24px, 5vw, 72px);
+}
+
+.res-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7fb0ff;
+}
+.res-hero h1 {
+  margin-top: 14px;
+  max-width: 22ch;
+  font-size: clamp(1.9rem, 4.4vw, 3rem);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  color: #fff;
+}
+.res-lede {
+  margin-top: 16px;
+  max-width: 62ch;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: #b9c9e6;
+}
+
+/* --- Researcher cards --- */
+.res-team {
+  flex: 1 0 auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  padding: 52px clamp(24px, 5vw, 88px) 72px;
+  background: var(--surface);
+}
+
+/* --- Content Sections --- */
+.res-main {
+  flex: 1 0 auto;
+  background: var(--surface);
+}
+
+.res-content-section {
+  padding: 80px 0;
+  background: var(--surface);
+}
+
+.res-container {
+  max-width: 1140px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.res-container--narrow {
+  max-width: 800px;
+}
+
+.res-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 64px;
+  align-items: start;
+}
+
+.res-text-block h2 {
+  font-size: 1.8rem;
+  font-weight: 750;
+  color: var(--navy-800);
+  margin-bottom: 24px;
+}
+
+.res-text-block p {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--text-muted);
+  margin-bottom: 20px;
+}
+
+.res-feature-list h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--navy-800);
+  margin-bottom: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.res-feature-list ul {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.res-feature-list li {
+  display: flex;
+  gap: 16px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.res-feature-list li strong {
+  display: block;
+  color: var(--navy-800);
+  margin-bottom: 4px;
+}
+
+/* Legal text styling */
+.res-legal-text {
+  color: var(--text-main);
+}
+
+.res-updated {
+  font-size: 0.85rem;
+  color: var(--text-subtle);
+  margin-bottom: 48px;
+  font-weight: 600;
+}
+
+.res-legal-text h2 {
+  font-size: 1.4rem;
+  font-weight: 750;
+  color: var(--navy-800);
+  margin: 48px 0 20px;
+}
+
+.res-legal-text p {
+  font-size: 1rem;
+  line-height: 1.8;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+}
+
+.res-legal-text ul {
+  padding-left: 20px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.res-legal-text li {
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.res-card {
+  --res-accent: var(--navy-600);
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 26px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--res-accent);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease;
+}
+.res-card:hover { box-shadow: var(--shadow); }
+.res-card--partner { --res-accent: var(--cyan-700); }
+
+/* Cinematic portrait panel — the student artwork lit by a navy backdrop, with
+   the lower edge melting into the panel instead of ending on a hard cut. */
+.res-portrait {
+  position: relative;
+  flex: 0 0 auto;
+  width: 132px;
+  aspect-ratio: 4 / 5;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: linear-gradient(170deg, var(--navy-700) 0%, var(--navy-900) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.10);
+}
+.res-card--partner .res-portrait {
+  background: linear-gradient(170deg, var(--cyan-700) 0%, #0b4f63 100%);
+}
+
+.res-portrait-glow {
+  position: absolute;
+  left: 50%;
+  bottom: -12%;
+  transform: translateX(-50%);
+  width: 150%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle,
+    rgba(37, 99, 235, 0.55) 0%,
+    rgba(37, 99, 235, 0.18) 48%,
+    transparent 72%);
+}
+
+/* student.png is a full-body plate, so pull the crop up to the head and
+   shoulders; student2.webp is already a bust and sits the same way. */
+.res-portrait-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 8%;
+  -webkit-mask-image: linear-gradient(180deg, #000 76%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 76%, transparent 100%);
+}
+
+.res-card-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.res-role {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--res-accent);
+}
+.res-name {
+  margin-top: 6px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.res-bio {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.res-focus {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-top: 16px;
+}
+.res-focus li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-alt);
+  font-size: 0.78rem;
+  font-weight: 550;
+  color: var(--text-muted);
+}
+.res-mark { display: inline-flex; color: var(--res-accent); }
+
+/* Staggered entrance, matching the landing/login intro sequences.
+   Reuses hero-rise; only opacity and transform are touched. */
+.res-eyebrow { animation: hero-rise 560ms cubic-bezier(.22, 1, .36, 1) 40ms both; }
+.res-hero h1 { animation: hero-rise 620ms cubic-bezier(.22, 1, .36, 1) 120ms both; }
+.res-lede { animation: hero-rise 620ms cubic-bezier(.22, 1, .36, 1) 210ms both; }
+.res-card:nth-child(1) { animation: hero-rise 620ms cubic-bezier(.22, 1, .36, 1) 260ms both; }
+.res-card:nth-child(2) { animation: hero-rise 620ms cubic-bezier(.22, 1, .36, 1) 340ms both; }
+
+/* Legal and About content animations */
+.res-text-block, .res-legal-text {
+  animation: hero-rise 700ms cubic-bezier(.22, 1, .36, 1) 380ms both;
+}
+
+.res-feature-list {
+  animation: hero-rise 700ms cubic-bezier(.22, 1, .36, 1) 460ms both;
+}
+
+/* --- Researchers — responsive --- */
+@media (max-width: 1023px) {
+  /* Six nav links plus the brand and CTA no longer fit, so the links step
+     aside and the CTA takes the right edge. */
+  .res-nav-links { display: none; }
+  .res-nav > .btn { margin-left: auto; }
+  .res-team { grid-template-columns: minmax(0, 1fr); }
+  .res-grid { grid-template-columns: 1fr; gap: 48px; }
+}
+
+@media (max-width: 767px) {
+  .res-nav { padding: 0 16px; }
+  .res-hero-inner { padding: 48px 20px 52px; }
+  .res-team { padding: 36px 20px 56px; }
+  .res-card { gap: 14px; padding: 20px 16px; }
+  .res-portrait { width: 104px; }
+  .res-content-section { padding: 56px 0; }
+  .res-container { padding: 0 20px; }
+  .res-text-block h2 { font-size: 1.5rem; margin-bottom: 20px; }
+  .res-legal-text h2 { font-size: 1.25rem; margin-top: 36px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .res-eyebrow,
+  .res-hero h1,
+  .res-lede,
+  .res-card,
+  .res-text-block,
+  .res-legal-text,
+  .res-feature-list { animation: none; }
+  /* The backdrop still arrives, it just doesn't fade. */
+  .res-hero::before { transition: none; }
 }

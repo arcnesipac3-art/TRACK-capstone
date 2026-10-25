@@ -7,7 +7,11 @@ import RoleBasedRedirect from './components/RoleBasedRedirect'
 import AppLayout from './components/layout/AppLayout'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
+import AboutPage from './pages/AboutPage'
+import TermsPage from './pages/TermsPage'
+import PrivacyPage from './pages/PrivacyPage'
 import NotFoundPage from './pages/NotFoundPage'
+import ResearchersPage from './pages/ResearchersPage'
 import UnauthorizedPage from './pages/UnauthorizedPage'
 
 // Public screens stay eager (first paint, no round-trip). Everything behind
@@ -61,7 +65,13 @@ export default function App() {
   // active gives the route fade (index.css) a dark backdrop to sit on. The
   // layout effect applies it before the new page's first paint, and it is
   // cleared on every other route so in-app navigation is untouched.
-  const isPublicRoute = pathname === '/' || pathname === '/login'
+  const isPublicRoute =
+    pathname === '/' ||
+    pathname === '/login' ||
+    pathname === '/researchers' ||
+    pathname === '/about' ||
+    pathname === '/terms' ||
+    pathname === '/privacy'
   useLayoutEffect(() => {
     document.body.classList.toggle('route-fade-stage', isPublicRoute)
   }, [isPublicRoute])
@@ -71,6 +81,10 @@ export default function App() {
       {/* ── Public ─────────────────────────────────────────────────── */}
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/researchers" element={<ResearchersPage />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
       {/* ── Authenticated application shell ────────────────────────── */}

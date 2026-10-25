@@ -655,7 +655,8 @@ body.route-fade-stage {
   background: var(--navy-900);
 }
 body.route-fade-stage .landing,
-body.route-fade-stage .auth-layout {
+body.route-fade-stage .auth-layout,
+body.route-fade-stage .res-page {
   animation: route-page-in 300ms ease-out both;
 }
 
@@ -667,7 +668,8 @@ body.route-fade-stage .auth-layout {
 /* No backdrop flash for users who opt out of motion — just navigate. */
 @media (prefers-reduced-motion: reduce) {
   body.route-fade-stage .landing,
-  body.route-fade-stage .auth-layout {
+  body.route-fade-stage .auth-layout,
+  body.route-fade-stage .res-page {
     animation: none;
   }
 }

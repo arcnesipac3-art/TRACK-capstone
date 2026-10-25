@@ -793,6 +793,15 @@ export default function LandingPage() {
             <a href="#security">Data &amp; Privacy</a>
           </nav>
 
+          {/* About us column — matching the eGovPH footer structure */}
+          <nav className="foot-col" aria-label="About us links">
+            <p className="foot-col-title">ABOUT US</p>
+            <Link to="/about">About TRACK</Link>
+            <Link to="/researchers">Researchers</Link>
+            <Link to="/terms">Terms &amp; Conditions</Link>
+            <Link to="/privacy">Privacy Policy</Link>
+          </nav>
+
         </div>
 
         <div className="foot-bottom">
