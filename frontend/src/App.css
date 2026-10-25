@@ -2266,7 +2266,7 @@
   /* Disable parallax smooth transitions */
   .hero-card,
   .hero-student-img,
-  .hero-preview-window { transition: none !important; }
+  .hero-preview-window { transition: none !important; filter: none !important; }
 }
 
 /* ── Hero interactivity ──────────────────────────────────────────────
@@ -2277,10 +2277,19 @@
 
 /* Smooth the parallax return-to-centre */
 .hero-preview-window,
-.hero-student-img,
 .hero-card {
   transition: transform 0.12s ease-out, box-shadow 0.2s ease, border-color 0.2s ease;
   will-change: transform;
+}
+.hero-student-img {
+  transition: transform 0.35s cubic-bezier(.22,1,.36,1), filter 0.35s ease;
+  will-change: transform, filter;
+}
+
+/* Student image hover — lift + brightness + blue glow from below */
+.hero-visual:hover .hero-student-img {
+  filter: brightness(1.07) drop-shadow(0 28px 44px rgba(37,99,235,0.45)) drop-shadow(0 6px 12px rgba(37,99,235,0.28));
+  transform: translateX(-50%) translateY(-10px) scale(1.03);
 }
 
 /* Floating card — hover glow */
