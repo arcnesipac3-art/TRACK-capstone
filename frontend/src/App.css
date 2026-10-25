@@ -1390,6 +1390,11 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  /* Single source of truth for the sticky nav height. The hero sizes itself
+     with calc(100svh - var(--navbar-height)) so the dark section always ends
+     exactly at the bottom of the first screen — no white strip below it.
+     The responsive blocks below re-declare it wherever the nav changes height. */
+  --navbar-height: 70px;
   background: var(--surface);
   /* Prevent absolute-positioned glow pseudo-elements from causing horizontal scroll */
   overflow-x: hidden;
@@ -1401,17 +1406,20 @@
   scroll-behavior: smooth;
 }
 
-/* Offset section targets by the sticky nav height (72px) so they land
-   correctly when the smooth-scroll handler positions them. Also covers
-   any native :target jumps (e.g., back/forward navigation). */
+/* Offset section targets by the sticky nav height so they land correctly
+   when the smooth-scroll handler positions them. Also covers any native
+   :target jumps (e.g., back/forward navigation). */
 .landing section[id] {
-  scroll-margin-top: 76px;
+  scroll-margin-top: var(--navbar-height);
 }
 
 /* The main element wraps the preview + all sections.
-   White background starts here so it shows behind the preview overlap. */
+   White background starts here so it shows behind the preview overlap.
+   flex-grow only: nav / hero / main must never shrink, or the column flex
+   container squeezes the nav to its min-content height (43px) and the hero
+   ends above the viewport bottom, exposing a white strip. */
 .landing-main {
-  flex: 1 1 auto;
+  flex: 1 0 auto;
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -1444,8 +1452,11 @@
   display: flex;
   align-items: center;
   gap: 24px;
-  padding: 0 clamp(24px, 4vw, 48px);
-  height: 76px;
+  padding: 0 clamp(24px, 4.4vw, 68px);
+  /* Never shrink to min-content — that is what left a 33px white gap
+     between the hero and the bottom of the viewport. */
+  flex: 0 0 auto;
+  height: var(--navbar-height);
   background: #ffffff;
   border-bottom: 1px solid rgba(0, 0, 0, 0.07);
   box-shadow: 0 1px 8px rgba(15, 32, 68, 0.06);
@@ -1510,11 +1521,11 @@
   color: #fff;
   border: none;
   border-radius: 999px;
-  padding: 10px 24px;
+  padding: 10px 26px;
   font-size: 0.875rem;
   font-weight: 600;
   white-space: nowrap;
-  height: 42px;
+  height: 44px;
   display: inline-flex;
   align-items: center;
   transition: background 0.15s ease, box-shadow 0.15s ease;
@@ -1555,7 +1566,7 @@
    Position: fixed so it sits flush below the sticky nav and above everything. */
 .mob-nav {
   position: fixed;
-  top: 64px; /* matches .landing-nav height on mobile (≤767px: 64px) */
+  top: var(--navbar-height); /* matches .landing-nav height (64px mobile) */
   left: 0;
   right: 0;
   z-index: 49;
@@ -1663,77 +1674,64 @@
    ================================================================ */
 .landing-hero {
   position: relative;
-  background: #070f22;
+  /* Flat navy base (sampled off the design: rgb(4,22,49)) with the blue glow
+     painted by ::before — a flat base keeps the lower-left as dark as the
+     design, while the radial glows never show a hard clipped edge. */
+  background: #041631;
   /* overflow:hidden clips the student. overflow:clip clips bg shapes
      but doesn't affect abs-pos children outside the stacking context. */
   overflow: clip;
-  height: calc(100svh - 76px);
-  min-height: 600px;
-  max-height: 940px;
+  /* Fill the first screen beneath the navbar at every viewport size. Content
+     taller than this (tablet / phone stacks) simply grows the section.
+     The vh line is the fallback for engines without small viewport units. */
+  min-height: calc(100vh - var(--navbar-height));
+  min-height: calc(100svh - var(--navbar-height));
+  /* Part of the non-shrinking column: shrinking it left a gap at the bottom. */
+  flex: 0 0 auto;
   display: flex;
   align-items: stretch;
-  /* Prevent sub-pixel gap at the bottom edge */
-  margin-bottom: -1px;
 }
 
-/* ── Background: large diagonal blue shape upper-right ── */
+/* ── Background: soft blue glow upper-right + broad glow under the portrait.
+   Two full-size radial gradients (no clipped shape) — the earlier rounded
+   rectangle left a visible diagonal seam across the hero. ── */
 .landing-hero::before {
   content: '';
   position: absolute;
-  top: 0;
-  right: 0;
-  /* Covers the upper-right ~55% of the hero */
-  width: 62%;
-  height: 100%;
-  background: linear-gradient(135deg,
-    transparent 0%,
-    rgba(18,60,180,0.35) 30%,
-    rgba(22,80,220,0.5) 55%,
-    rgba(16,55,190,0.3) 75%,
-    transparent 100%);
-  border-radius: 50% 0 0 60%;
+  inset: 0;
+  background:
+    radial-gradient(95% 85% at 91% -8%,
+      rgba(15,95,205,0.46) 0%,
+      rgba(15,95,205,0.22) 45%,
+      transparent 76%),
+    radial-gradient(70% 46% at 52% 86%,
+      rgba(15,100,210,0.34) 0%,
+      rgba(15,100,210,0.14) 48%,
+      transparent 74%);
   pointer-events: none;
   z-index: 0;
 }
 
 /* ── Watermark — "KIWALAN NATIONAL HIGH SCHOOL" across the bottom ── */
+/* The design sets it compact and low: letters ~22px tall, running x393..700 at
+   1536px (the portrait cuts nothing — the whole line ends before it). scaleX
+   reproduces that condensed set; `left` puts its centre on the design's centre. */
 .landing-hero::after {
   content: 'KIWALAN NATIONAL HIGH SCHOOL';
   position: absolute;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  font-size: clamp(1rem, 1.8vw, 1.8rem);
+  bottom: clamp(72px, 10.7vh, 132px);
+  left: 35.5%;
+  transform: translateX(-50%) scaleX(0.58);
+  font-size: clamp(1.05rem, 1.95vw, 1.9rem);
   font-weight: 900;
-  letter-spacing: 0.18em;
-  color: rgba(255,255,255,0.08);
+  letter-spacing: 0;
+  color: rgba(255,255,255,0.075);
   white-space: nowrap;
   pointer-events: none;
   text-transform: uppercase;
-  /* Above student (z-index:1) but below cards (z-index:3) */
-  z-index: 2;
-}
-
-/* Radial glow circles — subtle depth */
-.hero-bg-curve {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
+  /* Sits behind the portrait (the layout above is z-index:1), exactly as the
+     design shows it — the student's shoulder covers the right-hand end. */
   z-index: 0;
-}
-.hero-bg-curve-1 {
-  width: 700px;
-  height: 700px;
-  background: radial-gradient(circle, rgba(22,80,220,0.2) 0%, transparent 60%);
-  top: -200px;
-  right: 0;
-}
-.hero-bg-curve-2 {
-  width: 350px;
-  height: 350px;
-  background: radial-gradient(circle, rgba(10,40,140,0.15) 0%, transparent 65%);
-  bottom: -60px;
-  left: -40px;
 }
 
 /* ── Two-column grid ── */
@@ -1744,13 +1742,16 @@
   /* 46% left / 54% right — wide enough for headline not to wrap at 1366px */
   grid-template-columns: 46fr 54fr;
   grid-template-rows: 1fr;
-  align-items: center;
+  /* Stretch (not centre) so the copy starts at the top and the visual column
+     spans the full hero height — the portrait is anchored to its bottom. */
+  align-items: stretch;
   align-content: stretch;
   width: 100%;
   max-width: 1440px;
   margin: 0 auto;
-  /* Tighter horizontal padding so the left column has more room */
-  padding: clamp(40px,5vh,72px) clamp(36px,4.5vw,80px);
+  /* Top padding pushes the copy down to match the design; the bottom stays 0
+     so the portrait can sit flush on the hero's bottom edge. */
+  padding: clamp(56px, 11vh, 132px) clamp(32px, 2.6vw, 44px) 0;
   gap: 0;
   flex: 1 1 auto;
 }
@@ -1761,8 +1762,6 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 0;
-  /* Gap between text and student */
-  padding-right: clamp(24px,3vw,56px);
 }
 
 /* School badge */
@@ -1770,7 +1769,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 12px 5px 5px;
+  padding: 8px 14px 8px 6px;
   background: rgba(255,255,255,0.08);
   color: rgba(255,255,255,0.88);
   border: 1px solid rgba(255,255,255,0.15);
@@ -1779,7 +1778,7 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  margin-bottom: clamp(18px,2.4vh,28px);
+  margin-bottom: clamp(16px,2.3vh,26px);
 }
 
 .hero-knhs-seal {
@@ -1793,11 +1792,11 @@
 .hero-heading {
   display: flex;
   flex-direction: column;
-  margin: 0 0 clamp(16px,2vh,24px);
+  margin: 0 0 clamp(24px,3.1vh,34px);
 }
 
 .hero-heading-line1 {
-  font-size: clamp(2.6rem, 4.2vw, 4.2rem);
+  font-size: clamp(2.6rem, 4.5vw, 4.5rem);
   font-weight: 900;
   line-height: 1.0;
   letter-spacing: -0.03em;
@@ -1806,7 +1805,7 @@
 }
 
 .hero-heading-line2 {
-  font-size: clamp(2.6rem, 4.2vw, 4.2rem);
+  font-size: clamp(2.6rem, 4.5vw, 4.5rem);
   font-weight: 900;
   line-height: 1.05;
   letter-spacing: -0.03em;
@@ -1816,19 +1815,21 @@
 
 /* Description */
 .hero-sub {
-  font-size: clamp(0.88rem, 1vw, 1rem);
-  line-height: 1.7;
-  color: rgba(255,255,255,0.60);
-  max-width: 44ch;
-  margin: 0 0 clamp(24px,3vh,36px);
+  /* 18.6px at 1536 — matches the design's copy size; the 514px measure lands
+     the same four line breaks (the em dash has to stay on line 2). */
+  font-size: clamp(1rem, 1.21vw, 1.16rem);
+  line-height: 1.45;
+  color: rgba(255,255,255,0.72);
+  max-width: min(524px, 100%);
+  margin: 0 0 clamp(16px,2.2vh,24px);
 }
 
 /* CTA Buttons */
 .hero-actions {
   display: flex;
-  gap: 12px;
+  gap: 18px;
   flex-wrap: wrap;
-  margin-bottom: clamp(10px,1.4vh,14px);
+  margin-bottom: clamp(10px,1.4vh,16px);
 }
 
 /* Primary: solid blue, rounded */
@@ -1836,13 +1837,13 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 48px;
-  padding: 0 28px;
+  height: 52px;
+  padding: 0 30px;
   background: #2563EB;
   color: #fff;
   border: none;
   border-radius: 8px;
-  font-size: 0.95rem;
+  font-size: 1rem;
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
@@ -1861,14 +1862,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 48px;
-  padding: 0 28px;
+  height: 52px;
+  padding: 0 30px;
   background: transparent;
   color: #fff;
   border: 1.5px solid rgba(255,255,255,0.45);
   border-radius: 8px;
-  font-size: 0.95rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 700;
   text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
@@ -1883,9 +1884,9 @@
 
 /* Note below buttons */
 .hero-note {
-  font-size: 0.78rem;
-  color: rgba(255,255,255,0.32);
-  margin: 0 0 clamp(20px,2.5vh,32px);
+  font-size: 0.86rem;
+  color: rgba(255,255,255,0.65);
+  margin: 0 0 clamp(24px,3.5vh,40px);
 }
 
 /* ── Statistics row ── */
@@ -1893,47 +1894,59 @@
   display: flex;
   align-items: flex-start;
   gap: 0;
-  padding-top: 0;
-  border-top: none;
+  /* Hairline rule above the stats, as in the design */
+  border-top: 1px solid rgba(255,255,255,0.18);
+  padding-top: clamp(24px,3.4vh,36px);
   width: 100%;
 }
 
 .hero-stat {
   display: flex;
   flex-direction: column;
-  /* Tighter padding so all 3 stats fit in the left column without wrapping */
-  padding: 0 clamp(14px,1.8vw,22px);
+  /* Keeps the three stats on one line across desktop widths */
+  padding: 0 clamp(14px,1.4vw,22px);
 }
 .hero-stat:first-child { padding-left: 0; }
 
 .hero-stat-sep {
   width: 1px;
-  background: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.14);
   align-self: stretch;
   flex-shrink: 0;
 }
 
 /* Large bold number, blue word */
 .hero-stat-value {
-  font-size: clamp(1.6rem,2.4vw,2rem);
+  font-size: clamp(1.4rem,1.6vw,1.55rem);
   font-weight: 900;
   color: #fff;
   letter-spacing: -0.02em;
   line-height: 1.1;
 }
 
+/* The design renders the whole value in white — no blue accent here */
 .hero-stat-word {
-  color: #2563EB;
+  color: #fff;
 }
 
 .hero-stat-label {
-  font-size: 0.62rem;
-  color: rgba(255,255,255,0.44);
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.75);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-top: 4px;
-  line-height: 1.5;
+  letter-spacing: 0.04em;
+  margin-top: 8px;
+  line-height: 1.3;
+}
+
+/* Desktop: the three stats share the row evenly, reproducing the design's
+   ~205px rhythm between the value columns. */
+@media (min-width: 1280px) {
+  .hero-stat {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 clamp(10px,1.6vw,26px) 0 0;
+  }
 }
 
 /* ── RIGHT COLUMN ── */
@@ -1945,20 +1958,30 @@
   overflow: visible;
 }
 
-/* Student image — fills the full right column height, anchored to bottom */
+/* Student image — fills the full right column height, anchored to bottom.
+   object-fit: contain + object-position: center bottom guarantees the whole
+   portrait (head, shoulders, arms, tablet, torso) stays visible: the box can
+   be clamped narrower than the source ratio, but the picture itself is never
+   cropped and never sits below the bottom edge of the hero. */
 .hero-student-img {
   position: absolute;
   bottom: 0;
-  /* Horizontally centered within the column */
-  left: 50%;
+  /* Slightly left of the column centre, matching the design — 36.5% puts the
+     shoulder line on the design's x≈716/766 at 1536px. */
+  left: 36.5%;
   transform: translateX(-50%);
-  /* Fill column height; let width follow naturally */
-  height: 100%;
+  /* Taller than the column so the portrait reaches the hero's bottom edge
+     at the scale used in the design; the transparent top margin simply
+     overflows above the column. */
+  /* 119% puts the top of the head at y≈169 at 1536×1024 — the design's
+     portrait occupies the same span down to the hero's bottom edge. */
+  height: 119%;
   width: auto;
-  max-height: 900px;
-  max-width: 640px;
+  max-height: none;
+  /* Never wider than the visual column, so it cannot reach the headline */
+  max-width: min(760px, 100%);
   object-fit: contain;
-  object-position: bottom center;
+  object-position: center bottom;
   pointer-events: none;
   user-select: none;
   display: block;
@@ -1970,23 +1993,21 @@
   position: absolute;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
+  gap: 9px;
+  padding: 15px 14px;
   background: rgba(8,22,58,0.82);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   border: 1px solid rgba(37,99,235,0.5);
   border-radius: 12px;
-  min-width: 180px;
-  max-width: 220px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 0 1px rgba(37,99,235,0.12);
   z-index: 3;
   animation: hero-float 4s ease-in-out infinite;
 }
 
 .hero-card-icon {
-  width: 36px;
-  height: 36px;
+  width: 50px;
+  height: 50px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1999,28 +2020,97 @@
 .hero-card-body { flex: 1; min-width: 0; }
 
 .hero-card-title {
-  font-size: 0.8rem;
+  font-size: 0.83rem;
   font-weight: 700;
   color: #fff;
   line-height: 1.2;
 }
 
 .hero-card-desc {
-  font-size: 0.63rem;
-  color: rgba(255,255,255,0.55);
-  line-height: 1.5;
-  margin-top: 2px;
+  font-size: 0.62rem;
+  color: rgba(255,255,255,0.72);
+  line-height: 1.45;
+  margin-top: 3px;
 }
 
-/* Card positions — right side of the visual column, matching reference exactly:
-   Student: upper-right, Teacher: mid-right, Parent: lower-right */
-.hero-card-student  { top: 8%;     right: 0;   animation-delay: 0s;   }
-.hero-card-teacher  { top: 36%;    right: 0;   animation-delay: 1.4s; }
-.hero-card-parent   { bottom: 10%; right: 0;   animation-delay: 2.8s; }
+/* Card sizes + positions — measured off the design (1536×1024):
+   Student  x1124..1320 y174..256, Teacher x1300..1489 y274..354,
+   Parent   x1306..1515 y652..731. The `right` values are offsets from the
+   visual column's right edge (1448px), so the boxes land on those same
+   coordinates; widths are fixed because each card hugs its own two-line copy. */
+.hero-card-student  { top: -1%;      right: 128px;  width: 196px; animation-delay: 0s;   }
+.hero-card-teacher  { top: 11.1%;    right: -41px;  width: 190px; animation-delay: 1.4s; }
+.hero-card-parent   { bottom: 34.3%; right: -67px;  width: 210px; animation-delay: 2.8s; }
 
 @keyframes hero-float {
   0%, 100% { transform: translateY(0px); }
   50%       { transform: translateY(-8px); }
+}
+
+/* ── In-hero dashboard preview window ───────────────────────────────
+   Sits behind the portrait (z-index 0) and between the Teacher and Parent
+   cards, mirroring the design: dark chrome bar with the TRACK lockup and two
+   round controls, then the dashboard screenshot filling the rest. */
+.hero-preview-window {
+  position: absolute;
+  top: 22%;
+  left: 52%;
+  width: 56%;
+  aspect-ratio: 406 / 278;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 12px;
+  background: rgba(6,16,40,0.78);
+  box-shadow: 0 18px 48px rgba(0,0,0,0.45);
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+
+.hpw-chrome {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 14.4%;
+  min-height: 32px;
+  padding: 0 10px 0 14px;
+  background: rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+}
+
+.hpw-chrome .logo { display: flex; align-items: center; }
+.hpw-chrome .logo-img { height: 18px; width: auto; }
+
+.hpw-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.hpw-action {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(37,99,235,0.28);
+  border: 1px solid rgba(255,255,255,0.16);
+  color: rgba(255,255,255,0.8);
+}
+
+.hpw-shot {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* Zoomed to 145% and anchored top-left so the window shows the same crop as
+     the design (sidebar + welcome + stat row + chart), not the whole page. */
+  width: 145%;
+  max-width: none;
+  display: block;
+  object-fit: cover;
+  object-position: left top;
 }
 
 
@@ -2047,31 +2137,41 @@
 }
 
 /* ── RESPONSIVE ── */
+/* Below ~1500px the two right-hand cards would reach past the viewport edge at
+   their design offsets, so they tuck in close to it instead (never overflowing). */
+@media (max-width: 1500px) {
+  .hero-card-teacher,
+  .hero-card-parent { right: -20px; }
+}
+
+/* Below ~1400px the window (left:52% + width:56% = 108% of its column) would
+   run past the right edge and slice its chrome controls off. Trim the width so
+   its right edge lands exactly on the column's right edge instead. */
+@media (max-width: 1399px) {
+  .hero-preview-window { width: 48%; }
+}
+
 /* 1200px–1279px */
 @media (max-width: 1279px) {
-  .hero-layout { padding: clamp(36px,5vh,60px) clamp(36px,5vw,64px); }
-  .hero-student-img { max-width: 580px; }
+  .hero-layout { padding: clamp(44px, 9.5vh, 104px) clamp(28px, 2.6vw, 36px) 0; }
 }
 
 /* Laptop 992px–1199px */
 @media (max-width: 1199px) {
-  .landing-hero { max-height: 860px; }
   .hero-layout {
     grid-template-columns: 46fr 54fr;
-    padding: clamp(32px,4vh,52px) clamp(24px,3.5vw,48px);
+    padding: clamp(40px, 8.5vh, 92px) clamp(22px, 2.4vw, 32px) 0;
   }
   .hero-visual { min-height: 380px; }
-  .hero-student-img { max-width: 520px; }
   .hero-heading-line1,
   .hero-heading-line2 { font-size: clamp(2.4rem, 3.8vw, 3.6rem); }
 }
 
 /* Tablet 768px–1023px */
 @media (max-width: 1023px) {
-  .landing-hero { max-height: none; height: auto; min-height: auto; }
   .hero-layout {
     grid-template-columns: 1fr 1fr;
-    padding: 40px 28px 48px;
+    padding: clamp(36px, 6.5vh, 64px) 24px 0;
   }
   .hero-heading-line1 { white-space: normal; }
   .hero-visual {
@@ -2082,13 +2182,17 @@
     max-width: 440px;
     max-height: 500px;
   }
+  /* The preview window is a desktop-only composition detail */
+  .hero-preview-window { display: none; }
   .hero-card { min-width: 148px; max-width: 176px; padding: 9px 12px; }
   .hero-card-icon { width: 30px; height: 30px; }
+  .hero-card-student { top: 0;      right: 0; }
+  .hero-card-teacher { top: 30%;    right: 0; }
+  .hero-card-parent  { bottom: 12%; right: 0; }
 }
 
 /* Mobile ≤767px: stack vertically */
 @media (max-width: 767px) {
-  .landing-hero { min-height: auto; margin-bottom: 0; }
   .hero-layout {
     grid-template-columns: 1fr;
     padding: 40px 20px 0;
@@ -2108,20 +2212,28 @@
   .hero-note    { text-align: center; }
   .hero-stats   { justify-content: center; }
   .hero-stat:first-child { padding-left: clamp(16px,2vw,24px); }
-  /* Student below content — static height container, no absolute */
+  /* Student below the copy. The box hugs the image's own aspect ratio and
+     the picture is laid out in normal flow, so it can never be cropped,
+     clipped by the hero, or pushed past the right edge of the screen. */
   .hero-visual {
-    height: clamp(300px, 68vw, 440px);
-    width: 100%;
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    width: min(100%, 360px);
+    height: auto;
     min-height: 0;
+    align-self: center;
   }
   .hero-student-img {
-    height: 100%;
-    width: auto;
-    max-width: 90%;
-    max-height: 440px;
-    right: 50%;
-    transform: translateX(50%);
-    object-position: bottom center;
+    position: static;
+    width: 100%;
+    height: auto;
+    max-width: none;
+    max-height: none;
+    transform: none;
+    object-fit: contain;
+    object-position: center bottom;
   }
   /* Cards: right side */
   .hero-card-student { top: 6%;    right: 0; }
@@ -2137,8 +2249,6 @@
   .hero-btn-primary,
   .hero-btn-secondary { width: 100%; justify-content: center; }
   .hero-actions { flex-direction: column; width: 100%; }
-  .hero-visual { height: clamp(260px,70vw,340px); min-height: 0; }
-  .hero-student-img { max-height: 340px; }
   /* Hide cards on very small screens */
   .hero-card { display: none; }
   .hero-stats { flex-wrap: wrap; gap: 12px 0; }
@@ -3443,7 +3553,8 @@
 /* Large desktop: cap content width, keep sidebar */
 @media (min-width: 1440px) {
   .app-content { padding: 32px 36px 56px; }
-  .landing-nav { height: 80px; padding: 0 48px; }
+  .landing { --navbar-height: 70px; }
+  .landing-nav { padding: 0 clamp(40px, 4.4vw, 84px); }
 }
 
 /* Tablet: collapsible sidebar becomes drawer */
@@ -3466,7 +3577,8 @@
   .problem-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .trust-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* Landing page — tablet */
-  .landing-nav { padding: 0 24px; height: 70px; }
+  .landing { --navbar-height: 70px; }
+  .landing-nav { padding: 0 24px; }
   .landing-preview { padding: 0 20px 60px; }
   .landing-section { padding: 60px 24px; }
   .landing-cta { padding: 60px 24px; }
@@ -3520,7 +3632,8 @@
   .filter-bar { padding: 12px; }
   .filter-bar .field { min-width: 0; width: 100%; }
 
-  .landing-nav { padding: 0 16px; height: 64px; }
+  .landing { --navbar-height: 64px; }
+  .landing-nav { padding: 0 16px; }
   .landing-nav-links { display: none; }
   .landing-nav-menu-btn { display: flex; }
   .landing-preview { padding: 0 12px 48px; }

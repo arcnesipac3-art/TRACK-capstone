@@ -273,7 +273,7 @@ export default function LandingPage() {
   useEffect(() => {
     const container = rootRef.current
     if (!container) return undefined
-    const NAV_H = 76 // matches .landing-nav height (64px mobile, 76px desktop)
+    const NAV_H = 70 // matches .landing-nav height (64px mobile, 70px desktop)
 
     function handleAnchorClick(e) {
       const anchor = e.target.closest('a[href^="#"]')
@@ -339,12 +339,12 @@ export default function LandingPage() {
         <nav className="landing-nav-links" aria-label="Landing sections">
           <a href="#problem">The Problem</a>
           <a href="#features">Features</a>
-          <a href="#how-it-works">How it Works</a>
+          <a href="#how-it-works">How It Works</a>
           <a href="#roles">Roles</a>
           <a href="#faq">FAQ</a>
         </nav>
         <Link className="btn btn-primary" to={dashboardHref} style={{ flexShrink: 0 }}>
-          {signedIn ? 'Open dashboard' : 'Sign in'}
+          {signedIn ? 'Open dashboard' : 'Sign In'}
         </Link>
         {/* Mobile hamburger / close — visible only on small screens via CSS */}
         <button
@@ -374,7 +374,7 @@ export default function LandingPage() {
           <nav className="mob-nav-links" aria-label="Mobile navigation">
             <a href="#problem"     onClick={() => setMobileMenuOpen(false)}>The Problem</a>
             <a href="#features"    onClick={() => setMobileMenuOpen(false)}>Features</a>
-            <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)}>How it Works</a>
+            <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)}>How It Works</a>
             <a href="#roles"       onClick={() => setMobileMenuOpen(false)}>Roles</a>
             <a href="#security"    onClick={() => setMobileMenuOpen(false)}>Security</a>
             <a href="#faq"         onClick={() => setMobileMenuOpen(false)}>FAQ</a>
@@ -397,10 +397,6 @@ export default function LandingPage() {
 
         {/* ── Hero ──────────────────────────────────────────────── */}
         <section className="landing-hero" aria-labelledby="hero-heading">
-          {/* Decorative background curves */}
-          <div className="hero-bg-curve hero-bg-curve-1" aria-hidden="true" />
-          <div className="hero-bg-curve hero-bg-curve-2" aria-hidden="true" />
-
           <div className="hero-layout">
 
             {/* ── Left: text content ── */}
@@ -451,6 +447,20 @@ export default function LandingPage() {
 
             {/* ── Right: student photo + floating role cards ── */}
             <div className="hero-visual" aria-hidden="true">
+              {/* Dashboard preview window — sits behind the portrait, exactly as
+                  in the design: dark chrome bar with the TRACK lockup and two
+                  round controls, then the dashboard screenshot. */}
+              <div className="hero-preview-window">
+                <div className="hpw-chrome">
+                  <Logo size="sm" variant="light" />
+                  <span className="hpw-actions">
+                    <span className="hpw-action"><Icon name="search" size={13} /></span>
+                    <span className="hpw-action"><Icon name="bell" size={13} /></span>
+                  </span>
+                </div>
+                <img src={dashboardShot} alt="" className="hpw-shot" />
+              </div>
+
               <img
                 src="/student.png"
                 alt="A KNHS student in school uniform holding a tablet"
@@ -460,7 +470,7 @@ export default function LandingPage() {
               {/* Floating role cards — positioned around the portrait */}
               <div className="hero-card hero-card-student">
                 <div className="hero-card-icon">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                 </div>
                 <div className="hero-card-body">
                   <div className="hero-card-title">Student</div>
@@ -470,7 +480,7 @@ export default function LandingPage() {
 
               <div className="hero-card hero-card-teacher">
                 <div className="hero-card-icon">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 </div>
                 <div className="hero-card-body">
                   <div className="hero-card-title">Teacher</div>
@@ -480,7 +490,7 @@ export default function LandingPage() {
 
               <div className="hero-card hero-card-parent">
                 <div className="hero-card-icon">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 </div>
                 <div className="hero-card-body">
                   <div className="hero-card-title">Parent</div>
