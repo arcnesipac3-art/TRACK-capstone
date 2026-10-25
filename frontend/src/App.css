@@ -1003,7 +1003,7 @@
      edge, so the aside's overflow clip hides the bottom of the artwork — the
      legless lower body never shows. A share of --student-h, so exactly the same
      amount is hidden at every viewport. */
-  --student-drop: calc(var(--student-h) * -0.15);
+  --student-drop: calc(var(--student-h) * -0.05);
   /* Campus backdrop — the school photograph sits under navy washes that stay
      dense over the brand row, tagline and role cards, then clear toward the
      bottom where the student stands. Flat navy fallback shows while loading. */
