@@ -8,14 +8,28 @@ import StatusBadge from '../components/StatusBadge'
 import useFetch from '../hooks/useFetch'
 import { formatDateTime } from '../utils/format'
 
-/**
- * The audit trail: who did what, when, and to which record.
- *
- * Rows are written by Django at the moment of the action — this screen is
- * read-only, and only administrators holding `audit.view` reach it (the
- * Super Administrator by default). Every permission change, department
- * change, password reset and account change lands here.
- */
+/** All known audit action values produced by the backend. */
+const ACTION_OPTIONS = [
+  { value: '',                        label: 'All actions' },
+  { value: 'auth.login',              label: 'Sign in' },
+  { value: 'auth.logout',             label: 'Sign out' },
+  { value: 'auth.password_reset',     label: 'Password reset' },
+  { value: 'user.created',            label: 'User created' },
+  { value: 'user.updated',            label: 'User updated' },
+  { value: 'user.deleted',            label: 'User deleted' },
+  { value: 'permissions.user_updated',       label: 'User permissions updated' },
+  { value: 'permissions.department_updated', label: 'Department permissions updated' },
+  { value: 'department.created',      label: 'Department created' },
+  { value: 'department.updated',      label: 'Department updated' },
+  { value: 'department.deleted',      label: 'Department deleted' },
+  { value: 'fee_assessment.created',  label: 'Fee assessment created' },
+  { value: 'fee_assessment.updated',  label: 'Fee assessment updated' },
+  { value: 'fee_assessment.archived', label: 'Fee assessment archived' },
+  { value: 'fee_payment.recorded',    label: 'Fee payment recorded' },
+  { value: 'fee_payment.voided',      label: 'Fee payment voided' },
+  { value: 'fee_payment.reversed',    label: 'Fee payment reversed' },
+]
+
 export default function AuditLogsPage() {
   const [search, setSearch] = useState('')
   const [action, setAction] = useState('')
@@ -24,7 +38,7 @@ export default function AuditLogsPage() {
 
   const params = {
     search: search.trim() || undefined,
-    action: action.trim() || undefined,
+    action: action || undefined,
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
   }
@@ -34,9 +48,7 @@ export default function AuditLogsPage() {
   })
 
   const entries = data || []
-  const hasFilters = Boolean(
-    search.trim() || action.trim() || dateFrom || dateTo
-  )
+  const hasFilters = Boolean(search.trim() || action || dateFrom || dateTo)
 
   function clearFilters() {
     setSearch('')
@@ -68,18 +80,23 @@ export default function AuditLogsPage() {
                 className="input"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Description or action…"
+                placeholder="Description or actor…"
               />
             </div>
-            <div className="field" style={{ minWidth: 170 }}>
-              <label htmlFor="audit-action">Action contains</label>
-              <input
+            <div className="field" style={{ minWidth: 210 }}>
+              <label htmlFor="audit-action">Action</label>
+              <select
                 id="audit-action"
-                className="input"
+                className="select"
                 value={action}
                 onChange={(e) => setAction(e.target.value)}
-                placeholder="e.g. user., permissions."
-              />
+              >
+                {ACTION_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="field" style={{ minWidth: 150 }}>
               <label htmlFor="audit-from">From</label>
