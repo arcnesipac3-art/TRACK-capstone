@@ -195,14 +195,13 @@ export default function LoginPage() {
             <div className="field">
               <label htmlFor="password">Password</label>
               <div className="password-wrap">
-                <span className="auth-input-icon" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-subtle)', pointerEvents: 'none', display: 'flex', alignItems: 'center', zIndex: 1 }}>
+                <span className="auth-input-icon">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 </span>
                 <input
                   id="password"
                   name="password"
                   className="input"
-                  style={{ paddingLeft: '40px' }}
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   placeholder="Enter your password"

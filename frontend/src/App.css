@@ -1149,11 +1149,15 @@
 /* Student image — clipped to the panel edge, exactly as in the design */
 .aside-student-img {
   position: absolute;
-  left: 490px;
+  /* position relative to the left panel boundary (52.45%) and shift left so
+     the student straddles the dividing line between aside and auth-panel */
+  left: calc(52.45% - 160px);
   bottom: 0;
-  width: calc(52.45% - 490px);
-  height: 592px;
-  overflow: hidden;
+  /* width grows with the viewport but is capped so the figure never crowds
+     the form panel; min keeps it from shrinking too small */
+  width: clamp(180px, calc(52.45% - 300px), 320px);
+  height: clamp(420px, 72vh, 620px);
+  overflow: visible;
   z-index: 10;
   pointer-events: none;
   user-select: none;
@@ -1162,8 +1166,10 @@
 .aside-student-img img {
   display: block;
   width: auto;
-  height: 592px;
+  height: 100%;
   max-width: none;
+  object-fit: contain;
+  object-position: bottom center;
 }
 
 /* Location footer */
@@ -1248,7 +1254,7 @@
 
 .auth-input-wrap .auth-input-icon {
   position: absolute;
-  left: 14px;
+  left: 13px;
   top: 50%;
   transform: translateY(-50%);
   color: #8a99b3;
@@ -1259,7 +1265,7 @@
 }
 .auth-input-icon svg { width: 16px; height: 16px; }
 
-.auth-input-wrap .input { padding-left: 40px; }
+.auth-input-wrap .input { padding-left: 38px; }
 
 /* All form inputs */
 .auth-form .input {
@@ -1268,13 +1274,13 @@
   min-height: 50px;
   padding: 12px 14px;
   border-radius: 10px;
-  font-size: 18.5px;
+  font-size: 15.5px;
   border: 1.5px solid #d1dceb;
   background: #fff;
   color: #0a1e3f;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.auth-form .input::placeholder { color: #7b8caa; }
+.auth-form .input::placeholder { color: #9aaabf; font-size: 14.5px; }
 .auth-form .input:focus {
   outline: none;
   border-color: #2563eb;
@@ -1367,7 +1373,7 @@
 .password-toggle svg { width: 20px; height: 20px; }
 .password-toggle:hover { background: #f0f4fa; color: #0a1e3f; }
 .password-wrap .auth-input-icon { left: 18px; }
-.password-wrap .input { padding-left: 64px; padding-right: 46px; }
+.password-wrap .input { padding-left: 44px; padding-right: 46px; }
 
 /* ── RESPONSIVE ── */
 @media (max-width: 1439px) {
@@ -1378,16 +1384,16 @@
 @media (max-width: 1023px) {
   .auth-aside { padding: 40px 28px 72px; }
   .auth-aside .aside-foot { left: 28px; bottom: 34px; }
-  .auth-aside::after { left: 200px; top: 520px; }
+  .auth-aside::after { left: auto; right: -80px; bottom: -80px; width: 420px; height: 420px; }
   .aside-roles { max-width: none; }
   .aside-role-card { height: auto; }
   .aside-student-img {
     left: auto;
     right: 0;
-    width: 46%;
-    height: 440px;
+    width: clamp(160px, 44%, 280px);
+    height: clamp(340px, 56vh, 480px);
   }
-  .aside-student-img img { height: 440px; }
+  .aside-student-img img { height: 100%; }
   .auth-panel { padding: 32px 36px 32px 48px; }
   .auth-heading h1 { font-size: 32px; }
   .auth-lede { font-size: 19px; }
