@@ -987,8 +987,22 @@
   display: flex;
   flex-direction: column;
   padding: 58px 40px 78px 63px;
+  /* Campus backdrop — the school photograph sits under navy washes that stay
+     dense over the brand row, tagline and role cards, then clear toward the
+     bottom where the student stands. Flat navy fallback shows while loading. */
   background:
+    linear-gradient(180deg,
+      rgba(10,34,77,0.94) 0%,
+      rgba(10,34,77,0.88) 40%,
+      rgba(10,34,77,0.62) 70%,
+      rgba(10,34,77,0.44) 100%),
+    linear-gradient(90deg,
+      rgba(10,34,77,0.86) 0%,
+      rgba(10,34,77,0.56) 58%,
+      rgba(10,34,77,0.32) 100%),
     radial-gradient(120% 80% at 12% 92%, rgba(37, 99, 235, 0.14) 0%, transparent 62%),
+    url("https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Tall%20portrait%20photograph%20of%20a%20Philippine%20public%20high%20school%20campus%2C%20Kiwalan%20National%20High%20School%2C%20two-storey%20concrete%20classroom%20building%20painted%20white%20and%20green%2C%20open%20walkway%20with%20no%20roof%20or%20canopy%2C%20flagpole%2C%20tropical%20palm%20trees%2C%20blue%20sky%2C%20bright%20daylight&image_size=portrait_16_9")
+      center 28% / cover no-repeat,
     #0a224d;
   color: #fff;
   height: 100%;
@@ -1774,10 +1788,24 @@
    ================================================================ */
 .landing-hero {
   position: relative;
-  /* Flat navy base (sampled off the design: rgb(4,22,49)) with the blue glow
-     painted by ::before — a flat base keeps the lower-left as dark as the
-     design, while the radial glows never show a hard clipped edge. */
-  background: #041631;
+  /* Campus backdrop — a photograph of the school sits under two navy washes:
+     one left-to-right (densest behind the headline, lightest behind the
+     student) and one top-to-bottom (keeps the hero's base dark). The flat
+     navy at the bottom is sampled off the design (rgb(4,22,49)) and shows
+     while the photo loads. */
+  background:
+    linear-gradient(180deg,
+      rgba(4,22,49,0.38) 0%,
+      rgba(4,22,49,0.55) 46%,
+      rgba(4,22,49,0.94) 100%),
+    linear-gradient(90deg,
+      #041631 0%,
+      rgba(4,22,49,0.94) 36%,
+      rgba(4,22,49,0.62) 62%,
+      rgba(4,22,49,0.42) 100%),
+    url("https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Wide%20architectural%20photograph%20of%20a%20Philippine%20public%20high%20school%20campus%2C%20Kiwalan%20National%20High%20School%2C%20two-storey%20concrete%20classroom%20building%20painted%20white%20and%20green%2C%20open%20walkway%20with%20no%20roof%20or%20canopy%2C%20flagpole%2C%20tropical%20palm%20trees%2C%20blue%20sky%2C%20bright%20daylight&image_size=landscape_16_9")
+      center 38% / cover no-repeat,
+    #041631;
   /* overflow:hidden clips the student. overflow:clip clips bg shapes
      but doesn't affect abs-pos children outside the stacking context. */
   overflow: clip;
@@ -1809,28 +1837,6 @@
       rgba(15,100,210,0.14) 48%,
       transparent 74%);
   pointer-events: none;
-  z-index: 0;
-}
-
-/* ── Watermark — "KIWALAN NATIONAL HIGH SCHOOL" across the bottom ── */
-/* The design sets it compact and low: letters ~22px tall, running x393..700 at
-   1536px (the portrait cuts nothing — the whole line ends before it). scaleX
-   reproduces that condensed set; `left` puts its centre on the design's centre. */
-.landing-hero::after {
-  content: 'KIWALAN NATIONAL HIGH SCHOOL';
-  position: absolute;
-  bottom: clamp(72px, 10.7vh, 132px);
-  left: 35.5%;
-  transform: translateX(-50%) scaleX(0.58);
-  font-size: clamp(1.05rem, 1.95vw, 1.9rem);
-  font-weight: 900;
-  letter-spacing: 0;
-  color: rgba(255,255,255,0.075);
-  white-space: nowrap;
-  pointer-events: none;
-  text-transform: uppercase;
-  /* Sits behind the portrait (the layout above is z-index:1), exactly as the
-     design shows it — the student's shoulder covers the right-hand end. */
   z-index: 0;
 }
 
