@@ -1,0 +1,19 @@
+# TRACK · Tracking Requirements, Attendance and Communication
+# Kiwalan National High School, Iligan City
+#
+# Only the landing page is public. The portal itself needs a signed-in account,
+# so keep crawlers out of the API and the role-specific routes rather than
+# letting them index redirects and empty application shells. Everything else is
+# left crawlable so the landing page can still load its own assets to render.
+
+User-agent: *
+Disallow: /api/
+Disallow: /dashboard
+Disallow: /announcements
+Disallow: /notifications
+Disallow: /profile
+Disallow: /unauthorized
+Disallow: /admin/
+Disallow: /teacher/
+Disallow: /student/
+Disallow: /parent/
