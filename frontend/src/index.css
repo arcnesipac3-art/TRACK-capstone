@@ -325,9 +325,10 @@ img, svg { display: block; }
 }
 .checkbox-row input { width: 16px; height: 16px; accent-color: var(--navy-800); }
 
-.password-wrap { position: relative; }
-.password-wrap .input { padding-right: 74px; }
-.password-toggle {
+/* Generic password wrap for non-auth forms (profile change etc.) */
+:not(.auth-form) > .field > .password-wrap { position: relative; }
+:not(.auth-form) > .field > .password-wrap .input { padding-right: 74px; }
+:not(.auth-form) .password-toggle {
   position: absolute;
   right: 6px;
   top: 50%;
@@ -343,7 +344,7 @@ img, svg { display: block; }
   border-radius: var(--radius-sm);
   cursor: pointer;
 }
-.password-toggle:hover { background: var(--blue-50); }
+:not(.auth-form) .password-toggle:hover { background: var(--blue-50); }
 
 /* ---------------------------------------------------------------------
    Cards & surfaces
