@@ -401,33 +401,33 @@ export default function LandingPage() {
 
             {/* ── Left: text content ── */}
             <div className="hero-content">
-              <span className="hero-kicker">
+              <span className="hero-kicker animate-text">
                 <img src="/knhs-seal.png" alt="" aria-hidden="true" className="hero-knhs-seal" />
                 Kiwalan National High School · Iligan City
               </span>
 
-              <h1 id="hero-heading" className="hero-heading">
+              <h1 id="hero-heading" className="hero-heading animate-text delay-100">
                 <span className="hero-heading-line1">All school records.</span>
                 <span className="hero-heading-line2">One portal.</span>
               </h1>
 
-              <p className="hero-sub">
+              <p className="hero-sub animate-text delay-200">
                 TRACK gives Kiwalan National High School a single, secure
                 place for requirements, attendance, fees and communication —
                 accessible to administrators, teachers, students and parents,
                 anytime, anywhere.
               </p>
 
-              <div className="hero-actions">
+              <div className="hero-actions animate-text delay-300">
                 <Link className="hero-btn-primary" to={dashboardHref}>
                   {signedIn ? 'Go to my dashboard' : 'Sign in to TRACK'}
                 </Link>
                 <a className="hero-btn-secondary" href="#features">Explore features</a>
               </div>
 
-              <p className="hero-note">Accounts are issued by the school registrar.</p>
+              <p className="hero-note animate-text delay-400">Accounts are issued by the school registrar.</p>
 
-              <div className="hero-stats">
+              <div className="hero-stats animate-text delay-500">
                 <div className="hero-stat">
                   <div className="hero-stat-value">4 <span className="hero-stat-word">Roles</span></div>
                   <div className="hero-stat-label">ADMINS · TEACHERS<br />STUDENTS · PARENTS</div>
@@ -450,7 +450,7 @@ export default function LandingPage() {
               {/* Dashboard preview window — sits behind the portrait, exactly as
                   in the design: dark chrome bar with the TRACK lockup and two
                   round controls, then the dashboard screenshot. */}
-              <div className="hero-preview-window">
+              <div className="hero-preview-window animate-fade-in delay-400">
                 <div className="hpw-chrome">
                   <Logo size="sm" variant="light" />
                   <span className="hpw-actions">
@@ -464,11 +464,11 @@ export default function LandingPage() {
               <img
                 src="/student.png"
                 alt="A KNHS student in school uniform holding a tablet"
-                className="hero-student-img"
+                className="hero-student-img animate-student"
               />
 
               {/* Floating role cards — positioned around the portrait */}
-              <div className="hero-card hero-card-student">
+              <div className="hero-card hero-card-student animate-card delay-500">
                 <div className="hero-card-icon">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                 </div>
@@ -478,7 +478,7 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              <div className="hero-card hero-card-teacher">
+              <div className="hero-card hero-card-teacher animate-card delay-600">
                 <div className="hero-card-icon">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 </div>
@@ -488,7 +488,7 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              <div className="hero-card hero-card-parent">
+              <div className="hero-card hero-card-parent animate-card delay-700">
                 <div className="hero-card-icon">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 </div>
