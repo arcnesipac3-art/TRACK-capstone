@@ -5628,6 +5628,11 @@
   object-position: center 8%;
 }
 
+/* student2.webp (lead) — shift up so more of the face is visible */
+.rp-card--lead .rp-portrait-img {
+  object-position: center 0%;
+}
+
 /* ── Card body ── */
 .rp-card-body {
   padding: 24px 28px 28px;
