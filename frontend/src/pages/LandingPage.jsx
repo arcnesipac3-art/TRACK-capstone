@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Icon from '../components/Icon'
 import Logo from '../components/Logo'
@@ -296,12 +296,30 @@ function FaqAccordion({ items }) {
 export default function LandingPage() {
   const { isAuthenticated, user } = useAuth()
   const rootRef = useRef(null)
+  const heroVisualRef = useRef(null)
   const [activeSection, setActiveSection] = useState('')
   const [activeRole, setActiveRole] = useState(null)
   const [expandedFeature, setExpandedFeature] = useState(null)
+  const [hoveredCard, setHoveredCard] = useState(null)
+  const [parallax, setParallax] = useState({ x: 0, y: 0 })
 
   const signedIn = isAuthenticated && Boolean(user)
   const dashboardHref = signedIn ? dashboardPath(user.role) : '/login'
+
+  // Mouse parallax for the hero visual
+  const handleHeroMouseMove = useCallback((e) => {
+    const hero = e.currentTarget
+    const rect = hero.getBoundingClientRect()
+    const cx = rect.left + rect.width / 2
+    const cy = rect.top + rect.height / 2
+    const dx = (e.clientX - cx) / (rect.width / 2)   // -1 … +1
+    const dy = (e.clientY - cy) / (rect.height / 2)  // -1 … +1
+    setParallax({ x: dx, y: dy })
+  }, [])
+
+  const handleHeroMouseLeave = useCallback(() => {
+    setParallax({ x: 0, y: 0 })
+  }, [])
 
   // Smooth-scroll all in-page anchor links (#section) inside .landing.
   // Since .landing is the scroll container (not html/body), native
@@ -415,7 +433,7 @@ export default function LandingPage() {
 
       <PublicNav
         activeSection={activeSection}
-        onScrollToTop={() => rootRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+        onScrollToTop={() => { rootRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); setActiveSection('') }}
       />
 
       <main className="landing-main" id="main-content" tabIndex={-1}>
@@ -444,7 +462,7 @@ export default function LandingPage() {
               </p>
 
               <div className="hero-actions">
-                <Link className="hero-btn-primary" to={dashboardHref}>
+                <Link className="hero-btn-primary hero-btn-pulse" to={dashboardHref}>
                   {signedIn ? 'Go to my dashboard' : 'Sign in to TRACK'}
                 </Link>
                 <a className="hero-btn-secondary" href="#features">Explore features</a>
@@ -462,11 +480,18 @@ export default function LandingPage() {
             </div>
 
             {/* ── Right: student photo + floating role cards ── */}
-            <div className="hero-visual" aria-hidden="true">
-              {/* Dashboard preview window — sits behind the portrait, exactly as
-                  in the design: dark chrome bar with the TRACK lockup and two
-                  round controls, then the dashboard screenshot. */}
-              <div className="hero-preview-window">
+            <div
+              className="hero-visual"
+              aria-hidden="true"
+              ref={heroVisualRef}
+              onMouseMove={handleHeroMouseMove}
+              onMouseLeave={handleHeroMouseLeave}
+            >
+              {/* Dashboard preview window */}
+              <div
+                className="hero-preview-window"
+                style={{ transform: `translate(${parallax.x * -6}px, ${parallax.y * -4}px)` }}
+              >
                 <div className="hpw-chrome">
                   <Logo size="sm" variant="light" />
                   <span className="hpw-actions">
@@ -481,36 +506,64 @@ export default function LandingPage() {
                 src="/student.png"
                 alt="A KNHS student in school uniform holding a tablet"
                 className="hero-student-img"
+                style={{ transform: `translate(${parallax.x * 8}px, ${parallax.y * 5}px)` }}
               />
 
-              {/* Floating role cards — positioned around the portrait */}
-              <div className="hero-card hero-card-student">
-                <div className="hero-card-icon">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                </div>
-                <div className="hero-card-body">
-                  <div className="hero-card-title">Student</div>
-                  <div className="hero-card-desc">Grades · Attendance · Schedule · Notifications</div>
+              {/* Floating role cards — parallax + hover glow */}
+              <div
+                className="hero-card-float hero-card-student-wrap"
+              >
+                <div
+                  className={`hero-card hero-card-student${hoveredCard === 'student' ? ' hero-card--active' : ''}`}
+                  style={{ transform: `translate(${parallax.x * -12}px, ${parallax.y * -8}px)` }}
+                  onMouseEnter={() => setHoveredCard('student')}
+                  onMouseLeave={() => setHoveredCard(null)}
+                >
+                  <div className="hero-card-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                  </div>
+                  <div className="hero-card-body">
+                    <div className="hero-card-title">Student</div>
+                    <div className="hero-card-desc">Grades · Attendance · Schedule · Notifications</div>
+                  </div>
                 </div>
               </div>
 
-              <div className="hero-card hero-card-teacher">
-                <div className="hero-card-icon">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                </div>
-                <div className="hero-card-body">
-                  <div className="hero-card-title">Teacher</div>
-                  <div className="hero-card-desc">Attendance · Grades · Materials · Messages</div>
+              <div
+                className="hero-card-float hero-card-teacher-wrap"
+              >
+                <div
+                  className={`hero-card hero-card-teacher${hoveredCard === 'teacher' ? ' hero-card--active' : ''}`}
+                  style={{ transform: `translate(${parallax.x * -16}px, ${parallax.y * -10}px)` }}
+                  onMouseEnter={() => setHoveredCard('teacher')}
+                  onMouseLeave={() => setHoveredCard(null)}
+                >
+                  <div className="hero-card-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  </div>
+                  <div className="hero-card-body">
+                    <div className="hero-card-title">Teacher</div>
+                    <div className="hero-card-desc">Attendance · Grades · Materials · Messages</div>
+                  </div>
                 </div>
               </div>
 
-              <div className="hero-card hero-card-parent">
-                <div className="hero-card-icon">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                </div>
-                <div className="hero-card-body">
-                  <div className="hero-card-title">Parent</div>
-                  <div className="hero-card-desc">Child Grades · Attendance · Schedule · Notifications</div>
+              <div
+                className="hero-card-float hero-card-parent-wrap"
+              >
+                <div
+                  className={`hero-card hero-card-parent${hoveredCard === 'parent' ? ' hero-card--active' : ''}`}
+                  style={{ transform: `translate(${parallax.x * -20}px, ${parallax.y * -13}px)` }}
+                  onMouseEnter={() => setHoveredCard('parent')}
+                  onMouseLeave={() => setHoveredCard(null)}
+                >
+                  <div className="hero-card-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  </div>
+                  <div className="hero-card-body">
+                    <div className="hero-card-title">Parent</div>
+                    <div className="hero-card-desc">Child Grades · Attendance · Schedule · Notifications</div>
+                  </div>
                 </div>
               </div>
             </div>

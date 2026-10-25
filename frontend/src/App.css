@@ -1527,7 +1527,7 @@
      with calc(100svh - var(--navbar-height)) so the dark section always ends
      exactly at the bottom of the first screen — no white strip below it.
      The responsive blocks below re-declare it wherever the nav changes height. */
-  --navbar-height: 56px;
+  --navbar-height: 64px;
   background: var(--surface);
   /* Prevent absolute-positioned glow pseudo-elements from causing horizontal scroll */
   overflow-x: hidden;
@@ -1715,14 +1715,14 @@
    Position: fixed so it sits flush below the sticky nav and above everything. */
 .mob-nav {
   position: fixed;
-  top: var(--navbar-height); /* matches .landing-nav height (64px mobile) */
+  top: var(--navbar-height, 64px); /* fallback keeps dropdown below header on non-landing pages */
   left: 0;
   right: 0;
   z-index: 49;
   background: #ffffff;
   display: flex;
   flex-direction: column;
-  max-height: calc(100dvh - 64px);
+  max-height: calc(100dvh - var(--navbar-height, 64px));
   box-shadow: 0 8px 24px rgba(15, 32, 68, 0.12);
   border-top: 2px solid #E8ECF4;
   overflow: hidden;
@@ -2149,8 +2149,14 @@
 }
 
 /* ── Floating role cards ── */
-.hero-card {
+/* Outer wrapper — handles position + float animation */
+.hero-card-float {
   position: absolute;
+  z-index: 3;
+  animation: hero-float 4s ease-in-out infinite;
+}
+
+.hero-card {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -2161,8 +2167,6 @@
   border: 1px solid rgba(37,99,235,0.5);
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 0 1px rgba(37,99,235,0.12);
-  z-index: 3;
-  animation: hero-float 4s ease-in-out infinite;
 }
 
 .hero-card-icon {
@@ -2193,14 +2197,10 @@
   margin-top: 3px;
 }
 
-/* Card sizes + positions — measured off the design (1536×1024):
-   Student  x1124..1320 y174..256, Teacher x1300..1489 y274..354,
-   Parent   x1306..1515 y652..731. The `right` values are offsets from the
-   visual column's right edge (1448px), so the boxes land on those same
-   coordinates; widths are fixed because each card hugs its own two-line copy. */
-.hero-card-student  { top: -1%;      right: 128px;  width: 196px; animation-delay: 0s;   }
-.hero-card-teacher  { top: 11.1%;    right: -41px;  width: 190px; animation-delay: 1.4s; }
-.hero-card-parent   { bottom: 34.3%; right: -67px;  width: 210px; animation-delay: 2.8s; }
+/* Wrapper positions (float animation lives here) */
+.hero-card-student-wrap { top: -1%;      right: 128px;  width: 196px; animation-delay: 0s;   }
+.hero-card-teacher-wrap { top: 11.1%;    right: -41px;  width: 190px; animation-delay: 1.4s; }
+.hero-card-parent-wrap  { bottom: 34.3%; right: -67px;  width: 210px; animation-delay: 2.8s; }
 
 @keyframes hero-float {
   0%, 100% { transform: translateY(0px); }
@@ -2242,17 +2242,15 @@
 /* Right column — window fades, portrait rises, cards pop in */
 .hero-preview-window { animation: hero-fade 700ms ease-out 260ms both; }
 .hero-student-img    { animation: hero-student-in 780ms cubic-bezier(.22,1,.36,1) 320ms both; }
+/* Inner card: entrance animation only (float lives on the wrapper) */
 .hero-card {
-  /* Intro first, then the perpetual float — the float's later start clears
-     the intro so the two never animate `transform` at the same time. */
-  animation:
-    hero-card-in 620ms cubic-bezier(.22,1,.36,1) both,
-    hero-float 4s ease-in-out infinite;
+  animation: hero-card-in 620ms cubic-bezier(.22,1,.36,1) both;
 }
-.hero-card-student { animation-delay: 520ms, 1.6s; }
-.hero-card-teacher { animation-delay: 660ms, 2.4s; }
-.hero-card-parent  { animation-delay: 800ms, 3.2s; }
+.hero-card-student-wrap .hero-card { animation-delay: 520ms; }
+.hero-card-teacher-wrap .hero-card { animation-delay: 660ms; }
+.hero-card-parent-wrap  .hero-card { animation-delay: 800ms; }
 
+@media (prefers-reduced-motion: reduce) {
 @media (prefers-reduced-motion: reduce) {
   .hero-kicker,
   .hero-heading-line1,
@@ -2263,8 +2261,58 @@
   .hero-stats,
   .hero-preview-window,
   .hero-student-img { animation: none; }
-  /* Cards keep only their gentle float, no entrance */
-  .hero-card { animation: hero-float 4s ease-in-out infinite; }
+  /* Remove card entrance; keep float on the wrapper */
+  .hero-card { animation: none; }
+  .hero-card-float { animation: none; }
+  /* Disable parallax smooth transitions */
+  .hero-card,
+  .hero-student-img,
+  .hero-preview-window { transition: none !important; }
+}
+
+/* ── Hero interactivity ──────────────────────────────────────────────
+   Parallax: transform is applied inline via React state (mousemove on
+   .hero-visual). Transition smooths the movement back to neutral.
+   Card hover: glow ring + slight scale lift.
+   CTA pulse: subtle attention animation that fires once after 3 s idle. */
+
+/* Smooth the parallax return-to-centre */
+.hero-preview-window,
+.hero-student-img,
+.hero-card {
+  transition: transform 0.12s ease-out, box-shadow 0.2s ease, border-color 0.2s ease;
+  will-change: transform;
+}
+
+/* Floating card — hover glow */
+.hero-card--active,
+.hero-card:hover {
+  border-color: rgba(99,163,255,0.9);
+  box-shadow: 0 4px 28px rgba(37,99,235,0.55), 0 0 0 2px rgba(99,163,255,0.35);
+  transform: scale(1.06) !important; /* override float translateY */
+}
+.hero-card--active .hero-card-icon,
+.hero-card:hover .hero-card-icon {
+  background: rgba(37,99,235,0.85);
+}
+
+/* CTA pulse — fires once, 3 s after the page loads */
+@keyframes hero-btn-pulse {
+  0%   { box-shadow: 0 0 0 0   rgba(37,99,235,0.7); }
+  60%  { box-shadow: 0 0 0 12px rgba(37,99,235,0);   }
+  100% { box-shadow: 0 0 0 0   rgba(37,99,235,0);    }
+}
+.hero-btn-pulse {
+  animation: hero-btn-pulse 1s ease-out 3s 1;
+}
+
+/* Stat counter lift on hover */
+.hero-stat {
+  cursor: default;
+  transition: transform 0.18s ease;
+}
+.hero-stat:hover {
+  transform: translateY(-3px);
 }
 
 /* ── In-hero dashboard preview window ───────────────────────────────
@@ -2360,8 +2408,8 @@
 /* Below ~1500px the two right-hand cards would reach past the viewport edge at
    their design offsets, so they tuck in close to it instead (never overflowing). */
 @media (max-width: 1500px) {
-  .hero-card-teacher,
-  .hero-card-parent { right: -20px; }
+  .hero-card-teacher-wrap,
+  .hero-card-parent-wrap { right: -20px; }
 }
 
 /* Below ~1400px the window (left:52% + width:56% = 108% of its column) would
@@ -2404,11 +2452,12 @@
   }
   /* The preview window is a desktop-only composition detail */
   .hero-preview-window { display: none; }
-  .hero-card { min-width: 148px; max-width: 176px; padding: 9px 12px; }
+  .hero-card-float { min-width: 148px; max-width: 176px; }
+  .hero-card { padding: 9px 12px; }
   .hero-card-icon { width: 30px; height: 30px; }
-  .hero-card-student { top: 0;      right: 0; }
-  .hero-card-teacher { top: 30%;    right: 0; }
-  .hero-card-parent  { bottom: 12%; right: 0; }
+  .hero-card-student-wrap { top: 0;      right: 0; }
+  .hero-card-teacher-wrap { top: 30%;    right: 0; }
+  .hero-card-parent-wrap  { bottom: 12%; right: 0; }
 }
 
 /* Mobile ≤767px: stack vertically */
@@ -2456,9 +2505,9 @@
     object-position: center bottom;
   }
   /* Cards: right side */
-  .hero-card-student { top: 6%;    right: 0; }
-  .hero-card-teacher { top: 38%;   right: 0; }
-  .hero-card-parent  { bottom: 6%; right: 0; }
+  .hero-card-student-wrap { top: 6%;    right: 0; }
+  .hero-card-teacher-wrap { top: 38%;   right: 0; }
+  .hero-card-parent-wrap  { bottom: 6%; right: 0; }
 }
 
 /* Small mobile ≤479px */
@@ -3812,7 +3861,8 @@
 /* Large desktop: cap content width, keep sidebar */
 @media (min-width: 1440px) {
   .app-content { padding: 32px 36px 56px; }
-  .landing { --navbar-height: 56px; }
+  /* Landing page — large desktop */
+  .landing { --navbar-height: 64px; }
   .landing-nav { padding: 0 clamp(40px, 4.4vw, 84px); }
 }
 
@@ -3836,7 +3886,7 @@
   .problem-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .trust-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* Landing page — tablet */
-  .landing { --navbar-height: 56px; }
+  .landing { --navbar-height: 64px; }
   .landing-nav { padding: 0 24px; }
   .landing-preview { padding: 0 20px 60px; }
   .landing-section { padding: 60px 24px; }
@@ -3891,7 +3941,7 @@
   .filter-bar { padding: 12px; }
   .filter-bar .field { min-width: 0; width: 100%; }
 
-  .landing { --navbar-height: 52px; }
+  .landing { --navbar-height: 56px; }
   .landing-nav { padding: 0 16px; }
   .landing-nav-links { display: none; }
   .landing-nav-menu-btn { display: flex; }
@@ -4645,7 +4695,7 @@
   display: flex;
   align-items: center;
   gap: 24px;
-  height: 56px;
+  height: 64px;
   padding: 0 clamp(24px, 4.4vw, 68px);
   background: #fff;
   border-bottom: 1px solid rgba(0, 0, 0, 0.07);
@@ -4824,12 +4874,14 @@
 /* Hide nav links and show hamburger at tablet/mobile */
 @media (max-width: 1023px) {
   .pub-nav-links { display: none; }
-  .pub-nav-cta { margin-left: auto; }
+  /* Override the higher-specificity desktop rule (.pub-nav-cta.btn.btn-primary) */
+  .pub-nav-cta,
+  .pub-nav-cta.btn.btn-primary { margin-left: auto; display: none !important; }
   .pub-nav-menu-btn { display: flex; }
 }
 
 @media (max-width: 767px) {
-  .pub-nav { padding: 0 16px; }
+  .pub-nav { padding: 0 16px; height: 56px; }
 }
 
 .res-main {
@@ -5332,7 +5384,7 @@
 }
 
 @media (max-width: 767px) {
-  .res-nav { padding: 0 16px; }
+  .res-nav { padding: 0 16px; height: 56px; }
   .res-hero-inner { padding: 48px 20px 52px; }
   .res-team { padding: 36px 0 56px; }
   .res-card { gap: 14px; padding: 20px 16px; }
