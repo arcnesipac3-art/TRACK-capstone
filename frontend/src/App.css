@@ -2492,7 +2492,7 @@
     height: auto;
     min-height: 0;
     align-self: center;
-    margin: 0 auto;       /* centres the column itself */
+    margin: 0 auto;
   }
   .hero-student-img {
     position: static;
@@ -2504,12 +2504,10 @@
     object-fit: contain;
     object-position: center bottom;
     display: block;
-    margin: 0 auto;       /* belt-and-suspenders centre */
+    margin: 0 auto;
   }
-  /* Cards: right side */
-  .hero-card-student-wrap { top: 6%;    right: 0; }
-  .hero-card-teacher-wrap { top: 38%;   right: 0; }
-  .hero-card-parent-wrap  { bottom: 6%; right: 0; }
+  /* Hide floating role cards on mobile — too cramped */
+  .hero-card-float { display: none; }
 }
 
 /* Small mobile ≤479px */
@@ -2520,8 +2518,6 @@
   .hero-btn-primary,
   .hero-btn-secondary { width: 100%; justify-content: center; }
   .hero-actions { flex-direction: column; width: 100%; }
-  /* Hide cards on very small screens */
-  .hero-card { display: none; }
   .hero-stats { flex-wrap: wrap; gap: 12px 0; }
   .hero-stat-sep { display: none; }
   .hero-stat { padding: 0 12px; }
