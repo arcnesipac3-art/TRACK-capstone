@@ -113,6 +113,12 @@ def _client_ip(request):
     return request.META.get("REMOTE_ADDR")
 
 
+def _is_mobile(request):
+    """True when the request looks like it came from the Expo / React Native app."""
+    ua = request.META.get("HTTP_USER_AGENT", "").lower()
+    return any(kw in ua for kw in ("okhttp", "expo", "reactnative", "react-native", "dalvik"))
+
+
 @require_GET
 def health_check(request):
     return JsonResponse({
@@ -218,9 +224,9 @@ class TokenLoginView(APIView):
             target_model="User",
             target_id=str(user.pk),
             description=(
-                f"{user.get_full_name()} signed in."
-                if request.headers.get("X-Client-Type") == "web"
-                else f"{user.get_full_name()} signed in (mobile)."
+                f"{user.get_full_name()} signed in (mobile)."
+                if _is_mobile(request)
+                else f"{user.get_full_name()} signed in."
             ),
             ip_address=_client_ip(request),
         )

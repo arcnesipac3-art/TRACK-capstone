@@ -166,7 +166,6 @@ export const api = {
     const data = await request('/auth/token/', {
       method: 'POST',
       body: { username, password },
-      headers: { 'X-Client-Type': 'web' },
     })
     setStoredToken(data.token)
     return data
