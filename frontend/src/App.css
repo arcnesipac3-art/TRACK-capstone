@@ -988,8 +988,12 @@
   flex-direction: column;
   padding: 58px 40px 78px 63px;
   /* Campus backdrop — the school photograph sits under navy washes that stay
-     dense over the brand row, tagline and role cards. Flat navy fallback shows while loading. */
-  background:
+     dense over the brand row, tagline and role cards. The washes live in a
+     custom property so the pre-load veil (::after) can reproduce them exactly.
+     The photo layer's URL is handed over from JS *after* first paint
+     (--auth-aside-bg), so the panel paints immediately and the image never
+     blocks the route. */
+  --auth-aside-wash:
     linear-gradient(180deg,
       rgba(10,34,77,0.94) 0%,
       rgba(10,34,77,0.88) 40%,
@@ -999,14 +1003,32 @@
       rgba(10,34,77,0.86) 0%,
       rgba(10,34,77,0.56) 58%,
       rgba(10,34,77,0.32) 100%),
-    radial-gradient(120% 80% at 12% 92%, rgba(37, 99, 235, 0.14) 0%, transparent 62%),
-    url("https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Tall%20portrait%20photograph%20of%20a%20Philippine%20public%20high%20school%20campus%2C%20Kiwalan%20National%20High%20School%2C%20two-storey%20concrete%20classroom%20building%20painted%20white%20and%20green%2C%20open%20walkway%20with%20no%20roof%20or%20canopy%2C%20flagpole%2C%20tropical%20palm%20trees%2C%20blue%20sky%2C%20bright%20daylight&image_size=portrait_16_9")
-      center 28% / cover no-repeat,
+    radial-gradient(120% 80% at 12% 92%, rgba(37, 99, 235, 0.14) 0%, transparent 62%);
+  background:
+    var(--auth-aside-wash),
+    var(--auth-aside-bg, none) center 28% / cover no-repeat,
     #0a224d;
   color: #fff;
   height: 100%;
   overflow: hidden;
 }
+
+/* Pre-load veil over the branding panel — the same washes the panel uses, minus
+   the photograph, so the panel keeps its depth from the very first frame while
+   only the photo has to load. Held at full opacity until the photo has decoded,
+   then faded away (`.bg-ready`). Sits above the backdrop but below the panel
+   copy (z-index 2), so the text is never veiled. */
+.auth-aside::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: var(--auth-aside-wash), #0a224d;
+  opacity: 1;
+  transition: opacity 900ms ease;
+}
+.auth-layout.bg-ready .auth-aside::after { opacity: 0; }
 
 /* Top-right radial highlight */
 .auth-aside::before {
@@ -1381,6 +1403,51 @@
 }
 .back-home:hover { color: #1d4ed8; text-decoration: none; }
 
+/* ── Sign-in intro animations ────────────────────────────────────────
+   Mirrors the landing hero: the branding panel settles first, then the form
+   card — each block rising in on a short stagger. Only opacity and transform
+   animate, so nothing shifts layout while it plays. */
+@keyframes auth-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes auth-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Left — branding panel */
+.aside-brand-row { animation: auth-rise 560ms cubic-bezier(.22,1,.36,1)  60ms both; }
+.aside-tagline   { animation: auth-rise 560ms cubic-bezier(.22,1,.36,1) 170ms both; }
+.aside-roles > .aside-role-card:nth-child(1) { animation: auth-rise 540ms cubic-bezier(.22,1,.36,1) 250ms both; }
+.aside-roles > .aside-role-card:nth-child(2) { animation: auth-rise 540ms cubic-bezier(.22,1,.36,1) 320ms both; }
+.aside-roles > .aside-role-card:nth-child(3) { animation: auth-rise 540ms cubic-bezier(.22,1,.36,1) 390ms both; }
+.aside-roles > .aside-role-card:nth-child(4) { animation: auth-rise 540ms cubic-bezier(.22,1,.36,1) 460ms both; }
+.auth-aside .aside-foot { animation: auth-rise 520ms cubic-bezier(.22,1,.36,1) 560ms both; }
+
+/* Right — form panel */
+.auth-mobile-brand { animation: auth-rise 520ms cubic-bezier(.22,1,.36,1) 160ms both; }
+.auth-heading      { animation: auth-rise 560ms cubic-bezier(.22,1,.36,1) 240ms both; }
+.auth-form         { animation: auth-rise 560ms cubic-bezier(.22,1,.36,1) 320ms both; }
+.auth-divider      { animation: auth-fade 600ms ease-out 520ms both; }
+.auth-note         { animation: auth-rise 520ms cubic-bezier(.22,1,.36,1) 560ms both; }
+.back-home         { animation: auth-rise 520ms cubic-bezier(.22,1,.36,1) 610ms both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .aside-brand-row,
+  .aside-tagline,
+  .aside-roles > .aside-role-card:nth-child(n),
+  .auth-aside .aside-foot,
+  .auth-mobile-brand,
+  .auth-heading,
+  .auth-form,
+  .auth-divider,
+  .auth-note,
+  .back-home { animation: none; }
+  /* Reveal the campus backdrop instantly rather than fading the veil */
+  .auth-aside::after { transition: none; }
+}
+
 /* ── RESPONSIVE ── */
 
 /* Large desktop ≥1440px */
@@ -1422,7 +1489,6 @@
     height: auto;
   }
   .auth-aside::before { width: 200px; height: 200px; top: -60px; right: -60px; }
-  .auth-aside::after  { display: none; }
   .aside-student-glow { display: none; }
   .aside-roles { display: none; }
   .aside-tagline { font-size: 15px; }
@@ -1741,24 +1807,11 @@
    ================================================================ */
 .landing-hero {
   position: relative;
-  /* Campus backdrop — a photograph of the school sits under two navy washes:
-     one left-to-right (densest behind the headline, lightest behind the
-     student) and one top-to-bottom (keeps the hero's base dark). The flat
-     navy at the bottom is sampled off the design (rgb(4,22,49)) and shows
-     while the photo loads. */
-  background:
-    linear-gradient(180deg,
-      rgba(4,22,49,0.38) 0%,
-      rgba(4,22,49,0.55) 46%,
-      rgba(4,22,49,0.94) 100%),
-    linear-gradient(90deg,
-      #041631 0%,
-      rgba(4,22,49,0.94) 36%,
-      rgba(4,22,49,0.62) 62%,
-      rgba(4,22,49,0.42) 100%),
-    url("https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Wide%20architectural%20photograph%20of%20a%20Philippine%20public%20high%20school%20campus%2C%20Kiwalan%20National%20High%20School%2C%20two-storey%20concrete%20classroom%20building%20painted%20white%20and%20green%2C%20open%20walkway%20with%20no%20roof%20or%20canopy%2C%20flagpole%2C%20tropical%20palm%20trees%2C%20blue%20sky%2C%20bright%20daylight&image_size=landscape_16_9")
-      center 38% / cover no-repeat,
-    #041631;
+  /* Flat navy base — sampled off the design (rgb(4,22,49)) and painted
+     instantly, before anything else loads. The campus photograph is a
+     separate layer applied lazily from JS (see ::before), and the two navy
+     washes sit above it (see ::after), so neither is on the first paint. */
+  background-color: #041631;
   /* overflow:hidden clips the student. overflow:clip clips bg shapes
      but doesn't affect abs-pos children outside the stacking context. */
   overflow: clip;
@@ -1773,14 +1826,47 @@
   align-items: stretch;
 }
 
-/* ── Background: soft blue glow upper-right + broad glow under the portrait.
-   Two full-size radial gradients (no clipped shape) — the earlier rounded
-   rectangle left a visible diagonal seam across the hero. ── */
+/* ── Hero backdrop, split into two layers ────────────────────────────
+   ::before — the campus photograph. Its URL is handed to the browser
+   only after the page has painted (via --landing-hero-bg, set from JS),
+   so the image is fetched off the critical path and never delays the
+   hero's navy first paint. It fades in once decoded (`.bg-ready`).
+   ::after  — the two navy washes (left-to-right and top-to-bottom) plus
+   the soft blue glows, layered above the photo but below the content,
+   which .hero-layout lifts to z-index 1. */
 .landing-hero::before {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--landing-hero-bg, none);
+  background-position: center 38%;
+  background-size: cover;
+  background-repeat: no-repeat;
+  opacity: 0;
+  transition: opacity 900ms ease;
+}
+.landing.bg-ready .landing-hero::before {
+  opacity: 1;
+}
+
+.landing-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
   background:
+    linear-gradient(180deg,
+      rgba(4,22,49,0.38) 0%,
+      rgba(4,22,49,0.55) 46%,
+      rgba(4,22,49,0.94) 100%),
+    linear-gradient(90deg,
+      #041631 0%,
+      rgba(4,22,49,0.94) 36%,
+      rgba(4,22,49,0.62) 62%,
+      rgba(4,22,49,0.42) 100%),
     radial-gradient(95% 85% at 91% -8%,
       rgba(15,95,205,0.46) 0%,
       rgba(15,95,205,0.22) 45%,
@@ -1789,8 +1875,10 @@
       rgba(15,100,210,0.34) 0%,
       rgba(15,100,210,0.14) 48%,
       transparent 74%);
-  pointer-events: none;
-  z-index: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero::before { transition: none; }
 }
 
 /* ── Two-column grid ── */
@@ -2101,6 +2189,66 @@
 @keyframes hero-float {
   0%, 100% { transform: translateY(0px); }
   50%       { transform: translateY(-8px); }
+}
+
+/* ── Hero intro animations ────────────────────────────────────────────
+   One-shot entrance for the above-the-fold hero: the copy rises in first,
+   then the visual — preview window, portrait and floating role cards —
+   settles with a short stagger. `both` holds the start state through each
+   delay so nothing flashes before it animates, and only opacity/transform
+   are touched, so there is no layout shift. */
+@keyframes hero-rise {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes hero-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes hero-card-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.95); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes hero-student-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(26px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Left column — staggered rise */
+.hero-kicker        { animation: hero-rise 560ms cubic-bezier(.22,1,.36,1)  40ms both; }
+.hero-heading-line1 { animation: hero-rise 620ms cubic-bezier(.22,1,.36,1) 120ms both; }
+.hero-heading-line2 { animation: hero-rise 620ms cubic-bezier(.22,1,.36,1) 200ms both; }
+.hero-sub           { animation: hero-rise 620ms cubic-bezier(.22,1,.36,1) 290ms both; }
+.hero-actions       { animation: hero-rise 620ms cubic-bezier(.22,1,.36,1) 370ms both; }
+.hero-note          { animation: hero-rise 560ms cubic-bezier(.22,1,.36,1) 430ms both; }
+.hero-stats         { animation: hero-rise 640ms cubic-bezier(.22,1,.36,1) 500ms both; }
+
+/* Right column — window fades, portrait rises, cards pop in */
+.hero-preview-window { animation: hero-fade 700ms ease-out 260ms both; }
+.hero-student-img    { animation: hero-student-in 780ms cubic-bezier(.22,1,.36,1) 320ms both; }
+.hero-card {
+  /* Intro first, then the perpetual float — the float's later start clears
+     the intro so the two never animate `transform` at the same time. */
+  animation:
+    hero-card-in 620ms cubic-bezier(.22,1,.36,1) both,
+    hero-float 4s ease-in-out infinite;
+}
+.hero-card-student { animation-delay: 520ms, 1.6s; }
+.hero-card-teacher { animation-delay: 660ms, 2.4s; }
+.hero-card-parent  { animation-delay: 800ms, 3.2s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-kicker,
+  .hero-heading-line1,
+  .hero-heading-line2,
+  .hero-sub,
+  .hero-actions,
+  .hero-note,
+  .hero-stats,
+  .hero-preview-window,
+  .hero-student-img { animation: none; }
+  /* Cards keep only their gentle float, no entrance */
+  .hero-card { animation: hero-float 4s ease-in-out infinite; }
 }
 
 /* ── In-hero dashboard preview window ───────────────────────────────

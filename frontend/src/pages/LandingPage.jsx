@@ -9,6 +9,13 @@ import { dashboardPath } from '../utils/format'
 const SITE_YEAR = new Date().getFullYear()
 const REVEAL_SETTLE_MS = 600
 
+/* Campus backdrop for the hero. Kept here (not in the stylesheet) so the URL
+   can be handed to the browser *after* first paint — a CSS background would be
+   fetched the moment the stylesheet is parsed, competing with the app bundle
+   and delaying the hero's first paint. */
+const HERO_BG_URL =
+  'https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Wide%20architectural%20photograph%20of%20a%20Philippine%20public%20high%20school%20campus%2C%20Kiwalan%20National%20High%20School%2C%20two-storey%20concrete%20classroom%20building%20painted%20white%20and%20green%2C%20open%20walkway%20with%20no%20roof%20or%20canopy%2C%20flagpole%2C%20tropical%20palm%20trees%2C%20blue%20sky%2C%20bright%20daylight&image_size=landscape_16_9'
+
 /* ── Content data ─────────────────────────────────────────────────────────── */
 
 const PROBLEMS = [
@@ -323,6 +330,27 @@ export default function LandingPage() {
     return () => {
       observer.disconnect()
       settleTimers.forEach((timer) => window.clearTimeout(timer))
+    }
+  }, [])
+
+  // Lazy-load the hero's campus backdrop. The URL is only exposed to the
+  // browser after this effect runs (i.e. after the hero has painted its navy
+  // base), then `bg-ready` fades the photo in once it is decoded — so the image
+  // never sits on the critical path and never flashes in half-loaded.
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return undefined
+    root.style.setProperty('--landing-hero-bg', `url("${HERO_BG_URL}")`)
+    let cancelled = false
+    const img = new Image()
+    img.decoding = 'async'
+    img.onload = () => {
+      if (!cancelled) root.classList.add('bg-ready')
+    }
+    img.src = HERO_BG_URL
+    return () => {
+      cancelled = true
+      img.onload = null
     }
   }, [])
 

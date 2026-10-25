@@ -1,9 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import Icon from '../components/Icon'
 import Logo from '../components/Logo'
 import { useAuth } from '../context/AuthContext'
 import { dashboardPath } from '../utils/format'
+
+/* Campus backdrop for the branding panel. Kept here (not in the stylesheet) so
+   the URL can be handed to the browser *after* first paint — a CSS background
+   would be requested as soon as the stylesheet is parsed, competing with the
+   app bundle and delaying the sign-in route's first paint. */
+const ASIDE_BG_URL =
+  'https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Tall%20portrait%20photograph%20of%20a%20Philippine%20public%20high%20school%20campus%2C%20Kiwalan%20National%20High%20School%2C%20two-storey%20concrete%20classroom%20building%20painted%20white%20and%20green%2C%20open%20walkway%20with%20no%20roof%20or%20canopy%2C%20flagpole%2C%20tropical%20palm%20trees%2C%20blue%20sky%2C%20bright%20daylight&image_size=portrait_16_9'
 
 /** Role cards shown in the aside panel. */
 const ROLES = [
@@ -41,6 +48,8 @@ export default function LoginPage() {
   const [formError, setFormError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
 
+  const layoutRef = useRef(null)
+
   const from = location.state?.from
 
   useEffect(() => {
@@ -48,6 +57,28 @@ export default function LoginPage() {
       navigate(from || dashboardPath(user.role), { replace: true })
     }
   }, [isAuthenticated, user, from, navigate])
+
+  // Lazy-load the branding panel's campus backdrop. The URL is only handed to
+  // the browser once this effect runs — i.e. after the panel has painted its
+  // flat navy and the session check has resolved (the layout isn't in the DOM
+  // until then) — and `bg-ready` then fades the navy veil away to reveal the
+  // photo once decoded, so the image never sits on the route's critical path.
+  useEffect(() => {
+    const root = layoutRef.current
+    if (!root) return undefined
+    root.style.setProperty('--auth-aside-bg', `url("${ASIDE_BG_URL}")`)
+    let cancelled = false
+    const img = new Image()
+    img.decoding = 'async'
+    img.onload = () => {
+      if (!cancelled) root.classList.add('bg-ready')
+    }
+    img.src = ASIDE_BG_URL
+    return () => {
+      cancelled = true
+      img.onload = null
+    }
+  }, [isLoading])
 
   if (isLoading) {
     return (
@@ -91,7 +122,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="auth-layout">
+    <div className="auth-layout" ref={layoutRef}>
       {/* ── Left panel ──────────────────────────────────────────────── */}
       <aside className="auth-aside">
         <div className="aside-brand">
