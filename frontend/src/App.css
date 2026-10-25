@@ -1706,6 +1706,10 @@
 @media (min-width: 1024px) {
   .res-page .mob-nav { display: none !important; }
 }
+/* pub-nav pages also hide links at 1023px */
+@media (min-width: 1024px) {
+  .pub-nav ~ .mob-nav { display: none !important; }
+}
 
 /* The panel mounts with JS (conditional render), so no .open toggle needed.
    Position: fixed so it sits flush below the sticky nav and above everything. */
@@ -4704,6 +4708,128 @@
 .res-nav > .btn.btn-primary:hover {
   background: #1148d4;
   box-shadow: 0 4px 12px rgba(21, 93, 252, 0.3);
+}
+
+/* ==========================================================================
+   pub-nav — unified public page header (replaces landing-nav + res-nav)
+   ========================================================================== */
+.pub-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  height: var(--navbar-height, 64px);
+  padding: 0 clamp(24px, 4.4vw, 68px);
+  background: #ffffff;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  box-shadow: 0 1px 8px rgba(15, 32, 68, 0.06);
+  min-width: 0;
+}
+
+.pub-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  text-decoration: none;
+}
+
+.pub-nav-seal {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.pub-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  margin-right: auto;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.pub-nav-links a {
+  padding: 8px 14px;
+  border-radius: 6px;
+  color: #374151;
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.pub-nav-links a:hover {
+  background: #F3F4F6;
+  color: #111827;
+  text-decoration: none;
+}
+
+.pub-nav-links a:focus-visible {
+  outline: 2px solid #155DFC;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.pub-nav-links a.nav-active {
+  color: #155DFC;
+  background: #EEF3FF;
+  font-weight: 600;
+}
+
+.pub-nav-cta.btn.btn-primary {
+  flex-shrink: 0;
+  background: #155DFC;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 26px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  text-decoration: none;
+}
+
+.pub-nav-cta.btn.btn-primary:hover {
+  background: #1148d4;
+  box-shadow: 0 4px 12px rgba(21, 93, 252, 0.3);
+}
+
+/* Hamburger button — hidden on desktop, shown via media query */
+.pub-nav-menu-btn {
+  display: none;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--navy-800);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+/* Hide nav links and show hamburger at tablet/mobile */
+@media (max-width: 1023px) {
+  .pub-nav-links { display: none; }
+  .pub-nav-cta { margin-left: auto; }
+  .pub-nav-menu-btn { display: flex; }
+}
+
+@media (max-width: 767px) {
+  .pub-nav { padding: 0 16px; }
 }
 
 .res-main {

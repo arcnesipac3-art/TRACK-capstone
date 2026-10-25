@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import Icon from '../components/Icon'
 import Logo from '../components/Logo'
+import PublicNav from '../components/PublicNav'
 import { useAuth } from '../context/AuthContext'
 import { dashboardPath } from '../utils/format'
 
@@ -45,19 +46,6 @@ export default function ResearchersPage() {
   const dashboardHref = signedIn ? dashboardPath(user.role) : '/login'
 
   const pageRef = useRef(null)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-
-  // Close on Escape, lock body scroll while open
-  useEffect(() => {
-    if (!mobileMenuOpen) return
-    const handleKey = (e) => { if (e.key === 'Escape') setMobileMenuOpen(false) }
-    document.addEventListener('keydown', handleKey)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', handleKey)
-      document.body.style.overflow = ''
-    }
-  }, [mobileMenuOpen])
 
   // Lazy-load the hero's campus backdrop: the band paints its flat navy first,
   // the URL is handed over only after mount, and `bg-ready` fades the photo in
@@ -81,55 +69,7 @@ export default function ResearchersPage() {
 
   return (
     <div className="res-page" ref={pageRef}>
-      {/* ── Nav ───────────────────────────────────────────────────── */}
-      <header className="res-nav">
-        <Link className="res-nav-brand" to="/" aria-label="TRACK — back to home">
-          <img src="/knhs-seal.png" alt="" className="res-nav-seal" />
-          <Logo size="sm" />
-        </Link>
-        <nav className="res-nav-links" aria-label="Site sections">
-          <Link to="/">Home</Link>
-          <Link to="/#problem">The Problem</Link>
-          <Link to="/#features">Features</Link>
-          <Link to="/#how-it-works">How It Works</Link>
-          <Link to="/#roles">Roles</Link>
-          <Link to="/#faq">FAQ</Link>
-          <Link to="/location">Find Us</Link>
-        </nav>
-        <Link className="btn btn-primary" to={dashboardHref}>
-          {signedIn ? 'Open dashboard' : 'Sign In'}
-        </Link>
-        <button
-          type="button"
-          className="landing-nav-menu-btn"
-          aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-          aria-expanded={mobileMenuOpen}
-          onClick={() => setMobileMenuOpen((v) => !v)}
-        >
-          <Icon name={mobileMenuOpen ? 'close' : 'menu'} size={20} />
-        </button>
-      </header>
-
-      {/* ── Mobile nav dropdown ──────────────────────────────────── */}
-      {mobileMenuOpen && (
-        <div className="mob-nav" role="dialog" aria-modal="true" aria-label="Navigation menu">
-          <div className="mob-nav-divider" aria-hidden="true" />
-          <nav className="mob-nav-links" aria-label="Mobile navigation">
-            <Link to="/"              onClick={() => setMobileMenuOpen(false)}>Home</Link>
-            <Link to="/#problem"      onClick={() => setMobileMenuOpen(false)}>The Problem</Link>
-            <Link to="/#features"     onClick={() => setMobileMenuOpen(false)}>Features</Link>
-            <Link to="/#how-it-works" onClick={() => setMobileMenuOpen(false)}>How It Works</Link>
-            <Link to="/#roles"        onClick={() => setMobileMenuOpen(false)}>Roles</Link>
-            <Link to="/#faq"          onClick={() => setMobileMenuOpen(false)}>FAQ</Link>
-            <Link to="/location"      onClick={() => setMobileMenuOpen(false)}>Find Us</Link>
-          </nav>
-          <div className="mob-nav-cta">
-            <Link className="mob-nav-cta-btn" to={dashboardHref} onClick={() => setMobileMenuOpen(false)}>
-              {signedIn ? 'Open dashboard' : 'Sign in to TRACK'}
-            </Link>
-          </div>
-        </div>
-      )}
+      <PublicNav />
 
       <main className="res-main">
         {/* ── Hero ──────────────────────────────────────────────── */}

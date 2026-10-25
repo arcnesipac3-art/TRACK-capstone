@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Icon from '../components/Icon'
 import Logo from '../components/Logo'
+import PublicNav from '../components/PublicNav'
 import dashboardShot from '../assets/dashboard.webp'
 import { useAuth } from '../context/AuthContext'
 import { dashboardPath } from '../utils/format'
@@ -295,25 +296,12 @@ function FaqAccordion({ items }) {
 export default function LandingPage() {
   const { isAuthenticated, user } = useAuth()
   const rootRef = useRef(null)
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [activeSection, setActiveSection] = useState('')
   const [activeRole, setActiveRole] = useState(null)
   const [expandedFeature, setExpandedFeature] = useState(null)
 
   const signedIn = isAuthenticated && Boolean(user)
   const dashboardHref = signedIn ? dashboardPath(user.role) : '/login'
-
-  // Close mobile menu on route change or escape key
-  useEffect(() => {
-    if (!mobileMenuOpen) return
-    const handleKey = (e) => { if (e.key === 'Escape') setMobileMenuOpen(false) }
-    document.addEventListener('keydown', handleKey)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', handleKey)
-      document.body.style.overflow = ''
-    }
-  }, [mobileMenuOpen])
 
   // Smooth-scroll all in-page anchor links (#section) inside .landing.
   // Since .landing is the scroll container (not html/body), native
@@ -343,8 +331,6 @@ export default function LandingPage() {
       const containerTop = container.getBoundingClientRect().top
       const offset = targetTop - containerTop + container.scrollTop - NAV_H
       container.scrollTo({ top: offset, behavior: 'smooth' })
-      // Close mobile menu if open
-      setMobileMenuOpen(false)
     }
 
     container.addEventListener('click', handleAnchorClick)
@@ -427,72 +413,10 @@ export default function LandingPage() {
     <div className="landing" ref={rootRef}>
       <a className="landing-skip" href="#main-content">Skip to content</a>
 
-      {/* ── Nav ───────────────────────────────────────────────────── */}
-      <header className="landing-nav">
-        <div className="landing-nav-brand">
-          <img src="/knhs-seal.png" alt="Kiwalan National High School seal" className="landing-nav-seal" />
-          <Logo size="sm" />
-        </div>
-        <nav className="landing-nav-links" aria-label="Landing sections">
-          <a href="#" className={!activeSection ? 'nav-active' : ''}>Home</a>
-          <a href="#problem" className={activeSection === 'problem' ? 'nav-active' : ''}>The Problem</a>
-          <a href="#features" className={activeSection === 'features' ? 'nav-active' : ''}>Features</a>
-          <a href="#how-it-works" className={activeSection === 'how-it-works' ? 'nav-active' : ''}>How It Works</a>
-          <a href="#roles" className={activeSection === 'roles' ? 'nav-active' : ''}>Roles</a>
-          <a href="#faq" className={activeSection === 'faq' ? 'nav-active' : ''}>FAQ</a>
-          <Link to="/location">Find Us</Link>
-        </nav>
-        <Link className="btn btn-primary" to={dashboardHref} style={{ flexShrink: 0 }}>
-          {signedIn ? 'Open dashboard' : 'Sign In'}
-        </Link>
-        {/* Mobile hamburger / close — visible only on small screens via CSS */}
-        <button
-          type="button"
-          className="landing-nav-menu-btn"
-          aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-          aria-expanded={mobileMenuOpen}
-          onClick={() => setMobileMenuOpen((v) => !v)}
-        >
-          <Icon name={mobileMenuOpen ? 'close' : 'menu'} size={20} />
-        </button>
-      </header>
-
-      {/* ── Mobile nav dropdown ──────────────────────────────────── */}
-      {mobileMenuOpen && (
-        <div
-          className="mob-nav"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Navigation menu"
-        >
-          {/* Divider / header row already comes from the navbar above;
-              a thin separator reinforces the panel edge */}
-          <div className="mob-nav-divider" aria-hidden="true" />
-
-          {/* Scrollable link area */}
-          <nav className="mob-nav-links" aria-label="Mobile navigation">
-            <a href="#"            onClick={() => setMobileMenuOpen(false)}>Home</a>
-            <a href="#problem"     onClick={() => setMobileMenuOpen(false)}>The Problem</a>
-            <a href="#features"    onClick={() => setMobileMenuOpen(false)}>Features</a>
-            <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)}>How It Works</a>
-            <a href="#roles"       onClick={() => setMobileMenuOpen(false)}>Roles</a>
-            <a href="#security"    onClick={() => setMobileMenuOpen(false)}>Security</a>
-            <a href="#faq"         onClick={() => setMobileMenuOpen(false)}>FAQ</a>
-            <Link to="/location"   onClick={() => setMobileMenuOpen(false)}>Find Us</Link>
-          </nav>
-
-          {/* Full-width CTA */}
-          <div className="mob-nav-cta">
-            <Link
-              className="mob-nav-cta-btn"
-              to={dashboardHref}
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              {signedIn ? 'Open dashboard' : 'Sign in to TRACK'}
-            </Link>
-          </div>
-        </div>
-      )}
+      <PublicNav
+        activeSection={activeSection}
+        onScrollToTop={() => rootRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+      />
 
       <main className="landing-main" id="main-content" tabIndex={-1}>
 
