@@ -5600,9 +5600,9 @@
   object-position: center 8%;
 }
 
-/* student2.webp (lead) — shift up so more of the face is visible */
+/* student2.webp (lead) — shift up slightly to show uniform/chest */
 .rp-card--lead .rp-portrait-img {
-  object-position: center 0%;
+  object-position: center 15%;
 }
 
 /* ── Card body ── */
