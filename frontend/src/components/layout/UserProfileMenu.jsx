@@ -72,6 +72,11 @@ export default function UserProfileMenu() {
             <Icon name="bell" size={16} />
             Notifications
           </Link>
+          <Link className="menu-link" role="menuitem" to="/"
+            onClick={() => setOpen(false)}>
+            <Icon name="home" size={16} />
+            Visit website
+          </Link>
           <button
             type="button"
             className="menu-link danger"
