@@ -136,9 +136,9 @@ export default function LoginPage() {
         {/* Glow circle behind where student will appear */}
         <div className="aside-student-glow" aria-hidden="true" />
 
-        {/* Student PNG — inside the aside so it never bleeds into the form panel */}
+        {/* Student cut-out — inside the aside so it never bleeds into the form panel */}
         <div className="aside-student-img" aria-hidden="true">
-          <img src="/student2.png" alt="" />
+          <img src="/student2.webp" alt="" />
         </div>
       </aside>
 
