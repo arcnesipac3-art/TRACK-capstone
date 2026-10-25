@@ -102,35 +102,39 @@ export default function ResearchersPage() {
 
         {/* ── Team ──────────────────────────────────────────────── */}
         <section className="res-team" aria-label="Researchers">
-          {RESEARCHERS.map((person) => (
-            <article className={`res-card res-card--${person.tone}`} key={person.name}>
-              <div className="res-portrait">
-                <span className="res-portrait-glow" aria-hidden="true" />
-                <img
-                  src={person.photo}
-                  alt={`Portrait of ${person.name}`}
-                  className="res-portrait-img"
-                  loading="lazy"
-                  decoding="async"
-                />
-              </div>
-              <div className="res-card-body">
-                <p className="res-role">{person.role}</p>
-                <h2 className="res-name">{person.name}</h2>
-                <p className="res-bio">{person.bio}</p>
-                <ul className="res-focus">
-                  {person.focus.map((item) => (
-                    <li key={item}>
-                      <span className="res-mark" aria-hidden="true">
-                        <Icon name="check" size={11} />
-                      </span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </article>
-          ))}
+          <div className="res-container">
+            <div className="res-team-grid">
+              {RESEARCHERS.map((person) => (
+                <article className={`res-card res-card--${person.tone}`} key={person.name}>
+                  <div className="res-portrait">
+                    <span className="res-portrait-glow" aria-hidden="true" />
+                    <img
+                      src={person.photo}
+                      alt={`Portrait of ${person.name}`}
+                      className="res-portrait-img"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </div>
+                  <div className="res-card-body">
+                    <p className="res-role">{person.role}</p>
+                    <h2 className="res-name">{person.name}</h2>
+                    <p className="res-bio">{person.bio}</p>
+                    <ul className="res-focus">
+                      {person.focus.map((item) => (
+                        <li key={item}>
+                          <span className="res-mark" aria-hidden="true">
+                            <Icon name="check" size={11} />
+                          </span>
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
         </section>
       </main>
 

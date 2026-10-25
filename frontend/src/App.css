@@ -4748,11 +4748,14 @@
 /* --- Researcher cards --- */
 .res-team {
   flex: 1 0 auto;
+  padding: 52px 0 72px;
+  background: var(--surface);
+}
+
+.res-team-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
-  padding: 52px clamp(24px, 5vw, 88px) 72px;
-  background: var(--surface);
 }
 
 /* --- Content Sections --- */
@@ -4997,14 +5000,14 @@
      aside and the CTA takes the right edge. */
   .res-nav-links { display: none; }
   .res-nav > .btn { margin-left: auto; }
-  .res-team { grid-template-columns: minmax(0, 1fr); }
+  .res-team-grid { grid-template-columns: minmax(0, 1fr); }
   .res-grid { grid-template-columns: 1fr; gap: 48px; }
 }
 
 @media (max-width: 767px) {
   .res-nav { padding: 0 16px; }
   .res-hero-inner { padding: 48px 20px 52px; }
-  .res-team { padding: 36px 20px 56px; }
+  .res-team { padding: 36px 0 56px; }
   .res-card { gap: 14px; padding: 20px 16px; }
   .res-portrait { width: 104px; }
   .res-content-section { padding: 56px 0; }
