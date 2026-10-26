@@ -72,7 +72,7 @@
 
   /* Layout */
   --sidebar-w: 256px;
-  --topbar-h: 80px;
+  --topbar-h: 68px;
   /* Wide-desktop cap: 1200px left large empty margins on 1440px+ monitors
      (dashboard content sat in a narrow band). 1440px matches the ≥1440
      breakpoint in App.css while keeping text lines readable. */
