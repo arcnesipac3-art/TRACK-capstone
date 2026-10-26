@@ -32,6 +32,7 @@ MODULES = OrderedDict([
     ("users", "User Management"),
     ("departments", "Departments & Roles"),
     ("students", "Student Records"),
+    ("enrollment", "Enrollment & Admissions"),
     ("structure", "School Structure"),
     ("requirements", "Requirements"),
     ("fees", "Fee Management"),
@@ -73,6 +74,18 @@ PERMISSION_DEFS = (
     ("students", "manage", "Manage records",
      "Create and edit student records (LRN, section, enrollment). Managing a "
      "student account also requires Manage accounts."),
+
+    # ── Enrollment & Admissions ────────────────────────────────────────────
+    ("enrollment", "view", "View applications",
+     "See enrollment applications, their documents, review history and "
+     "enrollment records."),
+    ("enrollment", "manage", "Manage enrollment",
+     "Configure enrollment periods and document requirements, review "
+     "applications, verify or return documents, request corrections, make "
+     "admission decisions and approve section assignments."),
+    ("enrollment", "confirm", "Confirm enrollment",
+     "Give final Registrar confirmation that creates a student's enrollment "
+     "record for the school year."),
 
     # ── School Structure ───────────────────────────────────────────────────
     ("structure", "manage", "Manage structure",
@@ -181,6 +194,9 @@ DEFAULT_DEPARTMENTS = (
             "users.manage",
             "students.view",
             "students.manage",
+            "enrollment.view",
+            "enrollment.manage",
+            "enrollment.confirm",
             "structure.manage",
             "requirements.view",
             "requirements.manage",

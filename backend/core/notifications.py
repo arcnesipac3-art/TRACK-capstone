@@ -273,6 +273,145 @@ def notify_announcement(announcement: Announcement):
 
 
 # ---------------------------------------------------------------------------
+# Enrollment applications
+# ---------------------------------------------------------------------------
+#
+# Every enrollment notification is triggered from exactly one status
+# transition (the state machine guarantees a transition can happen once), so
+# retries of the originating request never produce a duplicate. Helpers stay
+# silent about failure: an enrollment that committed must never be undone by
+# a notification that could not be written.
+
+def _enrollment_recipients(application):
+    """The users authorized to see this application's progress: the submitting
+    account plus the linked student's account (when different)."""
+    recipients = set()
+    if application.applicant_id:
+        recipients.add(application.applicant_id)
+    if application.student_id:
+        recipients.add(application.student.user_id)
+    return recipients
+
+
+def notify_enrollment_submitted(application):
+    """Tell the applicant their application was received, with the reference."""
+    def _write():
+        recipients = _enrollment_recipients(application)
+        Notification.objects.bulk_create([
+            Notification(
+                recipient_id=recipient_id,
+                notif_type=Notification.NotifType.ENROLLMENT_SUBMITTED,
+                title=f"Application received — {application.reference}",
+                body=(
+                    f"Your application for {application.grade_level} "
+                    f"({application.school_year.label}) was submitted. Track its "
+                    "progress using your application reference."
+                ),
+                application=application,
+            )
+            for recipient_id in recipients
+        ])
+
+    return _silently(_write)
+
+
+def notify_enrollment_corrections(application, note=""):
+    """Tell the applicant staff requested corrections (with the explanation)."""
+    def _write():
+        recipients = _enrollment_recipients(application)
+        body = (
+            f"Your application {application.reference} needs corrections before "
+            "it can continue review. Open the application to see which items "
+            "need attention."
+        )
+        if note:
+            body += f" Message from the Registrar: {note}"
+        Notification.objects.bulk_create([
+            Notification(
+                recipient_id=recipient_id,
+                notif_type=Notification.NotifType.ENROLLMENT_CORRECTIONS,
+                title=f"Corrections needed — {application.reference}",
+                body=body,
+                application=application,
+            )
+            for recipient_id in recipients
+        ])
+
+    return _silently(_write)
+
+
+def notify_enrollment_decision(application):
+    """Tell the applicant the admission decision (accepted/rejected/waitlisted/
+    withdrawn/cancelled). Enrolled is handled by the confirmation helper."""
+    from .models import ApplicationStatus
+
+    if application.status not in (
+        ApplicationStatus.ACCEPTED,
+        ApplicationStatus.REJECTED,
+        ApplicationStatus.WAITLISTED,
+        ApplicationStatus.WITHDRAWN,
+        ApplicationStatus.CANCELLED,
+    ):
+        return None
+
+    def _write():
+        recipients = _enrollment_recipients(application)
+        label = application.get_status_display()
+        if application.status == ApplicationStatus.ACCEPTED:
+            body = (
+                f"Your application {application.reference} was accepted. The "
+                "Registrar will finalize your section assignment and enrollment."
+            )
+        elif application.status == ApplicationStatus.REJECTED:
+            body = (
+                f"Your application {application.reference} was not accepted."
+            )
+            if application.decision_reason:
+                body += f" Reason: {application.decision_reason}"
+        else:
+            body = (
+                f"Your application {application.reference} is now: {label}."
+            )
+            if application.decision_reason:
+                body += f" Reason: {application.decision_reason}"
+        Notification.objects.bulk_create([
+            Notification(
+                recipient_id=recipient_id,
+                notif_type=Notification.NotifType.ENROLLMENT_DECISION,
+                title=f"{label} — {application.reference}",
+                body=body,
+                application=application,
+            )
+            for recipient_id in recipients
+        ])
+
+    return _silently(_write)
+
+
+def notify_enrollment_confirmed(application, enrollment):
+    """Tell the applicant the enrollment is confirmed. Called post-commit;
+    a failure here never touches the committed enrollment."""
+    def _write():
+        recipients = _enrollment_recipients(application)
+        Notification.objects.bulk_create([
+            Notification(
+                recipient_id=recipient_id,
+                notif_type=Notification.NotifType.ENROLLMENT_CONFIRMED,
+                title=f"Enrollment confirmed — {enrollment.school_year.label}",
+                body=(
+                    f"{application.get_full_name()} is enrolled in "
+                    f"{enrollment.grade_level} — {enrollment.section_name} for "
+                    f"{enrollment.school_year.label}."
+                ),
+                application=application,
+            )
+            for recipient_id in recipients
+        ])
+
+    return _silently(_write)
+
+
+# ---------------------------------------------------------------------------
 # Deadline reminders (scheduled — see the `notify_deadlines` command)
 # ---------------------------------------------------------------------------
 

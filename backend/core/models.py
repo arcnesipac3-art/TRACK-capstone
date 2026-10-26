@@ -287,6 +287,14 @@ class Section(models.Model):
         limit_choices_to={"role": User.Role.TEACHER},
         related_name="advised_sections",
     )
+    capacity = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Maximum number of active enrollments in this section. "
+            "Leave blank for no configured limit."
+        ),
+    )
 
     class Meta:
         ordering = ["grade_level__order", "name"]
@@ -672,6 +680,10 @@ class Notification(models.Model):
         ATTENDANCE_ABSENT = "attendance_absent", "Marked Absent"
         ATTENDANCE_LATE = "attendance_late", "Marked Late"
         ANNOUNCEMENT = "announcement", "Announcement"
+        ENROLLMENT_SUBMITTED = "enrollment_submitted", "Enrollment Application Submitted"
+        ENROLLMENT_CORRECTIONS = "enrollment_corrections", "Enrollment Corrections Requested"
+        ENROLLMENT_DECISION = "enrollment_decision", "Enrollment Application Decision"
+        ENROLLMENT_CONFIRMED = "enrollment_confirmed", "Enrollment Confirmed"
 
     recipient = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="notifications"
@@ -689,6 +701,14 @@ class Notification(models.Model):
     )
     attendance_record = models.ForeignKey(
         AttendanceRecord, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    # Enrollment applications (see the Enrollment & Admissions section below)
+    application = models.ForeignKey(
+        "EnrollmentApplication",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notifications",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -1034,3 +1054,520 @@ class AuditLog(models.Model):
 
     def __str__(self):
         return f"{self.actor} — {self.action} @ {self.timestamp:%Y-%m-%d %H:%M}"
+
+
+# ---------------------------------------------------------------------------
+# Enrollment & Admissions
+# ---------------------------------------------------------------------------
+#
+# A separate module (core/enrollment.py) implements the workflow rules on top
+# of these models. Design notes:
+#
+#   * Admission document requirements (EnrollmentRequirement) are distinct
+#     from the academic Requirement model above — never conflate the two.
+#   * Every application freezes its effective requirement checklist at
+#     creation time (requirements_snapshot + per-document snapshot fields), so
+#     later configuration edits never rewrite historical evidence.
+#   * An accepted application is NOT an enrollment. Enrollment rows are only
+#     created by the Registrar's final confirmation, which re-validates
+#     documents, section capacity and student identity inside one transaction.
+#   * Occupancy for capacity checks counts Enrollment rows with
+#     status='active' only — cancelled/dropped enrollments never occupy a
+#     slot, and a null Section.capacity means "no configured limit".
+
+
+class EnrollmentType(models.TextChoices):
+    """How the applicant is entering the requested grade level."""
+
+    NEW = "new", "New enrollee"
+    RETURNING = "returning", "Returning student"
+    TRANSFEREE = "transferee", "Transferee"
+
+
+class EnrollmentPeriod(models.Model):
+    """
+    An application window for one school year.
+
+    Closing a period stops new submissions; it never deletes or cancels
+    existing applications.
+    """
+
+    class Status(models.TextChoices):
+        UPCOMING = "upcoming", "Upcoming"
+        OPEN = "open", "Open for applications"
+        CLOSED = "closed", "Closed"
+
+    school_year = models.ForeignKey(
+        SchoolYear, on_delete=models.PROTECT, related_name="enrollment_periods"
+    )
+    name = models.CharField(
+        max_length=120,
+        blank=True,
+        help_text="Optional label, e.g. 'SY 2026-2027 Registration'.",
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.UPCOMING
+    )
+    opens_at = models.DateTimeField()
+    closes_at = models.DateTimeField()
+    grade_levels = models.ManyToManyField(
+        GradeLevel,
+        blank=True,
+        related_name="enrollment_periods",
+        help_text="Grade levels this period accepts. Empty = every grade level.",
+    )
+    allowed_enrollment_types = models.JSONField(
+        blank=True,
+        null=True,
+        help_text=(
+            "List of enrollment_type codes this period accepts "
+            "(see EnrollmentType). Empty/null = all types."
+        ),
+    )
+    allow_waitlist = models.BooleanField(
+        default=False,
+        help_text="Whether staff may waitlist applications when a grade level is full.",
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_enrollment_periods",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-school_year__start_date", "opens_at"]
+
+    def __str__(self):
+        label = self.name or f"{self.school_year.label} enrollment"
+        return f"{label} ({self.get_status_display()})"
+
+    def clean(self):
+        if self.opens_at and self.closes_at and self.opens_at >= self.closes_at:
+            raise ValidationError("The opening date must be before the closing date.")
+
+    def accepts_grade_level(self, grade_level) -> bool:
+        allowed = list(self.grade_levels.all())
+        if not allowed:
+            return True
+        return any(g.pk == getattr(grade_level, "pk", grade_level) for g in allowed)
+
+    def accepts_type(self, enrollment_type: str) -> bool:
+        allowed = self.allowed_enrollment_types or []
+        if not allowed:
+            return True
+        return enrollment_type in allowed
+
+    @property
+    def is_accepting_applications(self) -> bool:
+        now = timezone.now()
+        return (
+            self.status == self.Status.OPEN
+            and self.opens_at <= now <= self.closes_at
+        )
+
+
+class EnrollmentRequirement(models.Model):
+    """
+    A configurable admission-document requirement for an enrollment period.
+
+    Requirements are snapshot onto each application when it is created, so
+    editing or deactivating a requirement never alters applications that
+    already exist. Deleting one is blocked (PROTECT) once documents reference
+    it — deactivate instead.
+    """
+
+    period = models.ForeignKey(
+        EnrollmentPeriod, on_delete=models.CASCADE, related_name="document_requirements"
+    )
+    grade_level = models.ForeignKey(
+        GradeLevel,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="enrollment_requirements",
+        help_text="Applies to this grade level only. Empty = every grade level in the period.",
+    )
+    enrollment_type = models.CharField(
+        max_length=20,
+        choices=EnrollmentType.choices,
+        blank=True,
+        help_text="Applies to this enrollment type only. Empty = every type.",
+    )
+    name = models.CharField(max_length=150)
+    description = models.TextField(blank=True)
+    is_required = models.BooleanField(
+        default=True,
+        help_text="Required documents must be verified (or waived) before the "
+        "application can be accepted or confirmed.",
+    )
+    requires_verification = models.BooleanField(
+        default=True,
+        help_text="A reviewer must explicitly verify the uploaded file.",
+    )
+    is_active = models.BooleanField(default=True)
+    position = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["position", "name"]
+
+    def __str__(self):
+        scope = self.grade_level.name if self.grade_level else "All grades"
+        return f"{self.name} — {self.period} ({scope})"
+
+    def applies_to(self, grade_level, enrollment_type) -> bool:
+        if not self.is_active:
+            return False
+        if self.grade_level_id and self.grade_level_id != getattr(grade_level, "pk", grade_level):
+            return False
+        if self.enrollment_type and self.enrollment_type != enrollment_type:
+            return False
+        return True
+
+
+class ApplicationStatus(models.TextChoices):
+    DRAFT = "draft", "Draft"
+    SUBMITTED = "submitted", "Submitted"
+    UNDER_REVIEW = "under_review", "Under Review"
+    INCOMPLETE = "incomplete", "Incomplete — Corrections Required"
+    RESUBMITTED = "resubmitted", "Resubmitted"
+    ACCEPTED = "accepted", "Accepted"
+    WAITLISTED = "waitlisted", "Waitlisted"
+    REJECTED = "rejected", "Rejected"
+    ENROLLED = "enrolled", "Enrolled"
+    WITHDRAWN = "withdrawn", "Withdrawn"
+    CANCELLED = "cancelled", "Cancelled"
+
+
+class EnrollmentApplication(models.Model):
+    """
+    One application to enroll in a grade level for a school year.
+
+    The applicant is the authenticated user who submits (a student or a
+    parent/guardian). Object-level access is enforced through queryset
+    scoping: an applicant only ever sees rows where they are the applicant or
+    the linked student's user.
+    """
+
+    reference = models.CharField(
+        max_length=20, unique=True, blank=True, db_index=True,
+        help_text="Non-guessable application reference, assigned on creation.",
+    )
+    applicant = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="enrollment_applications",
+        help_text="The authenticated user who created/owns the application.",
+    )
+    applicant_name = models.CharField(
+        max_length=200, blank=True,
+        help_text="Snapshot of the submitting account's name.",
+    )
+    student = models.ForeignKey(
+        StudentProfile,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="enrollment_applications",
+        help_text="Existing student identity, when matched or linked by staff.",
+    )
+    period = models.ForeignKey(
+        EnrollmentPeriod, on_delete=models.PROTECT, related_name="applications"
+    )
+    school_year = models.ForeignKey(
+        SchoolYear, on_delete=models.PROTECT, related_name="enrollment_applications"
+    )
+    enrollment_type = models.CharField(max_length=20, choices=EnrollmentType.choices)
+    grade_level = models.ForeignKey(
+        GradeLevel, on_delete=models.PROTECT, related_name="enrollment_applications"
+    )
+    strand = models.CharField(
+        max_length=120, blank=True,
+        help_text="Intended Senior High School strand/track (Grades 11–12 only).",
+    )
+    previous_school = models.CharField(max_length=150, blank=True)
+    previous_school_address = models.CharField(max_length=200, blank=True)
+
+    # -- applicant identity (reused from the linked user/profile when present)
+    lrn = models.CharField("Learner Reference Number", max_length=12, blank=True)
+    first_name = models.CharField(max_length=150, blank=True)
+    middle_name = models.CharField(max_length=150, blank=True)
+    last_name = models.CharField(max_length=150, blank=True)
+    date_of_birth = models.DateField(null=True, blank=True)
+    sex = models.CharField(
+        max_length=10,
+        choices=[("female", "Female"), ("male", "Male")],
+        blank=True,
+    )
+    address = models.TextField(blank=True)
+    contact_number = models.CharField(max_length=20, blank=True)
+
+    # -- parent / guardian
+    guardian_name = models.CharField(max_length=150, blank=True)
+    guardian_relationship = models.CharField(max_length=60, blank=True)
+    guardian_contact = models.CharField(max_length=100, blank=True)
+    guardian_email = models.EmailField(blank=True)
+
+    # -- workflow
+    status = models.CharField(
+        max_length=20,
+        choices=ApplicationStatus.choices,
+        default=ApplicationStatus.DRAFT,
+        db_index=True,
+    )
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+    reviewer = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_enrollment_applications",
+    )
+    decision_reason = models.TextField(blank=True)
+
+    # -- section assignment (approved by staff; enrollment created on confirm)
+    assigned_section = models.ForeignKey(
+        Section,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="enrollment_applications",
+    )
+    section_approved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    section_assigned_at = models.DateTimeField(null=True, blank=True)
+
+    # -- checklist frozen when the application record is created
+    requirements_snapshot = models.JSONField(default=list, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["applicant", "school_year"],
+                condition=models.Q(applicant__isnull=False)
+                & models.Q(
+                    status__in=[
+                        ApplicationStatus.DRAFT,
+                        ApplicationStatus.SUBMITTED,
+                        ApplicationStatus.UNDER_REVIEW,
+                        ApplicationStatus.INCOMPLETE,
+                        ApplicationStatus.RESUBMITTED,
+                        ApplicationStatus.ACCEPTED,
+                        ApplicationStatus.WAITLISTED,
+                    ]
+                ),
+                name="uniq_open_application_per_applicant_year",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.reference} — {self.get_full_name()} ({self.get_status_display()})"
+
+    def get_full_name(self):
+        return " ".join(
+            part for part in (self.first_name, self.middle_name, self.last_name) if part
+        ).strip() or self.applicant_name or f"Application {self.reference}"
+
+    def save(self, *args, **kwargs):
+        if self.period_id and not self.school_year_id:
+            self.school_year_id = self.period.school_year_id
+        if not self.reference:
+            # Non-guessable reference: 40 bits of CSPRNG entropy, retrying on
+            # the (astronomically unlikely) collision.
+            import secrets
+
+            while True:
+                candidate = f"APP-{secrets.token_hex(5).upper()}"
+                if not EnrollmentApplication.objects.filter(reference=candidate).exists():
+                    self.reference = candidate
+                    break
+        super().save(*args, **kwargs)
+
+    def clean(self):
+        if self.period_id and self.grade_level_id:
+            if not self.period.accepts_grade_level(self.grade_level_id):
+                raise ValidationError(
+                    {"grade_level": "This grade level is not accepted in the selected enrollment period."}
+                )
+        if self.period_id and self.enrollment_type:
+            if not self.period.accepts_type(self.enrollment_type):
+                raise ValidationError(
+                    {"enrollment_type": "This enrollment type is not accepted in the selected enrollment period."}
+                )
+
+    @property
+    def is_editable_by_applicant(self):
+        return self.status in (ApplicationStatus.DRAFT, ApplicationStatus.INCOMPLETE)
+
+
+class ApplicationDocument(models.Model):
+    """
+    One application's submission of one requirement.
+
+    The requirement's identity and policy (name, required, verification) are
+    copied onto the row when it is created so later configuration edits never
+    rewrite historical evidence.
+    """
+
+    class Status(models.TextChoices):
+        NOT_SUBMITTED = "not_submitted", "Not Submitted"
+        SUBMITTED = "submitted", "Submitted — Awaiting Review"
+        VERIFIED = "verified", "Verified"
+        RETURNED = "returned", "Returned for Correction"
+        WAIVED = "waived", "Waived"
+
+    application = models.ForeignKey(
+        EnrollmentApplication, on_delete=models.CASCADE, related_name="documents"
+    )
+    requirement = models.ForeignKey(
+        EnrollmentRequirement, on_delete=models.PROTECT, related_name="documents"
+    )
+    name = models.CharField(max_length=150)
+    is_required = models.BooleanField(default=True)
+    requires_verification = models.BooleanField(default=True)
+    position = models.PositiveIntegerField(default=0)
+    file = models.FileField(
+        upload_to="enrollment/documents/%Y/", blank=True, null=True
+    )
+    original_filename = models.CharField(max_length=255, blank=True)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.NOT_SUBMITTED
+    )
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verified_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    review_note = models.TextField(
+        blank=True, help_text="Applicant-facing review note."
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["position", "name"]
+        unique_together = [["application", "requirement"]]
+
+    def __str__(self):
+        return f"{self.name} — {self.application.reference} [{self.status}]"
+
+
+class ApplicationReviewEvent(models.Model):
+    """
+    Immutable history of everything that happened to an application.
+
+    Applicants and parents only ever see `note` (the applicant-facing
+    explanation); `internal_note` is restricted to staff holding
+    enrollment.view.
+    """
+
+    application = models.ForeignKey(
+        EnrollmentApplication, on_delete=models.CASCADE, related_name="events"
+    )
+    actor = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    actor_name = models.CharField(max_length=200, blank=True)
+    action = models.CharField(max_length=50)  # e.g. "submitted", "status_changed"
+    from_status = models.CharField(max_length=20, blank=True)
+    to_status = models.CharField(max_length=20, blank=True)
+    note = models.TextField(blank=True)
+    internal_note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    def __str__(self):
+        return f"{self.application.reference}: {self.action} ({self.to_status or '-'})"
+
+    def save(self, *args, **kwargs):
+        if self.actor and not self.actor_name:
+            self.actor_name = self.actor.get_full_name() or self.actor.username
+        super().save(*args, **kwargs)
+
+
+class Enrollment(models.Model):
+    """
+    A confirmed, school-year-specific enrollment of a permanent student.
+
+    Created only by the Registrar's final confirmation. One student may hold
+    one active enrollment per school year (DB-enforced) and keeps every
+    historical row when advancing or changing sections.
+    """
+
+    class Status(models.TextChoices):
+        ACTIVE = "active", "Active"
+        DROPPED = "dropped", "Dropped"
+        WITHDRAWN = "withdrawn", "Withdrawn"
+
+    student = models.ForeignKey(
+        StudentProfile, on_delete=models.CASCADE, related_name="enrollments"
+    )
+    school_year = models.ForeignKey(
+        SchoolYear, on_delete=models.PROTECT, related_name="enrollments"
+    )
+    grade_level = models.ForeignKey(
+        GradeLevel, on_delete=models.PROTECT, related_name="enrollments"
+    )
+    section = models.ForeignKey(
+        Section,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="enrollments",
+    )
+    section_name = models.CharField(
+        max_length=60, blank=True, help_text="Snapshot of the section name at confirmation."
+    )
+    application = models.ForeignKey(
+        EnrollmentApplication,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="enrollments",
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.ACTIVE, db_index=True
+    )
+    confirmed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="confirmed_enrollments",
+    )
+    confirmed_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-school_year__start_date", "grade_level__order", "student__user__last_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student", "school_year"],
+                condition=models.Q(status="active"),
+                name="uniq_active_enrollment_per_student_year",
+            ),
+            models.UniqueConstraint(
+                fields=["application"],
+                condition=models.Q(application__isnull=False),
+                name="uniq_enrollment_per_application",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.student} — {self.school_year} [{self.get_status_display()}]"
