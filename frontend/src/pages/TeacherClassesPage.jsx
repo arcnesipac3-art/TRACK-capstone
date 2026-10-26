@@ -1,6 +1,6 @@
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
-import LoadingSpinner from '../components/LoadingSpinner'
+import TableSkeleton from '../components/loading/TableSkeleton'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
 import Card from '../components/dashboard/Card'
@@ -54,7 +54,13 @@ export default function TeacherClassesPage() {
       </div>
 
       <section className="card">
-        {loading && <LoadingSpinner block label="Loading your classes…" />}
+        {loading && (
+          <TableSkeleton
+            headers={['Subject', 'Section', 'Students', 'Requirements']}
+            rows={6}
+            label="Loading your classes…"
+          />
+        )}
 
         {!loading && error && (
           <div className="card-body">

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { api, ApiError } from '../services/api'
 import PageHeader from '../components/PageHeader'
 import ErrorMessage from '../components/ErrorMessage'
-import LoadingSpinner from '../components/LoadingSpinner'
+import CardSkeleton from '../components/loading/CardSkeleton'
 import Button from '../components/Button'
 import Icon from '../components/Icon'
 import Card from '../components/dashboard/Card'
@@ -174,7 +174,16 @@ export default function AdminFeeAssessmentDetailPage() {
     </Button>
   )
 
-  if (loading) return <LoadingSpinner block size="lg" label="Loading assessment…" />
+  if (loading) {
+    return (
+      <div className="stack stack-md">
+        <PageHeader title="Fee Assessment" actions={backButton} />
+        {/* Mirrors the form card that follows — header plus a few field rows,
+            so the layout does not jump when the record arrives. */}
+        <CardSkeleton lines={6} label="Loading assessment…" />
+      </div>
+    )
+  }
   if (error) {
     return (
       <div className="stack stack-md">
@@ -363,7 +372,12 @@ export default function AdminFeeAssessmentDetailPage() {
             <Button type="button" variant="secondary" onClick={back} disabled={saving}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" loading={saving}>
+            <Button
+              type="submit"
+              variant="primary"
+              loading={saving}
+              loadingLabel={isNew ? 'Creating…' : 'Saving…'}
+            >
               {isNew ? 'Create Assessment' : 'Save Changes'}
             </Button>
           </div>

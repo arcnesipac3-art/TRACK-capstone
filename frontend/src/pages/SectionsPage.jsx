@@ -1,3 +1,4 @@
+import ButtonLoader from '../components/loading/ButtonLoader'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import Icon from '../components/Icon'
@@ -179,7 +180,7 @@ function ActionsCell({ kind, item, busyId, onEdit, onDelete }) {
         disabled={busyId === id}
       >
         {busyId === id ? (
-          <span className="spinner spinner-sm" aria-hidden="true" />
+          <ButtonLoader />
         ) : (
           <Icon name="trash" size={14} />
         )}

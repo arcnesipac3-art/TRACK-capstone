@@ -3,7 +3,8 @@ import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import MobileNavigation from './MobileNavigation'
-import LoadingSpinner from '../LoadingSpinner'
+import PageLoader from '../loading/PageLoader'
+import RouteTransition from '../loading/RouteTransition'
 import useFetch from '../../hooks/useFetch'
 import { NotificationsContext } from '../../context/NotificationsContext'
 
@@ -64,10 +65,16 @@ export default function AppLayout() {
             notifications={notifications}
           />
           <main className="app-content" id="main-content">
-            {/* Pages are lazy chunks; keep the shell on screen while one loads. */}
-            <Suspense fallback={<LoadingSpinner block label="Loading page…" />}>
-              <Outlet />
-            </Suspense>
+            {/* Pages are lazy chunks; keep the shell on screen while one loads
+                and fade the destination in over the shell rather than
+                remounting anything (no refetch on navigation). */}
+            <RouteTransition>
+              <Suspense
+                fallback={<PageLoader label="Loading page…" minHeight={320} />}
+              >
+                <Outlet />
+              </Suspense>
+            </RouteTransition>
           </main>
         </div>
 

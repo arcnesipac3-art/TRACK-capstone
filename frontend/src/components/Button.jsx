@@ -1,18 +1,25 @@
 import { forwardRef } from 'react'
+import ButtonLoader from './loading/ButtonLoader'
 
 /**
  * Reusable button component with variants and sizes.
+ *
+ * `loading` disables the control (so a second click cannot fire the request
+ * again), marks it `aria-busy`, and shows a spinner *beside* the label — the
+ * label stays readable, and is replaced by `loadingLabel` when the action has
+ * a more specific name ("Saving…", "Recording payment…").
  */
-const Button = forwardRef(({ 
-  children, 
-  variant = 'primary', 
-  size = 'md', 
-  disabled = false, 
+const Button = forwardRef(({
+  children,
+  variant = 'primary',
+  size = 'md',
+  disabled = false,
   loading = false,
+  loadingLabel = null,
   className = '',
   type = 'button',
   onClick,
-  ...props 
+  ...props
 }, ref) => {
   const classes = [
     'btn',
@@ -29,11 +36,14 @@ const Button = forwardRef(({
       type={type}
       className={classes}
       disabled={disabled || loading}
+      aria-busy={loading || undefined}
       onClick={onClick}
       {...props}
     >
-      {loading && <span className="btn-spinner" aria-hidden="true" />}
-      <span className="btn-content">{children}</span>
+      {loading && <ButtonLoader />}
+      <span className="btn-content">
+        {loading && loadingLabel ? loadingLabel : children}
+      </span>
     </button>
   )
 })

@@ -1,10 +1,11 @@
+import ButtonLoader from '../components/loading/ButtonLoader'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
 import Icon from '../components/Icon'
-import LoadingSpinner from '../components/LoadingSpinner'
 import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
+import Skeleton from '../components/loading/Skeleton'
 import useFetch from '../hooks/useFetch'
 import api from '../services/api'
 import {
@@ -300,6 +301,100 @@ function TimetableGrid({ schedules, onScheduleClick, onEdit, onDelete, conflicts
   )
 }
 
+/**
+ * Placeholder for the weekly grid.
+ *
+ * It reuses the *real* timetable table (same `colgroup`, same sticky time
+ * column, same navy header row), so column widths and row heights land
+ * exactly where they will once the periods arrive — only the class blocks
+ * are placeholders. The day headings are static copy rather than fetched
+ * data, so they are shown for real.
+ *
+ * `BLOCKED_PERIODS` scatters the placeholder blocks in a timetable-shaped
+ * pattern instead of a checkerboard, which would read as artificial.
+ */
+const BLOCKED_PERIODS = [
+  [0, 3],
+  [1, 2, 4],
+  [2, 0, 3],
+  [3, 1, 4],
+  [4, 2],
+]
+
+function TimetableSkeleton({ rows = 5 }) {
+  // Day headings and the "Today" badge are static (derived from the clock,
+  // not from the request), so they are rendered for real — otherwise the
+  // badge would pop in and nudge the header when the periods arrive.
+  const todayDoW = useMemo(() => getTodayDayOfWeek(), [])
+
+  return (
+    <>
+      <span className="sr-only" role="status" aria-live="polite">
+        Loading schedules…
+      </span>
+      <div className="timetable-table-container" aria-hidden="true">
+        <table className="timetable-table">
+          <colgroup>
+            <col className="time-col" />
+            {DAYS_OF_WEEK.map((day) => (
+              <col key={day.value} className="day-col" />
+            ))}
+          </colgroup>
+          <thead>
+            <tr className="timetable-header-row">
+              <th className="timetable-th time-col" scope="col">Time</th>
+              {DAYS_OF_WEEK.map((day) => (
+                <th
+                  key={day.value}
+                  className={`timetable-th${day.value === todayDoW ? ' is-today' : ''}`}
+                  scope="col"
+                >
+                  <span className="timetable-day-label">{day.label}</span>
+                  {day.value === todayDoW && (
+                    <span className="timetable-today-badge">Today</span>
+                  )}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {Array.from({ length: rows }, (_, periodIndex) => {
+              const blocked = BLOCKED_PERIODS[periodIndex] || []
+              return (
+                <tr key={periodIndex} className="timetable-row">
+                  <td className="timetable-time-td">
+                    <Skeleton lines={2} height={9} />
+                  </td>
+                  {DAYS_OF_WEEK.map((day, dayIndex) => {
+                    const isToday = day.value === todayDoW
+                    return blocked.includes(dayIndex) ? (
+                      <td
+                        key={day.value}
+                        className={`timetable-td occupied${isToday ? ' is-today' : ''}`}
+                      >
+                        {/* Same footprint as a `.timetable-card` block. */}
+                        <span
+                          className="skeleton"
+                          style={{ display: 'block', height: '56px', borderRadius: '6px' }}
+                        />
+                      </td>
+                    ) : (
+                      <td
+                        key={day.value}
+                        className={`timetable-td empty${isToday ? ' is-today' : ''}`}
+                      />
+                    )
+                  })}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )
+}
+
 function getTodayDayOfWeek() {
   const weekdayName = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'Asia/Manila' }).format(new Date())
   const dayMap = { Sun: 7, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
@@ -481,7 +576,7 @@ function ScheduleFormModal({ schedule, onClose, onSaved, existingSchedules = [] 
         <>
           <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} disabled={busy}>Cancel</button>
           <button type="button" className="btn btn-primary btn-sm" onClick={handleSubmit} disabled={busy || hasErrors} title={hasErrors ? 'Resolve conflicts before saving' : ''}>
-            {busy && <span className="spinner spinner-sm" aria-hidden="true" />}
+            {busy && <ButtonLoader />}
             {busy ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Schedule'}
           </button>
         </>
@@ -581,7 +676,7 @@ function ConfirmDeleteModal({ schedule, onClose, onDeleted, busy }) {
         <>
           <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} disabled={busy}>Cancel</button>
           <button type="button" className="btn btn-danger btn-sm" onClick={onDeleted} disabled={busy}>
-            {busy && <span className="spinner spinner-sm" aria-hidden="true" />}
+            {busy && <ButtonLoader />}
             {busy ? 'Deleting…' : 'Delete Schedule'}
           </button>
         </>
@@ -1004,11 +1099,7 @@ export default function SchedulesPage() {
         </div>
 
         <section className="sched-timetable-card">
-          {schedules.loading && !schedules.data && (
-            <div style={{ padding: 32 }}>
-              <LoadingSpinner block label="Loading schedules…" />
-            </div>
-          )}
+          {schedules.loading && !schedules.data && <TimetableSkeleton />}
 
           {schedules.error && (
             <div style={{ padding: 24 }}>

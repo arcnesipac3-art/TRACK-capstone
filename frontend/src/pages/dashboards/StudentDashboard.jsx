@@ -6,6 +6,8 @@ import StatCard from '../../components/StatCard'
 import StatusBadge from '../../components/StatusBadge'
 import AttendanceSummaryCard from '../../components/dashboard/AttendanceSummaryCard'
 import Card, { SummaryRows } from '../../components/dashboard/Card'
+import CardSkeleton from '../../components/loading/CardSkeleton'
+import StatCardSkeleton from '../../components/loading/StatCardSkeleton'
 import NotificationsCard from '../../components/dashboard/NotificationsCard'
 import RequirementsExplorer from '../../components/requirements/RequirementsExplorer'
 import { useAuth } from '../../context/AuthContext'
@@ -14,17 +16,22 @@ import { attendanceStatus, formatDate, TODAY_LABEL } from '../../utils/format'
 
 function DashboardSkeleton() {
   return (
-    <div className="dashboard" aria-hidden="true">
-      <div className="grid grid-4">
-        {[0, 1, 2, 3].map((i) => (
-          <div className="skeleton skeleton-stat" key={i} />
-        ))}
+    <>
+      <span className="sr-only" role="status">
+        Loading your dashboard…
+      </span>
+      <div className="dashboard" aria-hidden="true">
+        <div className="grid grid-4">
+          {[0, 1, 2, 3].map((i) => (
+            <StatCardSkeleton key={i} />
+          ))}
+        </div>
+        <div className="two-col">
+          <CardSkeleton />
+          <CardSkeleton />
+        </div>
       </div>
-      <div className="two-col">
-        <div className="skeleton skeleton-block" />
-        <div className="skeleton skeleton-block" />
-      </div>
-    </div>
+    </>
   )
 }
 

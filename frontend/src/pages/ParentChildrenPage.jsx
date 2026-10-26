@@ -1,6 +1,6 @@
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
-import LoadingSpinner from '../components/LoadingSpinner'
+import ListSkeleton from '../components/loading/ListSkeleton'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
 import Card from '../components/dashboard/Card'
@@ -16,7 +16,11 @@ export default function ParentChildrenPage() {
   )
 
   if (summary.loading && !summary.data) {
-    return <LoadingSpinner block label="Loading your children…" />
+    return (
+      <section className="card">
+        <ListSkeleton items={3} lines={2} avatar label="Loading your children…" />
+      </section>
+    )
   }
   if (summary.error) {
     return (

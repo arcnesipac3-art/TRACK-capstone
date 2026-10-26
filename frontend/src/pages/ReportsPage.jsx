@@ -2,7 +2,8 @@ import { useState } from 'react'
 import Card, { SummaryRows } from '../components/dashboard/Card'
 import ErrorMessage from '../components/ErrorMessage'
 import Icon from '../components/Icon'
-import LoadingSpinner from '../components/LoadingSpinner'
+import CardSkeleton from '../components/loading/CardSkeleton'
+import ButtonLoader from '../components/loading/ButtonLoader'
 import PageHeader from '../components/PageHeader'
 import TrendsCard from '../components/dashboard/TrendsCard'
 import { useAuth } from '../context/AuthContext'
@@ -94,9 +95,11 @@ export default function ReportsPage() {
                 ])
             )
           }
+          aria-busy={exporting === 'accounts'}
         >
-          {exporting === 'accounts' && <span className="spinner spinner-sm" aria-hidden="true" />}
-          <Icon name="download" size={14} /> Accounts
+          {exporting === 'accounts' && <ButtonLoader />}
+          <Icon name="download" size={14} />{' '}
+          {exporting === 'accounts' ? 'Exporting…' : 'Accounts'}
         </button>
       )}
       {can('students.view') && (
@@ -117,9 +120,11 @@ export default function ReportsPage() {
                 ])
             )
           }
+          aria-busy={exporting === 'students'}
         >
-          {exporting === 'students' && <span className="spinner spinner-sm" aria-hidden="true" />}
-          <Icon name="download" size={14} /> Student directory
+          {exporting === 'students' && <ButtonLoader />}
+          <Icon name="download" size={14} />{' '}
+          {exporting === 'students' ? 'Exporting…' : 'Student directory'}
         </button>
       )}
       {attendance && (
@@ -142,9 +147,11 @@ export default function ReportsPage() {
               )
             )
           }
+          aria-busy={exporting === 'attendance'}
         >
-          {exporting === 'attendance' && <span className="spinner spinner-sm" aria-hidden="true" />}
-          <Icon name="download" size={14} /> Attendance summary
+          {exporting === 'attendance' && <ButtonLoader />}
+          <Icon name="download" size={14} />{' '}
+          {exporting === 'attendance' ? 'Exporting…' : 'Attendance summary'}
         </button>
       )}
       {requirements && (
@@ -167,9 +174,11 @@ export default function ReportsPage() {
               )
             )
           }
+          aria-busy={exporting === 'submissions'}
         >
-          {exporting === 'submissions' && <span className="spinner spinner-sm" aria-hidden="true" />}
-          <Icon name="download" size={14} /> Submissions summary
+          {exporting === 'submissions' && <ButtonLoader />}
+          <Icon name="download" size={14} />{' '}
+          {exporting === 'submissions' ? 'Exporting…' : 'Submissions summary'}
         </button>
       )}
     </div>
@@ -179,7 +188,7 @@ export default function ReportsPage() {
     return (
       <div className="stack stack-md">
         <PageHeader title="Reports" subtitle="School-wide figures, straight from the records." />
-        <LoadingSpinner block label="Loading reports…" />
+        <CardSkeleton lines={4} label="Loading reports…" />
       </div>
     )
   }

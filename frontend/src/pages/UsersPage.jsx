@@ -1,7 +1,8 @@
+import ButtonLoader from '../components/loading/ButtonLoader'
 import { useRef, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
-import LoadingSpinner from '../components/LoadingSpinner'
+import TableSkeleton from '../components/loading/TableSkeleton'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
 import ResetPasswordModal from '../components/admin/ResetPasswordModal'
@@ -112,7 +113,13 @@ export default function UsersPage({ role = 'all' }) {
       )}
 
       <section className="card">
-        {loading && !data && <LoadingSpinner block label="Loading accounts…" />}
+        {loading && !data && (
+          <TableSkeleton
+            headers={['Name', 'Username', 'Email', 'Role', 'Status', 'Actions']}
+            rows={8}
+            label="Loading accounts…"
+          />
+        )}
 
         {!loading && error && (
           <div className="card-body">
@@ -228,7 +235,7 @@ export default function UsersPage({ role = 'all' }) {
                             }
                           >
                             {busyId === user.id ? (
-                              <span className="spinner spinner-sm" aria-hidden="true" />
+                              <ButtonLoader />
                             ) : (
                               <Icon name={user.is_active ? 'shield' : 'check'} size={14} />
                             )}

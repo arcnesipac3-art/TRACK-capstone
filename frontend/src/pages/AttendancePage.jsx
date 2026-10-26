@@ -1,9 +1,11 @@
+import ButtonLoader from '../components/loading/ButtonLoader'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import ChildSelector from '../components/ChildSelector'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
 import Icon from '../components/Icon'
-import LoadingSpinner from '../components/LoadingSpinner'
+import ListSkeleton from '../components/loading/ListSkeleton'
+import TableSkeleton from '../components/loading/TableSkeleton'
 import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
@@ -76,7 +78,19 @@ function RecordsView({ params, enabled = true }) {
   const records = filteredRecords
   const summary = attendanceSummary(records)
 
-  if (loading && !data) return <LoadingSpinner block label="Loading attendance…" />
+  if (loading && !data) {
+    return (
+      <section className="card">
+        <div className="card-body">
+          <TableSkeleton
+            headers={['Date', 'Class', 'Subject', 'Status', 'Notes']}
+            rows={6}
+            label="Loading attendance…"
+          />
+        </div>
+      </section>
+    )
+  }
   if (error) {
     return (
       <ErrorMessage
@@ -351,7 +365,7 @@ function EditSessionModal({ session, onClose, onUpdated, onDeleted }) {
             onClick={submit}
             disabled={busy}
           >
-            {busy && <span className="spinner spinner-sm" aria-hidden="true" />}
+            {busy && <ButtonLoader />}
             {busy ? 'Saving…' : 'Save changes'}
           </button>
         </>
@@ -801,7 +815,13 @@ function AttendanceSheet({
           {headerLeft}
           {headerRight}
         </header>
-        <LoadingSpinner block label="Loading class roster…" />
+        <div className="card-body">
+          <TableSkeleton
+            headers={['#', 'Student', 'Student ID', 'Attendance status', 'Notes']}
+            rows={6}
+            label="Loading class roster…"
+          />
+        </div>
       </section>
     )
   }
@@ -1023,7 +1043,7 @@ function AttendanceSheet({
         <div className="att-foot-status" role="status" aria-live="polite">
           {saving ? (
             <span className="att-saved">
-              <span className="spinner spinner-sm" aria-hidden="true" />
+              <ButtonLoader />
               Saving…
             </span>
           ) : isDirtyState ? (
@@ -1052,7 +1072,7 @@ function AttendanceSheet({
             onClick={save}
             disabled={!isDirtyState || saving}
           >
-            {saving && <span className="spinner spinner-sm" aria-hidden="true" />}
+            {saving && <ButtonLoader />}
             Save attendance
           </button>
         </div>
@@ -1310,7 +1330,22 @@ function SessionHistory({ sessions, assignments, students, loading, error, onRet
 
       {loading && !sessions.length && (
         <div className="card-body">
-          <LoadingSpinner block label="Loading attendance history…" />
+          <TableSkeleton
+            headers={[
+              'Date',
+              'Class',
+              'Subject',
+              'Recorded',
+              'Present',
+              'Absent',
+              'Late',
+              'Excused',
+              'Completion',
+              'Details',
+            ]}
+            rows={5}
+            label="Loading attendance history…"
+          />
         </div>
       )}
 
@@ -1496,7 +1531,7 @@ function StudentHistory({ students, assignments, sessions, loading, error, onRet
   if (loading && !students.length) {
     return (
       <section className="card">
-        <LoadingSpinner block label="Loading students…" />
+        <ListSkeleton items={4} lines={1} avatar label="Loading students…" />
       </section>
     )
   }
@@ -1631,7 +1666,11 @@ function StudentHistory({ students, assignments, sessions, loading, error, onRet
 
       {records.loading && !records.data && (
         <div className="card-body">
-          <LoadingSpinner block label="Loading attendance records…" />
+          <TableSkeleton
+            headers={['Date', 'Subject', 'Class', 'Status', 'Notes']}
+            rows={5}
+            label="Loading attendance records…"
+          />
         </div>
       )}
 
@@ -1995,7 +2034,9 @@ function TeacherAttendance() {
 
         {sessions.loading && !sessions.data && (
           <div className="card-body">
-            <LoadingSpinner block label="Loading sessions…" />
+            {/* Column count mirrors the session table below; the bars are
+                column-shaped without asserting headings that vary by role. */}
+            <TableSkeleton columns={7} rows={5} label="Loading sessions…" />
           </div>
         )}
 
@@ -2393,7 +2434,38 @@ function ParentAttendance() {
   const activeChild =
     children.find((child) => child.student_id === selectedId) || children[0] || null
 
-  if (summary.loading && !summary.data) return <LoadingSpinner block label="Loading…" />
+  if (summary.loading && !summary.data) {
+    // The parent view is a child-selector pill strip above a records table,
+    // so mirror both: pill placeholders in the real selector container (same
+    // 6px padding, same 999px radius), then the table the records land in.
+    // `ChildSelector` only renders for 2+ children, so for single-child
+    // parents this strip collapses once — the only unavoidable guess, since
+    // the count is exactly what is still loading.
+    return (
+      <div className="stack stack-md">
+        <div role="status" aria-live="polite" className="sr-only">
+          Loading your children…
+        </div>
+        <div className="child-selector" aria-hidden="true">
+          {[110, 132, 96].map((w) => (
+            <span
+              key={w}
+              className="skeleton"
+              style={{ width: w, height: 22, borderRadius: 999 }}
+            />
+          ))}
+        </div>
+        <section className="card" aria-hidden="true">
+          <div className="card-body">
+            <TableSkeleton
+              headers={['Date', 'Class', 'Subject', 'Status', 'Notes']}
+              rows={5}
+            />
+          </div>
+        </section>
+      </div>
+    )
+  }
   if (summary.error) {
     return (
       <ErrorMessage error={summary.error} title="Could not load your children" onRetry={summary.reload} />
@@ -2436,7 +2508,19 @@ function AdminAttendance() {
   })
   const sessions = data || []
 
-  if (loading && !data) return <LoadingSpinner block label="Loading sessions…" />
+  if (loading && !data) {
+    return (
+      <section className="card">
+        <div className="card-body">
+          <TableSkeleton
+            headers={['Date', 'Class', 'Subject', 'Records', 'Notes']}
+            rows={6}
+            label="Loading sessions…"
+          />
+        </div>
+      </section>
+    )
+  }
   if (error) {
     return (
       <ErrorMessage error={error} title="Could not load sessions" onRetry={reload} />

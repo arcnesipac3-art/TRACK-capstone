@@ -49,6 +49,14 @@ const ParentFeesPage = lazy(() => import('./pages/ParentFeesPage'))
 export default function App() {
   const { hash, pathname } = useLocation()
 
+  // index.html paints a branded splash screen before this bundle runs, so the
+  // first frame is never a blank page. React's first commit happens before the
+  // browser paints, and this layout effect runs during that commit — so the
+  // splash is swapped for the real screen with no white flash in between.
+  useLayoutEffect(() => {
+    document.getElementById('app-splash')?.remove()
+  }, [])
+
   // React Router ignores the URL fragment, and on a cold load the browser's own
   // fragment scroll fires before React has rendered the target — so opening
   // /#features directly used to land silently at the top of the page. Re-run it

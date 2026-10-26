@@ -508,16 +508,8 @@ img, svg { display: block; }
   * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
-.loading-block {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 48px 20px;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
+/* Page- and block-level loading markup now lives with the loading system
+   (src/components/loading/loading.css). */
 
 /* Reserve space so loading states never jump the layout */
 .loading-slot { min-height: 180px; }

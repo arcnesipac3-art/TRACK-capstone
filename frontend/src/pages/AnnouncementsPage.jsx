@@ -1,8 +1,9 @@
+import ButtonLoader from '../components/loading/ButtonLoader'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
 import Icon from '../components/Icon'
-import LoadingSpinner from '../components/LoadingSpinner'
+import ListSkeleton from '../components/loading/ListSkeleton'
 import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
@@ -211,7 +212,7 @@ function AnnouncementFormModal({
             onClick={handleSubmit}
             disabled={busy}
           >
-            {busy && <span className="spinner spinner-sm" aria-hidden="true" />}
+            {busy && <ButtonLoader />}
             {busy ? 'Saving…' : isEdit ? 'Save changes' : 'Publish'}
           </button>
         </>
@@ -766,10 +767,10 @@ export default function AnnouncementsPage() {
 
       {/* Announcements List */}
       <section className="card announcements-list-card">
-        {/* Loading state */}
+        {/* Loading state — rows match the announcement cards below */}
         {loading && announcements === null && (
           <div className="loading-slot">
-            <LoadingSpinner block label="Loading announcements…" />
+            <ListSkeleton items={4} lines={2} label="Loading announcements…" />
           </div>
         )}
 

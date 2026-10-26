@@ -1,3 +1,4 @@
+import ButtonLoader from '../../components/loading/ButtonLoader'
 import { useEffect, useState } from 'react'
 import Icon from '../Icon'
 import Modal from '../Modal'
@@ -304,7 +305,7 @@ export default function UserFormModal({ open, user, sections = [], onClose, onSa
             className="btn btn-primary btn-sm"
             disabled={busy}
           >
-            {busy && <span className="spinner spinner-sm" aria-hidden="true" />}
+            {busy && <ButtonLoader />}
             {busy ? 'Saving…' : editing ? 'Save changes' : 'Create account'}
           </button>
         </>

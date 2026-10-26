@@ -1,3 +1,4 @@
+import ButtonLoader from '../../components/loading/ButtonLoader'
 import { useState } from 'react'
 import Icon from '../Icon'
 import Modal from '../Modal'
@@ -189,7 +190,7 @@ export default function StructureFormModal({ open, kind, item, options = {}, onC
             className="btn btn-primary btn-sm"
             disabled={busy}
           >
-            {busy && <span className="spinner spinner-sm" aria-hidden="true" />}
+            {busy && <ButtonLoader />}
             {busy ? 'Saving…' : item ? 'Save changes' : `Add ${noun}`}
           </button>
         </>

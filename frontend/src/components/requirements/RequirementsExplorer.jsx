@@ -1,8 +1,9 @@
+import ButtonLoader from '../../components/loading/ButtonLoader'
 import { useMemo, useState } from 'react'
 import EmptyState from '../EmptyState'
 import ErrorMessage from '../ErrorMessage'
 import Icon from '../Icon'
-import LoadingSpinner from '../LoadingSpinner'
+import ListSkeleton from '../loading/ListSkeleton'
 import StatusBadge from '../StatusBadge'
 import api from '../../services/api'
 import useFetch from '../../hooks/useFetch'
@@ -151,7 +152,9 @@ export default function RequirementsExplorer({
   }
 
   if (loading && !requirements.data) {
-    return <LoadingSpinner block label="Loading requirements…" />
+    // No card wrapper here: every call site renders this explorer inside a
+    // card already, so nesting one would double-box the placeholder.
+    return <ListSkeleton items={4} lines={3} label="Loading requirements…" />
   }
 
   return (
@@ -333,7 +336,7 @@ export default function RequirementsExplorer({
                       disabled={submitting}
                     >
                       {submitting && (
-                        <span className="spinner spinner-sm" aria-hidden="true" />
+                        <ButtonLoader />
                       )}
                       {submitting ? 'Submitting…' : 'Submit'}
                     </button>

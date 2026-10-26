@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
-import LoadingSpinner from '../components/LoadingSpinner'
+import ListSkeleton from '../components/loading/ListSkeleton'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
 import api from '../services/api'
@@ -93,7 +93,7 @@ function NotificationsView({ data, loading, error, reload }) {
       />
 
       <section className="card">
-        {loading && <LoadingSpinner block label="Loading notifications…" />}
+        {loading && <ListSkeleton items={5} lines={2} avatar label="Loading notifications…" />}
 
         {!loading && error && (
           <div className="card-body">

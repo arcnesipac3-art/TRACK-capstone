@@ -1,3 +1,4 @@
+import ButtonLoader from '../components/loading/ButtonLoader'
 import { useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import Icon from '../components/Icon'
@@ -146,7 +147,7 @@ export default function AssignmentsPage() {
                         disabled={busyId === row.id}
                       >
                         {busyId === row.id ? (
-                          <span className="spinner spinner-sm" aria-hidden="true" />
+                          <ButtonLoader />
                         ) : (
                           <Icon name="trash" size={14} />
                         )}

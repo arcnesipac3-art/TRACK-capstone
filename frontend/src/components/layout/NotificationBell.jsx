@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Icon from '../Icon'
 import EmptyState from '../EmptyState'
-import LoadingSpinner from '../LoadingSpinner'
+import ListSkeleton from '../loading/ListSkeleton'
 import api from '../../services/api'
 import { formatRelative } from '../../utils/format'
 
@@ -102,7 +102,9 @@ export default function NotificationBell({
           </div>
 
           <div className="popover-list">
-            {loading && <LoadingSpinner block label="Loading notifications…" />}
+            {loading && (
+              <ListSkeleton items={3} lines={2} label="Loading notifications…" />
+            )}
 
             {!loading && latest.length === 0 && (
               <EmptyState

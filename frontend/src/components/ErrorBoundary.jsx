@@ -20,6 +20,10 @@ export default class ErrorBoundary extends Component {
   componentDidCatch(error, info) {
     // Surface the real stack in devtools; never swallow it silently.
     console.error('TRACK screen crashed:', error, info?.componentStack)
+    // If the very first render failed, App never mounted and would never have
+    // removed the boot splash (index.html) — clear it so the fallback below
+    // is actually visible. Runs in the commit phase, before the browser paints.
+    document.getElementById('app-splash')?.remove()
   }
 
   handleReload = () => {

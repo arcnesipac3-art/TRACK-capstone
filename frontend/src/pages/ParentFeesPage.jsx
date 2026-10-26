@@ -3,7 +3,7 @@ import { api, ApiError } from '../services/api'
 import PageHeader from '../components/PageHeader'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
-import LoadingSpinner from '../components/LoadingSpinner'
+import CardSkeleton from '../components/loading/CardSkeleton'
 import StatCard from '../components/StatCard'
 import Card from '../components/dashboard/Card'
 import { formatCurrency, formatDate } from '../utils/format'
@@ -41,7 +41,20 @@ export default function ParentFeesPage() {
   // the kickoff off the effect's synchronous pass.
   useEffect(() => { queueMicrotask(load) }, [load])
 
-  if (loading) return <LoadingSpinner block size="lg" label="Loading fee summaries…" />
+  if (loading) {
+    // One placeholder card per child block: header + 3 metrics + table.
+    return (
+      <div className="stack stack-md">
+        <PageHeader title="Children's Fees" />
+        <span className="sr-only" role="status">
+          Loading fee summaries…
+        </span>
+        <div aria-hidden="true">
+          <CardSkeleton lines={0} blockHeight={180} />
+        </div>
+      </div>
+    )
+  }
   if (error) return <ErrorMessage error={error} title="Could not load fee summaries" onRetry={load} />
 
   const sort = (arr) => [...arr].sort((a, b) => {

@@ -3822,20 +3822,9 @@
   color: var(--text-subtle);
 }
 
-/* Skeleton loading (keeps layout stable) */
-.skeleton {
-  background: linear-gradient(90deg, var(--gray-100) 25%, #f6f8fc 50%, var(--gray-100) 75%);
-  background-size: 200% 100%;
-  animation: skeleton 1.2s ease-in-out infinite;
-  border-radius: var(--radius-sm);
-}
-@keyframes skeleton {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
-}
-.skeleton-stat { height: 88px; }
-.skeleton-line { height: 14px; }
-.skeleton-block { height: 150px; }
+/* Skeleton styling lives with the loading system
+   (src/components/loading/loading.css) so the shimmer, palette and reduced
+   motion handling stay in one place. */
 
 /* ==========================================================================
    Responsive
@@ -4534,22 +4523,8 @@
   font-size: 0.96rem;
 }
 
-.btn-loading {
-  position: relative;
-  color: transparent !important;
-}
-.btn-spinner {
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  border: 2px solid currentColor;
-  border-right-color: transparent;
-  border-radius: 50%;
-  animation: spin 0.6s linear infinite;
-}
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+/* Loading buttons keep their label and show the shared indicator beside it —
+   see Button.jsx and src/components/loading/loading.css. */
 
 /* ==========================================================================
    Badges

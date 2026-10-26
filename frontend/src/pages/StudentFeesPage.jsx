@@ -3,7 +3,8 @@ import { api, ApiError } from '../services/api'
 import PageHeader from '../components/PageHeader'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
-import LoadingSpinner from '../components/LoadingSpinner'
+import CardSkeleton from '../components/loading/CardSkeleton'
+import StatCardSkeleton from '../components/loading/StatCardSkeleton'
 import StatCard from '../components/StatCard'
 import Card from '../components/dashboard/Card'
 import { formatCurrency, formatDate } from '../utils/format'
@@ -41,7 +42,26 @@ export default function StudentFeesPage() {
   // the kickoff off the effect's synchronous pass.
   useEffect(() => { queueMicrotask(load) }, [load])
 
-  if (loading) return <LoadingSpinner block size="lg" label="Loading fee summary…" />
+  if (loading) {
+    return (
+      <>
+        <PageHeader title="My Fees" />
+        {/* Placeholders mirror the loaded layout (3 metrics + the assessments
+            table) so nothing shifts when the summary arrives. */}
+        <span className="sr-only" role="status">
+          Loading fee summary…
+        </span>
+        <div className="grid grid-3" aria-hidden="true">
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+        </div>
+        <div aria-hidden="true">
+          <CardSkeleton lines={0} blockHeight={220} />
+        </div>
+      </>
+    )
+  }
   if (error) return <ErrorMessage error={error} title="Could not load fee summary" onRetry={load} />
 
   // Sort: unpaid first, then partial, then paid; then by due date

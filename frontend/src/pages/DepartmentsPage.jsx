@@ -1,9 +1,10 @@
+import ButtonLoader from '../components/loading/ButtonLoader'
 import { useState } from 'react'
 import DepartmentFormModal from '../components/admin/DepartmentFormModal'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
 import Icon from '../components/Icon'
-import LoadingSpinner from '../components/LoadingSpinner'
+import TableSkeleton from '../components/loading/TableSkeleton'
 import PageHeader from '../components/PageHeader'
 import PermissionMatrixModal from '../components/admin/PermissionMatrixModal'
 import StatusBadge from '../components/StatusBadge'
@@ -126,7 +127,11 @@ export default function DepartmentsPage() {
 
       <section className="card">
         {departments.loading && !departments.data && (
-          <LoadingSpinner block label="Loading departments…" />
+          <TableSkeleton
+            headers={['Department', 'Code', 'Administrators', 'Permissions', 'Status', 'Actions']}
+            rows={6}
+            label="Loading departments…"
+          />
         )}
 
         {!departments.loading && departments.error && (
@@ -211,7 +216,7 @@ export default function DepartmentsPage() {
                               disabled={busyId === department.id}
                             >
                               {busyId === department.id ? (
-                                <span className="spinner spinner-sm" aria-hidden="true" />
+                                <ButtonLoader />
                               ) : (
                                 <Icon name={department.is_active ? 'shield' : 'check'} size={14} />
                               )}

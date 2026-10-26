@@ -1,3 +1,4 @@
+import ButtonLoader from '../../components/loading/ButtonLoader'
 import { useEffect, useMemo, useState } from 'react'
 import Icon from '../Icon'
 import Modal from '../Modal'
@@ -125,7 +126,7 @@ export default function PermissionMatrixModal({
               onClick={save}
               disabled={busy || loading}
             >
-              {busy && <span className="spinner spinner-sm" aria-hidden="true" />}
+              {busy && <ButtonLoader />}
               {busy ? 'Saving…' : 'Save permissions'}
             </button>
           )}

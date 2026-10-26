@@ -1,8 +1,9 @@
+import ButtonLoader from '../components/loading/ButtonLoader'
 import { useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
 import Icon from '../components/Icon'
-import LoadingSpinner from '../components/LoadingSpinner'
+import ListSkeleton from '../components/loading/ListSkeleton'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
 import api from '../services/api'
@@ -31,7 +32,17 @@ function StudentSubmissions() {
   })
   const items = data || []
 
-  if (loading && !data) return <LoadingSpinner block label="Loading your submissions…" />
+  if (loading && !data) {
+    return (
+      <section className="card">
+        <TableSkeleton
+          headers={['Requirement', 'Submitted', 'Status', 'Teacher feedback', 'Work']}
+          rows={5}
+          label="Loading your submissions…"
+        />
+      </section>
+    )
+  }
   if (error) {
     return (
       <ErrorMessage
@@ -170,7 +181,7 @@ function ReviewRow({ submission, onDone }) {
                 disabled={busy}
               >
                 {busy && mode === null && (
-                  <span className="spinner spinner-sm" aria-hidden="true" />
+                  <ButtonLoader />
                 )}
                 Verify
               </button>
@@ -280,7 +291,9 @@ function TeacherReview() {
       </div>
 
       <section className="card">
-        {loading && !data && <LoadingSpinner block label="Loading submissions…" />}
+        {loading && !data && (
+          <ListSkeleton items={5} lines={2} label="Loading submissions…" />
+        )}
 
         {!loading && error && (
           <div className="card-body">

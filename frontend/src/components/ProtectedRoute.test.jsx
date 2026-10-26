@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import AuthContext from '../context/AuthContext'
@@ -134,5 +134,34 @@ describe('ProtectedRoute — permission gate', () => {
     // No `permission` prop → the key is never consulted, role gate alone.
     renderGuard(admin, { roles: ['admin'] })
     expect(screen.getByText('secret screen')).toBeInTheDocument()
+  })
+})
+
+describe('ProtectedRoute — session restore failure', () => {
+  it('offers recovery instead of a sign-in form when the check failed', () => {
+    renderGuard({
+      ...base,
+      bootstrapError: 'Session check timed out. Please sign in.',
+    })
+
+    // A real failure, not an anonymous visitor: /login would hide the cause.
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Session check timed out. Please sign in.'
+    )
+    expect(screen.queryByText('login screen')).not.toBeInTheDocument()
+    expect(screen.queryByText('secret screen')).not.toBeInTheDocument()
+  })
+
+  it('re-runs the session check from the recovery screen', () => {
+    const refreshUser = vi.fn()
+    renderGuard({ ...base, bootstrapError: 'Network unreachable', refreshUser })
+
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    expect(refreshUser).toHaveBeenCalledTimes(1)
+  })
+
+  it('still sends plain anonymous visitors to /login', () => {
+    renderGuard({ ...base, bootstrapError: null })
+    expect(screen.getByText('login screen')).toBeInTheDocument()
   })
 })

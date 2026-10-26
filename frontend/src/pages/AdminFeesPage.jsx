@@ -5,7 +5,8 @@ import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
-import LoadingSpinner from '../components/LoadingSpinner'
+import CardSkeleton from '../components/loading/CardSkeleton'
+import Skeleton from '../components/loading/Skeleton'
 import Icon from '../components/Icon'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
@@ -25,6 +26,54 @@ function initialPaymentForm() {
     reference_number: '',
     notes: '',
   }
+}
+
+/** Row labels of the receipt, in the order the real document prints them.
+ *  These are static copy rather than fetched data, so they are rendered for
+ *  real; only the values are placeholders. The `Status` row is conditional
+ *  on the payment being non-completed, so it is left out of the skeleton. */
+const RECEIPT_ROWS = [
+  'Receipt No.',
+  'Date',
+  'Student',
+  'LRN',
+  'Section',
+  'Fee Category',
+  'Amount Paid',
+  'Method',
+  'Recorded By',
+]
+
+/**
+ * Loading state for the printable receipt modal.
+ *
+ * Mirrors the real `.receipt-table` (same rows, same 40% label column) so the
+ * modal does not resize when the receipt arrives — no layout shift.
+ */
+function ReceiptSkeleton() {
+  return (
+    <div className="receipt-print">
+      <span className="sr-only" role="status" aria-live="polite">
+        Loading receipt…
+      </span>
+      <div aria-hidden="true" style={{ textAlign: 'center', marginBottom: '1rem' }}>
+        <Skeleton width="60%" height={16} style={{ margin: '0 auto' }} />
+        <Skeleton width="45%" height={12} style={{ margin: '6px auto 0' }} />
+      </div>
+      <table className="receipt-table" aria-hidden="true">
+        <tbody>
+          {RECEIPT_ROWS.map((label, i) => (
+            <tr key={label}>
+              <td>{label}</td>
+              <td>
+                <Skeleton width={i === 6 ? '45%' : '75%'} height={12} />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
 }
 
 /**
@@ -400,7 +449,7 @@ export default function AdminFeesPage() {
   /* Early states                                                        */
   /* ------------------------------------------------------------------ */
 
-  if (loading) return <LoadingSpinner block size="lg" label="Loading fee management…" />
+  if (loading) return <CardSkeleton lines={5} label="Loading fee management…" />
   if (error) {
     return (
       <div className="stack stack-md">
@@ -1220,8 +1269,13 @@ export default function AdminFeesPage() {
             <Button variant="secondary" onClick={closePaymentModal} disabled={paymentLoading}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={handlePaymentSubmit} loading={paymentLoading}>
-              {paymentLoading ? 'Recording…' : 'Record Payment'}
+            <Button
+              variant="primary"
+              onClick={handlePaymentSubmit}
+              loading={paymentLoading}
+              loadingLabel="Recording payment…"
+            >
+              Record Payment
             </Button>
           </>
         }
@@ -1364,7 +1418,7 @@ export default function AdminFeesPage() {
           )
         }
       >
-        {receiptLoading && <LoadingSpinner block label="Loading receipt…" />}
+        {receiptLoading && <ReceiptSkeleton />}
         {receiptError && <ErrorMessage error={receiptError} compact />}
         {receipt && (
           <div className="receipt-print">
@@ -1453,7 +1507,12 @@ export default function AdminFeesPage() {
             <Button variant="secondary" onClick={() => setVoidTarget(null)} disabled={voidLoading}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={handleVoidSubmit} loading={voidLoading}>
+            <Button
+              variant="primary"
+              onClick={handleVoidSubmit}
+              loading={voidLoading}
+              loadingLabel={voidAction === 'voided' ? 'Voiding payment…' : 'Refunding payment…'}
+            >
               {voidAction === 'voided' ? 'Void Payment' : 'Refund Payment'}
             </Button>
           </>

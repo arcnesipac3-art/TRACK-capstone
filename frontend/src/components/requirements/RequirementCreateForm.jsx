@@ -1,3 +1,4 @@
+import ButtonLoader from '../../components/loading/ButtonLoader'
 import { useState } from 'react'
 import Icon from '../Icon'
 import api from '../../services/api'
@@ -210,7 +211,7 @@ export default function RequirementCreateForm({ onCreated }) {
           Cancel
         </button>
         <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
-          {busy && <span className="spinner spinner-sm" aria-hidden="true" />}
+          {busy && <ButtonLoader />}
           {busy ? 'Creating…' : 'Create requirement'}
         </button>
       </div>

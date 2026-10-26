@@ -2,7 +2,7 @@ import { useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
 import Icon from '../components/Icon'
-import LoadingSpinner from '../components/LoadingSpinner'
+import TableSkeleton from '../components/loading/TableSkeleton'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
 import useFetch from '../hooks/useFetch'
@@ -128,7 +128,13 @@ export default function AuditLogsPage() {
       </section>
 
       <section className="card">
-        {loading && !data && <LoadingSpinner block label="Loading audit log…" />}
+        {loading && !data && (
+          <TableSkeleton
+            headers={['When', 'Who', 'Action', 'Target', 'Details']}
+            rows={8}
+            label="Loading audit log…"
+          />
+        )}
 
         {!loading && error && (
           <div className="card-body">

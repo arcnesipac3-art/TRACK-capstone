@@ -1,3 +1,4 @@
+import ButtonLoader from '../components/loading/ButtonLoader'
 import { useState } from 'react'
 import Card from '../components/dashboard/Card'
 import EmptyState from '../components/EmptyState'
@@ -152,7 +153,7 @@ export default function SystemSettingsPage() {
                             disabled={busyId === year.id}
                           >
                             {busyId === year.id ? (
-                              <span className="spinner spinner-sm" aria-hidden="true" />
+                              <ButtonLoader />
                             ) : (
                               <Icon name="check" size={14} />
                             )}
@@ -299,7 +300,7 @@ function SchoolYearModal({ open, year, onClose, onSaved }) {
             Cancel
           </button>
           <button type="submit" form="school-year-form" className="btn btn-primary btn-sm" disabled={busy}>
-            {busy && <span className="spinner spinner-sm" aria-hidden="true" />}
+            {busy && <ButtonLoader />}
             {busy ? 'Saving…' : editing ? 'Save changes' : 'Create school year'}
           </button>
         </>

@@ -2,6 +2,8 @@ import { Link } from 'react-router-dom'
 import EmptyState from '../../components/EmptyState'
 import ErrorMessage from '../../components/ErrorMessage'
 import Icon from '../../components/Icon'
+import CardSkeleton from '../../components/loading/CardSkeleton'
+import StatCardSkeleton from '../../components/loading/StatCardSkeleton'
 import PageHeader from '../../components/PageHeader'
 import StatCard from '../../components/StatCard'
 import AttendanceSummaryCard from '../../components/dashboard/AttendanceSummaryCard'
@@ -87,6 +89,8 @@ export default function AdminDashboard() {
   if (summary.loading && !summary.data) {
     return (
       <>
+        {/* One announcement for the whole placeholder grid — the skeletons
+            themselves are decorative and must not be read out bar by bar. */}
         <span className="sr-only" role="status">
           Loading dashboard…
         </span>
@@ -94,12 +98,12 @@ export default function AdminDashboard() {
           <div className="skeleton skeleton-hero" />
           <div className="stat-grid">
             {[0, 1, 2, 3, 4, 5].map((i) => (
-              <div className="skeleton skeleton-stat" key={i} />
+              <StatCardSkeleton key={i} />
             ))}
           </div>
           <div className="two-col">
-            <div className="skeleton skeleton-block" />
-            <div className="skeleton skeleton-block" />
+            <CardSkeleton />
+            <CardSkeleton />
           </div>
         </div>
       </>

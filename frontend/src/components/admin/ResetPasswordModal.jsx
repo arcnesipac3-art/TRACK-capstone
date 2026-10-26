@@ -1,3 +1,4 @@
+import ButtonLoader from '../../components/loading/ButtonLoader'
 import { useState } from 'react'
 import Icon from '../Icon'
 import Modal from '../Modal'
@@ -160,7 +161,7 @@ export default function ResetPasswordModal({ open, user, onClose, onDone }) {
             className="btn btn-primary btn-sm"
             disabled={busy}
           >
-            {busy && <span className="spinner spinner-sm" aria-hidden="true" />}
+            {busy && <ButtonLoader />}
             {busy ? 'Resetting…' : 'Reset password'}
           </button>
         </>

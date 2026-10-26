@@ -47,9 +47,140 @@
     <link rel="dns-prefetch" href="https://lf-cdn.trae.ai" />
 
     <title>TRACK · Tracking Requirements, Attendance &amp; Communication</title>
+
+    <!-- Boot splash. Painted by the browser before the JS bundle arrives so the
+         very first frame is the branded loader instead of a blank white page.
+         Lives in <head> so it is styled before the first paint; removed by
+         React on its first commit (src/App.jsx). Keep it dependency-free — the
+         app stylesheet has not loaded at this point. -->
+    <style>
+      #app-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        padding: 24px;
+        background: #ffffff;
+        text-align: center;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      }
+      .splash-inner {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 18px;
+        max-width: 320px;
+        animation: splash-in 380ms ease-out both;
+      }
+      @keyframes splash-in {
+        from { opacity: 0; transform: scale(0.98); }
+        to { opacity: 1; transform: none; }
+      }
+      #app-splash .splash-logo { height: 45px; width: auto; max-width: 70vw; display: block; }
+      .splash-track {
+        position: relative;
+        width: 116px;
+        height: 3px;
+        border-radius: 999px;
+        background: #eef1f6;
+        overflow: hidden;
+      }
+      .splash-track::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: 46%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #1e4180, #019bfd);
+        animation: splash-sweep 1.15s ease-in-out infinite;
+      }
+      @keyframes splash-sweep {
+        from { transform: translateX(-105%); }
+        to { transform: translateX(240%); }
+      }
+      #app-splash .splash-label { margin: 0; font-size: 0.87rem; color: #56627a; }
+      #app-splash-reload {
+        display: none;
+        margin-top: 4px;
+        padding: 9px 18px;
+        font: inherit;
+        font-size: 0.86rem;
+        font-weight: 600;
+        color: #ffffff;
+        background: #0f2044;
+        border: 1px solid #0f2044;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      #app-splash[data-stuck] #app-splash-reload { display: inline-block; }
+      @media (prefers-reduced-motion: reduce) {
+        .splash-inner { animation: none; }
+        .splash-track::after { animation: none; width: 100%; opacity: 0.5; }
+      }
+      @media (max-width: 480px) {
+        #app-splash .splash-logo { height: 38px; }
+      }
+      .splash-noscript {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 24px;
+        background: #ffffff;
+        text-align: center;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        font-size: 0.95rem;
+        color: #0f2044;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+
+    <div id="app-splash" role="status" aria-live="polite">
+      <div class="splash-inner">
+        <img class="splash-logo" src="/logo-navy.png" alt="TRACK" />
+        <span class="splash-track" aria-hidden="true"></span>
+        <p class="splash-label">Loading your workspace…</p>
+      </div>
+      <button type="button" id="app-splash-reload">Reload the page</button>
+    </div>
+
+    <noscript>
+      <div class="splash-noscript">
+        TRACK needs JavaScript to run. Please enable JavaScript in your browser
+        and reload this page.
+      </div>
+    </noscript>
+
+    <!-- If the bundle never boots (offline, a failed asset, an old cached
+         index.html), say so instead of spinning forever. React cancels this by
+         removing #app-splash on its first commit. No fake progress, just an
+         honest message and a way out. -->
+    <script>
+      (function () {
+        var splash = document.getElementById('app-splash')
+        if (!splash) return
+        setTimeout(function () {
+          if (!document.body.contains(splash)) return
+          splash.setAttribute('data-stuck', '')
+          var label = splash.querySelector('.splash-label')
+          if (label) {
+            label.textContent =
+              'Still loading after 15 seconds. Check your connection, then reload the page.'
+          }
+        }, 15000)
+      })()
+    </script>
+
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

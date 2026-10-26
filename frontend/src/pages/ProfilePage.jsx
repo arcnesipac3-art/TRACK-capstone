@@ -1,3 +1,4 @@
+import ButtonLoader from '../components/loading/ButtonLoader'
 import { useState } from 'react'
 import Icon from '../components/Icon'
 import PageHeader from '../components/PageHeader'
@@ -114,7 +115,7 @@ function ChangePasswordForm() {
           Show passwords
         </label>
         <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
-          {busy && <span className="spinner spinner-sm" aria-hidden="true" />}
+          {busy && <ButtonLoader />}
           {busy ? 'Saving…' : 'Change password'}
         </button>
       </div>

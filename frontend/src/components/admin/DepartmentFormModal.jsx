@@ -1,3 +1,4 @@
+import ButtonLoader from '../../components/loading/ButtonLoader'
 import { useState } from 'react'
 import Icon from '../Icon'
 import Modal from '../Modal'
@@ -121,7 +122,7 @@ export default function DepartmentFormModal({ open, department, onClose, onSaved
             className="btn btn-primary btn-sm"
             disabled={busy}
           >
-            {busy && <span className="spinner spinner-sm" aria-hidden="true" />}
+            {busy && <ButtonLoader />}
             {busy ? 'Saving…' : editing ? 'Save changes' : 'Create department'}
           </button>
         </>

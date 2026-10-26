@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import Icon from '../components/Icon'
 import Logo from '../components/Logo'
+import AppLoader from '../components/loading/AppLoader'
+import ButtonLoader from '../components/loading/ButtonLoader'
 import { useAuth } from '../context/AuthContext'
 import { dashboardPath } from '../utils/format'
 
@@ -80,13 +82,10 @@ export default function LoginPage() {
     }
   }, [isLoading])
 
+  // Session restore is genuine initialisation, so it gets the branded screen;
+  // the form itself only appears once we know the visitor is anonymous.
   if (isLoading) {
-    return (
-      <div className="centered-page" role="status" aria-live="polite">
-        <span className="spinner spinner-lg" aria-hidden="true" />
-        <span>Checking your session…</span>
-      </div>
-    )
+    return <AppLoader label="Checking your session…" />
   }
   if (isAuthenticated) return <Navigate to="/dashboard" replace />
 
@@ -261,8 +260,9 @@ export default function LoginPage() {
               type="submit"
               className="btn btn-primary btn-block"
               disabled={submitting}
+              aria-busy={submitting}
             >
-              {submitting && <span className="spinner spinner-sm" aria-hidden="true" />}
+              {submitting && <ButtonLoader />}
               {submitting ? 'Signing in…' : 'Sign in'}
             </button>
           </form>

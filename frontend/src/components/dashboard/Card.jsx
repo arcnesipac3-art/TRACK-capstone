@@ -1,3 +1,5 @@
+import Skeleton from '../loading/Skeleton'
+
 /** Horizontal progress rows: label · value · bar (used for status overviews). */
 export function SummaryRows({ rows }) {
   return (
@@ -76,11 +78,5 @@ export default function Card({
 }
 
 function LoadingBlock() {
-  return (
-    <div className="stack stack-sm" aria-hidden="true">
-      <div className="skeleton skeleton-line" style={{ width: '45%' }} />
-      <div className="skeleton skeleton-line" style={{ width: '80%' }} />
-      <div className="skeleton skeleton-line" style={{ width: '65%' }} />
-    </div>
-  )
+  return <Skeleton lines={3} height={12} />
 }
