@@ -1,0 +1,467 @@
+/* ================================================================== */
+/* Registrar enrollment pages — shared page-scoped styles             */
+/* Imported by RegistrarDashboard, RegistrarApplications, Review,     */
+/* RegistrarEnrollments, EnrollmentPeriods, EnrollmentRequirements    */
+/* and RegistrarReports. Everything else comes from src/index.css.    */
+/* ================================================================== */
+
+/* ---------------------------- Stat grid --------------------------- */
+
+.enr-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+/* --------------------------- Filter strips ------------------------ */
+
+.enr-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.enr-filters .field {
+  margin: 0;
+  min-width: 150px;
+  flex: 1 1 150px;
+}
+
+.enr-filters .field-search {
+  flex: 2 1 230px;
+}
+
+.enr-filters .filter-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* ------------------------- Quick filter pills --------------------- */
+
+.enr-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.enr-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
+}
+
+.enr-pill:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-alt);
+}
+
+.enr-pill:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.enr-pill .enr-pill-count {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--navy-800);
+}
+
+.enr-pill.active {
+  border-color: var(--navy-800);
+  background: var(--navy-800);
+  color: #fff;
+}
+
+.enr-pill.active .enr-pill-count {
+  color: #fff;
+}
+
+/* ------------------------ Utilisation bars ------------------------ */
+
+.util-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 140px;
+}
+
+.util-track {
+  flex: 1;
+  min-width: 60px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.util-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--navy-800);
+}
+
+.util-fill.is-high {
+  background: var(--amber-700);
+}
+
+.util-fill.is-full {
+  background: var(--red-600);
+}
+
+.util-pct {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  min-width: 36px;
+  text-align: right;
+}
+
+/* ------------------- Applications by grade level ------------------ */
+
+.grade-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.grade-row:last-child {
+  border-bottom: none;
+}
+
+.grade-row .grade-name {
+  min-width: 120px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.grade-row .grade-track {
+  flex: 1;
+  height: 8px;
+  min-width: 40px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.grade-row .grade-track > span {
+  display: block;
+  height: 100%;
+  background: var(--blue-600);
+  border-radius: 999px;
+}
+
+.grade-row .grade-total {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--navy-800);
+  min-width: 28px;
+  text-align: right;
+}
+
+/* ---------------------------- Pagination -------------------------- */
+/* Same pattern as SectionsPage / AnnouncementsPage, scoped here so    */
+/* the shared stylesheet stays untouched.                              */
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface-1);
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.pagination-info {
+  font-variant-numeric: tabular-nums;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pagination-pages {
+  display: flex;
+  gap: 4px;
+}
+
+.pagination-size select {
+  min-width: 130px;
+}
+
+/* ----------------------- Review workspace grid -------------------- */
+
+.review-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.review-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* --------------------------- Key/value pairs ---------------------- */
+
+.kv-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 18px;
+}
+
+.kv-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kv-item.kv-full {
+  grid-column: 1 / -1;
+}
+
+.kv-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+.kv-value {
+  font-size: 0.92rem;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.kv-block {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+.kv-block > .eyebrow {
+  display: block;
+  margin-bottom: 8px;
+}
+
+/* ----------------------------- Documents -------------------------- */
+
+.doc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.doc-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.doc-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.doc-name {
+  font-weight: 650;
+  font-size: 0.94rem;
+}
+
+.doc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.doc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* -------------------------- Student matches ----------------------- */
+
+.match-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.match-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--blue-600);
+  border-radius: var(--radius-md);
+}
+
+/* ----------------------------- Timeline --------------------------- */
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-left: 2px solid var(--border);
+  margin-left: 7px;
+  padding-left: 18px;
+}
+
+.timeline-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.timeline-item::before {
+  content: "";
+  position: absolute;
+  left: -25px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--navy-600);
+}
+
+.timeline-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+
+.timeline-actor {
+  font-weight: 650;
+}
+
+.timeline-flow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.internal-note {
+  border: 1px solid #f3ddb9;
+  background: var(--amber-100);
+  color: #7c4706;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font-size: 0.85rem;
+}
+
+.internal-note .internal-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--amber-700);
+  margin-bottom: 2px;
+}
+
+/* ----------------------------- Reports ---------------------------- */
+
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+/* ------------------------------ Print ----------------------------- */
+
+@media print {
+  .no-print,
+  .sidebar,
+  .topbar {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+}
+
+/* --------------------------- Responsive --------------------------- */
+
+@media (max-width: 900px) {
+  .review-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .enr-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .enr-filters .field,
+  .enr-filters .field-search {
+    min-width: 100%;
+  }
+
+  .report-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pagination {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pagination-controls {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 420px) {
+  .enr-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .kv-grid {
+    grid-template-columns: 1fr;
+  }
+}

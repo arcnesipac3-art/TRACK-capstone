@@ -92,6 +92,7 @@ describe('navForUser', () => {
       'departments.view',
       'audit.view',
       'settings.manage',
+      'enrollment.view',
     ]
     expect(new Set(navForUser(adminWith(allAdminKeys)).map((i) => i.to))).
       toEqual(new Set(NAVIGATION.admin.map((i) => i.to)))

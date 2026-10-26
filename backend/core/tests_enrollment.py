@@ -1,0 +1,1405 @@
+"""
+TRACK — Enrollment & Admissions backend tests.
+
+Run from the backend folder:
+    python manage.py test core.tests_enrollment
+
+Covers: period validation, draft/submit/resubmit/withdraw workflow, the
+status state machine, requirement configuration and snapshotting, document
+upload authorization and content validation, applicant/parent object-level
+access, staff authorization keys, section recommendation and capacity
+enforcement (including duplicate/racing confirmations), student identity
+matching, idempotent confirmation, transaction rollback, post-commit
+notification failure isolation, audit events, and reporting.
+"""
+
+from datetime import timedelta
+import tempfile
+from unittest import mock
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.db import IntegrityError, transaction
+from django.test import override_settings
+from django.urls import reverse
+from django.utils import timezone
+from rest_framework.test import APITestCase
+
+from .models import (
+    ApplicationDocument,
+    ApplicationStatus,
+    AuditLog,
+    Department,
+    Enrollment,
+    EnrollmentApplication,
+    EnrollmentPeriod,
+    EnrollmentRequirement,
+    EnrollmentType,
+    GradeLevel,
+    Notification,
+    SchoolYear,
+    Section,
+    StudentProfile,
+    User,
+)
+from .tests import TrackTestCase
+
+# Uploaded files must never touch the real backend/media folder.
+TEST_MEDIA_ROOT = tempfile.mkdtemp(prefix="track-test-media-")
+
+
+@override_settings(MEDIA_ROOT=TEST_MEDIA_ROOT)
+class EnrollmentTestCase(TrackTestCase):
+    """Enrollment fixtures on top of the shared TRACK fixture."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        now = timezone.now()
+        cls.period = EnrollmentPeriod.objects.create(
+            school_year=cls.school_year,
+            name="SY 2026-2027 Registration",
+            status=EnrollmentPeriod.Status.OPEN,
+            opens_at=now - timedelta(days=7),
+            closes_at=now + timedelta(days=30),
+            created_by=cls.admin,
+        )
+        cls.req_birth = EnrollmentRequirement.objects.create(
+            period=cls.period,
+            name="Birth Certificate",
+            is_required=True,
+            requires_verification=True,
+            position=1,
+        )
+        cls.req_form = EnrollmentRequirement.objects.create(
+            period=cls.period,
+            name="Form 137",
+            is_required=False,
+            requires_verification=False,
+            position=2,
+        )
+        # Department-scoped Registrar administrator (enrollment keys granted
+        # by the seeded DEFAULT_DEPARTMENTS registry).
+        registrar_dept = Department.objects.get(code="REGISTRAR")
+        cls.registrar = User.objects.create_user(
+            username="t_registrar", password="enroll-Test123",
+            role=User.Role.ADMIN, first_name="Ria", last_name="Registrar",
+        )
+        cls.registrar.departments.add(registrar_dept)
+        # An administrator with NO enrollment permissions.
+        cls.plain_admin = User.objects.create_user(
+            username="t_plain_admin", password="enroll-Test123",
+            role=User.Role.ADMIN, first_name="Pat", last_name="NoKeys",
+        )
+        # A brand-new applicant (no student profile yet).
+        cls.applicant1 = User.objects.create_user(
+            username="t_applicant1", password="enroll-Test123",
+            role=User.Role.STUDENT, first_name="New", last_name="Kid",
+        )
+        cls.applicant2 = User.objects.create_user(
+            username="t_applicant2", password="enroll-Test123",
+            role=User.Role.STUDENT, first_name="Other", last_name="Kid",
+        )
+
+    def login_as(self, user):
+        password = {
+            "t_admin": "pass-Admin123",
+            "t_teacher1": "pass-Teach123",
+            "t_teacher2": "pass-Teach123",
+            "t_student1": "pass-Stud123",
+            "t_student2": "pass-Stud123",
+            "t_parent": "pass-Parent1",
+        }.get(user.username, "enroll-Test123")
+        assert self.client.login(username=user.username, password=password)
+        return self.client
+
+    def make_draft(self, user=None, **overrides):
+        payload = {
+            "period": self.period.pk,
+            "enrollment_type": EnrollmentType.NEW,
+            "grade_level": self.grade7.pk,
+        }
+        payload.update(overrides)
+        self.login_as(user or self.applicant1)
+        response = self.client.post(
+            "/api/enrollment/applications/my/", payload, format="json"
+        )
+        assert response.status_code == 201, response.content
+        return EnrollmentApplication.objects.get(pk=response.data["id"])
+
+    def fill_required_documents(self, application):
+        """Upload a valid file for every required document slot."""
+        for document in application.documents.filter(is_required=True):
+            upload = SimpleUploadedFile(
+                "certificate.pdf", b"%PDF-1.4 test content", content_type="application/pdf"
+            )
+            self.client.post(
+                f"/api/enrollment/applications/my/{application.pk}/documents/{document.pk}/upload/",
+                {"file": upload},
+            )
+
+    def accept_application(self, application, registrar=None):
+        for document in application.documents.filter(is_required=True):
+            document.status = ApplicationDocument.Status.VERIFIED
+            document.verified_at = timezone.now()
+            document.verified_by = registrar or self.registrar
+            document.save()
+        self.login_as(registrar or self.registrar)
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "accept"},
+            format="json",
+        )
+        assert response.status_code == 200, response.content
+        application.refresh_from_db()
+        return application
+
+
+# ---------------------------------------------------------------------------
+# Enrollment periods
+# ---------------------------------------------------------------------------
+
+class EnrollmentPeriodTests(EnrollmentTestCase):
+    def test_period_with_invalid_date_range_is_rejected(self):
+        self.login_as(self.registrar)
+        response = self.client.post(
+            "/api/enrollment/periods/",
+            {
+                "school_year": self.school_year.pk,
+                "status": "upcoming",
+                "opens_at": "2027-01-10T08:00:00+08:00",
+                "closes_at": "2027-01-01T08:00:00+08:00",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("closes_at", response.data)
+
+    def test_period_create_requires_manage_permission(self):
+        self.login_as(self.plain_admin)
+        response = self.client.post(
+            "/api/enrollment/periods/",
+            {
+                "school_year": self.school_year.pk,
+                "status": "upcoming",
+                "opens_at": "2027-01-01T08:00:00+08:00",
+                "closes_at": "2027-02-01T08:00:00+08:00",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_applicant_sees_only_open_periods(self):
+        EnrollmentPeriod.objects.create(
+            school_year=self.school_year, name="Closed window",
+            status=EnrollmentPeriod.Status.CLOSED,
+            opens_at=timezone.now() - timedelta(days=90),
+            closes_at=timezone.now() - timedelta(days=60),
+            created_by=self.admin,
+        )
+        self.login_as(self.applicant1)
+        response = self.client.get("/api/enrollment/periods/")
+        self.assertEqual(response.status_code, 200)
+        labels = [row["name"] for row in response.data["results"]]
+        self.assertIn("SY 2026-2027 Registration", labels)
+        self.assertNotIn("Closed window", labels)
+
+    def test_closing_period_stops_new_submissions_but_keeps_applications(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.registrar)
+        response = self.client.patch(
+            f"/api/enrollment/periods/{self.period.pk}/",
+            {"status": "closed"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.DRAFT)
+        # The stored application is untouched; only new submissions stop.
+        self.login_as(self.applicant1)
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("no longer accepting", str(response.data))
+
+    def test_school_year_immutable_once_applications_exist(self):
+        application = self.make_draft()
+        other_year = SchoolYear.objects.create(
+            label="2027-2028",
+            start_date=timezone.now().date() + timedelta(days=200),
+            end_date=timezone.now().date() + timedelta(days=500),
+        )
+        self.login_as(self.registrar)
+        response = self.client.patch(
+            f"/api/enrollment/periods/{self.period.pk}/",
+            {"school_year": other_year.pk},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertTrue(application.period_id == self.period.pk)
+
+    def test_period_delete_blocked_when_applications_exist(self):
+        application = self.make_draft()
+        self.login_as(self.registrar)
+        response = self.client.delete(f"/api/enrollment/periods/{self.period.pk}/")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("cannot be deleted", str(response.data))
+
+
+# ---------------------------------------------------------------------------
+# Draft creation, prefill, submission
+# ---------------------------------------------------------------------------
+
+class ApplicationDraftTests(EnrollmentTestCase):
+    def test_draft_creation_freezes_checklist_and_materializes_documents(self):
+        self.login_as(self.applicant1)
+        response = self.client.post(
+            "/api/enrollment/applications/my/",
+            {"period": self.period.pk, "enrollment_type": "new", "grade_level": self.grade7.pk},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        application = EnrollmentApplication.objects.get(pk=response.data["id"])
+        self.assertTrue(application.reference.startswith("APP-"))
+        self.assertEqual(application.status, ApplicationStatus.DRAFT)
+        self.assertEqual(len(application.requirements_snapshot), 2)
+        names = set(application.documents.values_list("name", flat=True))
+        self.assertEqual(names, {"Birth Certificate", "Form 137"})
+
+    def test_draft_reuses_existing_student_profile_fields(self):
+        # student1 returns for the same school year — identity prefilled.
+        self.login_as(self.student1_user)
+        response = self.client.post(
+            "/api/enrollment/applications/my/",
+            {"period": self.period.pk, "enrollment_type": "returning", "grade_level": self.grade7.pk},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        application = EnrollmentApplication.objects.get(pk=response.data["id"])
+        self.assertEqual(application.lrn, "100000000001")
+        self.assertEqual(application.first_name, "Sara")
+        self.assertEqual(application.last_name, "Student")
+        self.assertEqual(application.student_id, self.student1.pk)
+
+    def test_parent_can_apply_for_linked_child_only(self):
+        self.login_as(self.parent)
+        response = self.client.post(
+            "/api/enrollment/applications/my/",
+            {
+                "period": self.period.pk, "enrollment_type": "returning",
+                "grade_level": self.grade7.pk, "student": self.student1.pk,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        application = EnrollmentApplication.objects.get(pk=response.data["id"])
+        self.assertEqual(application.student_id, self.student1.pk)
+        self.assertEqual(application.applicant_id, self.parent.pk)
+        self.assertEqual(application.guardian_name, "Pia Parent")
+
+    def test_parent_cannot_apply_for_unrelated_student(self):
+        self.login_as(self.parent)
+        response = self.client.post(
+            "/api/enrollment/applications/my/",
+            {
+                "period": self.period.pk, "enrollment_type": "new",
+                "grade_level": self.grade7.pk, "student": self.student2.pk,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("linked children", str(response.data))
+
+    def test_student_cannot_open_two_open_applications_same_year(self):
+        self.make_draft()
+        self.login_as(self.applicant1)
+        response = self.client.post(
+            "/api/enrollment/applications/my/",
+            {"period": self.period.pk, "enrollment_type": "new", "grade_level": self.grade7.pk},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("already have an active application", str(response.data))
+
+    def test_grade_level_not_in_period_is_rejected(self):
+        self.period.grade_levels.add(self.grade7)
+        self.period.save()
+        grade8 = GradeLevel.objects.create(name="Grade 8", order=8)
+        self.login_as(self.applicant1)
+        response = self.client.post(
+            "/api/enrollment/applications/my/",
+            {"period": self.period.pk, "enrollment_type": "new", "grade_level": grade8.pk},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_teacher_and_admin_cannot_create_applications(self):
+        self.login_as(self.teacher1)
+        response = self.client.post(
+            "/api/enrollment/applications/my/",
+            {"period": self.period.pk, "enrollment_type": "new", "grade_level": self.grade7.pk},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_submit_requires_required_documents(self):
+        application = self.make_draft()
+        self.login_as(self.applicant1)
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Birth Certificate", str(response.data))
+
+    def test_submit_succeeds_with_documents_and_notifies(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        with self.captureOnCommitCallbacks(execute=True):
+            self.login_as(self.applicant1)
+            response = self.client.post(
+                f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            )
+        self.assertEqual(response.status_code, 200, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.SUBMITTED)
+        self.assertIsNotNone(application.submitted_at)
+        self.assertTrue(
+            Notification.objects.filter(
+                recipient=self.applicant1,
+                notif_type=Notification.NotifType.ENROLLMENT_SUBMITTED,
+                application=application,
+            ).exists()
+        )
+
+    def test_double_submit_is_rejected_not_duplicated(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        first = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        second = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 400)
+
+    def test_draft_update_rebuilds_checklist_on_grade_change(self):
+        application = self.make_draft()
+        grade8 = GradeLevel.objects.create(name="Grade 8", order=8)
+        EnrollmentRequirement.objects.create(
+            period=self.period, grade_level=grade8, name="Good Moral",
+            is_required=True, requires_verification=True,
+        )
+        self.login_as(self.applicant1)
+        response = self.client.patch(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            {"grade_level": grade8.pk},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.grade_level_id, grade8.pk)
+        names = set(application.documents.values_list("name", flat=True))
+        self.assertIn("Good Moral", names)
+
+    def test_applicant_edit_blocked_after_submission(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        response = self.client.patch(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            {"first_name": "Changed"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_submitted_application_cannot_be_deleted(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        response = self.client.delete(
+            f"/api/enrollment/applications/my/{application.pk}/"
+        )
+        self.assertEqual(response.status_code, 400)
+        # A draft may be discarded by its owner — but not by someone else.
+        draft = self.make_draft(user=self.applicant2)
+        self.login_as(self.applicant1)
+        response = self.client.delete(
+            f"/api/enrollment/applications/my/{draft.pk}/"
+        )
+        self.assertEqual(response.status_code, 404)
+        self.login_as(self.applicant2)
+        response = self.client.delete(
+            f"/api/enrollment/applications/my/{draft.pk}/"
+        )
+        self.assertEqual(response.status_code, 204)
+        self.assertFalse(EnrollmentApplication.objects.filter(pk=draft.pk).exists())
+
+    def test_withdraw_flow(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f"/api/enrollment/applications/my/{application.pk}/withdraw/",
+                format="json",
+            )
+        self.assertEqual(response.status_code, 200, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.WITHDRAWN)
+        self.assertTrue(
+            Notification.objects.filter(
+                application=application,
+                notif_type=Notification.NotifType.ENROLLMENT_DECISION,
+            ).exists()
+        )
+
+
+# ---------------------------------------------------------------------------
+# Status state machine
+# ---------------------------------------------------------------------------
+
+class StatusTransitionTests(EnrollmentTestCase):
+    def test_applicant_cannot_move_arbitrary_status(self):
+        application = self.make_draft()
+        self.login_as(self.applicant1)
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "accept"}, format="json",
+        )
+        # Applicant never reaches the staff endpoint (403), and PATCH cannot
+        # smuggle a status either (status is not an editable field).
+        self.assertEqual(response.status_code, 403)
+        response = self.client.patch(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            {"status": "accepted"}, format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.DRAFT)
+
+    def test_staff_cannot_skip_review_to_accepted(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.login_as(self.registrar)
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "accept"}, format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("cannot move", str(response.data))
+
+    def test_review_corrections_resubmit_accept_happy_path(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.login_as(self.registrar)
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        application.refresh_from_db()
+        self.assertIsNotNone(application.reviewed_at)
+        self.assertEqual(application.reviewer_id, self.registrar.pk)
+        # Corrections round: return the required document, request corrections.
+        document = application.documents.get(is_required=True)
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/documents/{document.pk}/action/",
+            {"action": "return", "note": "The scan is unreadable."},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f"/api/enrollment/applications/{application.pk}/action/",
+                {"action": "request_corrections", "note": "Please upload a clearer birth certificate."},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 200, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.INCOMPLETE)
+        self.assertTrue(
+            Notification.objects.filter(
+                application=application,
+                notif_type=Notification.NotifType.ENROLLMENT_CORRECTIONS,
+            ).exists()
+        )
+        # Applicant replaces the returned file and resubmits.
+        self.login_as(self.applicant1)
+        self.fill_required_documents(application)
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/resubmit/", format="json"
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.RESUBMITTED)
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        application = self.accept_application(application)
+        self.assertEqual(application.status, ApplicationStatus.ACCEPTED)
+        events = list(application.events.values_list("action", flat=True))
+        self.assertIn("submitted", events)
+        self.assertIn("accept", events)
+
+    def test_accept_blocked_until_required_documents_verified(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "accept"}, format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("verified", str(response.data))
+
+    def test_reject_requires_recorded_reason(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "reject"}, format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "reject", "reason": "Grade level is full for this year."},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.REJECTED)
+        self.assertIn("full", application.decision_reason)
+
+    def test_waitlist_requires_period_opt_in(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "waitlist"}, format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.period.allow_waitlist = True
+        self.period.save()
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "waitlist"}, format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.WAITLISTED)
+
+
+# ---------------------------------------------------------------------------
+# Requirement configuration & snapshots
+# ---------------------------------------------------------------------------
+
+class RequirementConfigurationTests(EnrollmentTestCase):
+    def test_changing_requirements_does_not_touch_existing_applications(self):
+        application = self.make_draft()
+        snapshot_before = list(application.requirements_snapshot)
+        EnrollmentRequirement.objects.create(
+            period=self.period, name="Good Moral Certificate",
+            is_required=True, requires_verification=True, position=3,
+        )
+        self.req_birth.is_active = False
+        self.req_birth.save()
+        application.refresh_from_db()
+        self.assertEqual(application.requirements_snapshot, snapshot_before)
+        self.assertEqual(
+            set(application.documents.values_list("name", flat=True)),
+            {"Birth Certificate", "Form 137"},
+        )
+
+    def test_requirement_delete_blocked_once_referenced(self):
+        application = self.make_draft()
+        self.login_as(self.registrar)
+        response = self.client.delete(
+            f"/api/enrollment/requirements/{self.req_birth.pk}/"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Deactivate", str(response.data))
+        # Deactivation works and hides it from new checklists.
+        response = self.client.patch(
+            f"/api/enrollment/requirements/{self.req_birth.pk}/",
+            {"is_active": False}, format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+
+    def test_requirement_writes_need_manage_key(self):
+        self.login_as(self.plain_admin)
+        response = self.client.post(
+            "/api/enrollment/requirements/",
+            {"period": self.period.pk, "name": "Whatever"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+
+# ---------------------------------------------------------------------------
+# Document uploads & downloads
+# ---------------------------------------------------------------------------
+
+class DocumentUploadTests(EnrollmentTestCase):
+    def test_upload_valid_pdf_and_replace(self):
+        application = self.make_draft()
+        document = application.documents.get(is_required=True)
+        self.login_as(self.applicant1)
+        upload = SimpleUploadedFile(
+            "bc.pdf", b"%PDF-1.4 the real content", content_type="application/pdf"
+        )
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/documents/{document.pk}/upload/",
+            {"file": upload},
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        document.refresh_from_db()
+        self.assertEqual(document.status, ApplicationDocument.Status.SUBMITTED)
+        self.assertEqual(document.original_filename, "bc.pdf")
+        self.assertIsNotNone(document.submitted_at)
+        # Replacing resets review state to submitted.
+        document.status = ApplicationDocument.Status.RETURNED
+        document.save()
+        upload = SimpleUploadedFile(
+            "bc2.pdf", b"%PDF-1.4 replaced", content_type="application/pdf"
+        )
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/documents/{document.pk}/upload/",
+            {"file": upload},
+        )
+        self.assertEqual(response.status_code, 200)
+        document.refresh_from_db()
+        self.assertEqual(document.status, ApplicationDocument.Status.SUBMITTED)
+        self.assertEqual(document.review_note, "")
+
+    def test_upload_rejects_disallowed_extension_and_content(self):
+        application = self.make_draft()
+        document = application.documents.get(is_required=True)
+        self.login_as(self.applicant1)
+        url = f"/api/enrollment/applications/my/{application.pk}/documents/{document.pk}/upload/"
+        response = self.client.post(
+            url, {"file": SimpleUploadedFile("evil.exe", b"MZ\x90\x00", content_type="application/pdf")}
+        )
+        self.assertEqual(response.status_code, 400)
+        response = self.client.post(
+            url, {"file": SimpleUploadedFile("fake.pdf", b"MZ\x90\x00", content_type="application/pdf")}
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("does not match", str(response.data))
+        document.refresh_from_db()
+        self.assertEqual(document.status, ApplicationDocument.Status.NOT_SUBMITTED)
+
+    def test_upload_rejects_oversized_file(self):
+        application = self.make_draft()
+        document = application.documents.get(is_required=True)
+        self.login_as(self.applicant1)
+        big = SimpleUploadedFile(
+            "big.pdf", b"%PDF" + b"0" * (10 * 1024 * 1024 + 1), content_type="application/pdf"
+        )
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/documents/{document.pk}/upload/",
+            {"file": big},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("too large", str(response.data))
+
+    def test_other_applicant_cannot_upload_or_download(self):
+        application = self.make_draft()
+        document = application.documents.get(is_required=True)
+        document.file.name = "enrollment/documents/2026/secret.pdf"
+        document.save()
+        self.login_as(self.applicant2)
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/documents/{document.pk}/upload/",
+            {"file": SimpleUploadedFile("x.pdf", b"%PDF-1.4 x", content_type="application/pdf")},
+        )
+        self.assertEqual(response.status_code, 404)
+        response = self.client.get(
+            f"/api/enrollment/applications/{application.pk}/documents/{document.pk}/download/"
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_owner_and_staff_can_download_teacher_cannot(self):
+        application = self.make_draft()
+        document = application.documents.get(is_required=True)
+        document.file.save(
+            "bc.pdf", SimpleUploadedFile("bc.pdf", b"%PDF-1.4 stored", content_type="application/pdf")
+        )
+        url = f"/api/enrollment/applications/{application.pk}/documents/{document.pk}/download/"
+        self.login_as(self.applicant1)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.login_as(self.teacher1)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 404)
+        self.login_as(self.registrar)
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
+    def test_upload_blocked_outside_editable_states(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        document = application.documents.get(is_required=True)
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/documents/{document.pk}/upload/",
+            {"file": SimpleUploadedFile("x.pdf", b"%PDF-1.4 x", content_type="application/pdf")},
+        )
+        self.assertEqual(response.status_code, 400)
+
+
+# ---------------------------------------------------------------------------
+# Object-level access
+# ---------------------------------------------------------------------------
+
+class ApplicantAccessTests(EnrollmentTestCase):
+    def test_applicant_cannot_see_another_applications_record(self):
+        application = self.make_draft()
+        self.login_as(self.applicant2)
+        response = self.client.get(
+            f"/api/enrollment/applications/my/{application.pk}/"
+        )
+        self.assertEqual(response.status_code, 404)
+        response = self.client.get("/api/enrollment/applications/my/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 0)
+
+    def test_parent_sees_only_linked_children(self):
+        application = self.make_draft(user=self.student1_user)
+        self.login_as(self.parent)
+        response = self.client.get("/api/enrollment/applications/my/")
+        self.assertEqual(response.data["count"], 1)
+        # A parent of nobody's application: student2 has no linked parent, but
+        # create one unrelated parent to prove the negative.
+        other_parent = User.objects.create_user(
+            username="t_other_parent", password="enroll-Test123",
+            role=User.Role.PARENT, first_name="Ung", last_name="Linked",
+        )
+        from .models import ParentProfile
+        ParentProfile.objects.create(user=other_parent)
+        self.login_as(other_parent)
+        response = self.client.get(
+            f"/api/enrollment/applications/my/{application.pk}/"
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_applicant_events_never_leak_internal_notes(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review", "internal_note": "CONFIDENTIAL STAFF NOTE"},
+            format="json",
+        )
+        self.login_as(self.applicant1)
+        response = self.client.get(
+            f"/api/enrollment/applications/my/{application.pk}/"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn("CONFIDENTIAL", str(response.data))
+        self.assertNotIn("internal_note", str(response.data))
+
+    def test_unauthenticated_and_wrong_role_access(self):
+        application = self.make_draft()
+        self.client.logout()
+        response = self.client.get("/api/enrollment/applications/my/")
+        self.assertEqual(response.status_code, 401)
+        response = self.client.get("/api/enrollment/applications/")
+        self.assertEqual(response.status_code, 401)
+        self.login_as(self.teacher1)
+        response = self.client.get("/api/enrollment/applications/")
+        self.assertEqual(response.status_code, 403)
+        response = self.client.get(f"/api/enrollment/applications/{application.pk}/action/", )
+        self.assertEqual(response.status_code, 405)  # GET not allowed; POST below
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+        self.login_as(self.plain_admin)
+        response = self.client.get("/api/enrollment/applications/")
+        self.assertEqual(response.status_code, 403)
+        response = self.client.get("/api/enrollment/dashboard/")
+        self.assertEqual(response.status_code, 403)
+
+
+# ---------------------------------------------------------------------------
+# Section recommendations & capacity
+# ---------------------------------------------------------------------------
+
+class SectionCapacityTests(EnrollmentTestCase):
+    def build_accepted_application(self, applicant, **draft_overrides):
+        application = self.make_draft(user=applicant, **draft_overrides)
+        self.fill_required_documents(application)
+        self.login_as(applicant)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        return self.accept_application(application)
+
+    def test_recommendations_use_real_capacity(self):
+        self.section_a.capacity = 1
+        self.section_a.save()
+        # Occupy the single slot in section_a with a confirmed enrollment.
+        application = self.build_accepted_application(self.applicant1)
+        application.lrn = "100000000201"
+        application.save()
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/assign-section/",
+            {"section": self.section_a.pk}, format="json",
+        )
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/confirm/", format="json"
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        # A second applicant asks for recommendations.
+        second = self.build_accepted_application(self.applicant2)
+        self.login_as(self.registrar)
+        response = self.client.get(
+            f"/api/enrollment/applications/{second.pk}/section-recommendations/"
+        )
+        self.assertEqual(response.status_code, 200)
+        rows = {r["name"]: r for r in response.data["recommendations"]}
+        self.assertEqual(rows["Sampaguita"]["assigned"], 1)
+        self.assertEqual(rows["Sampaguita"]["available"], 0)
+        self.assertEqual(rows["Gumamela"]["available"], None)  # no configured cap
+        # Assignment to the full section is refused with 409.
+        response = self.client.post(
+            f"/api/enrollment/applications/{second.pk}/assign-section/",
+            {"section": self.section_a.pk}, format="json",
+        )
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("full", str(response.data))
+
+    def test_assignment_to_wrong_grade_section_is_rejected(self):
+        application = self.build_accepted_application(self.applicant1)
+        grade8 = GradeLevel.objects.create(name="Grade 8", order=8)
+        section8 = Section.objects.create(
+            school_year=self.school_year, grade_level=grade8, name="Rosal"
+        )
+        self.login_as(self.registrar)
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/assign-section/",
+            {"section": section8.pk}, format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_confirmation_requires_approved_section(self):
+        application = self.build_accepted_application(self.applicant1)
+        self.login_as(self.registrar)
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/confirm/", format="json"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("section", str(response.data).lower())
+
+    def test_capacity_recheck_at_confirmation_time(self):
+        self.section_a.capacity = 1
+        self.section_a.save()
+        first = self.build_accepted_application(self.applicant1)
+        first.lrn = "100000000211"
+        first.save()
+        second = self.build_accepted_application(self.applicant2)
+        second.lrn = "100000000212"
+        second.save()
+        self.login_as(self.registrar)
+        # Both get the assignment approved while the slot is still free…
+        for application in (first, second):
+            response = self.client.post(
+                f"/api/enrollment/applications/{application.pk}/assign-section/",
+                {"section": self.section_a.pk}, format="json",
+            )
+            self.assertEqual(response.status_code, 200, response.content)
+        # …but only one confirmation can win the last slot.
+        response = self.client.post(
+            f"/api/enrollment/applications/{first.pk}/confirm/", format="json"
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        response = self.client.post(
+            f"/api/enrollment/applications/{second.pk}/confirm/", format="json"
+        )
+        self.assertEqual(response.status_code, 409)
+        self.assertFalse(
+            Enrollment.objects.filter(application=second).exists()
+        )
+        second.refresh_from_db()
+        self.assertEqual(second.status, ApplicationStatus.ACCEPTED)
+
+    def test_duplicate_active_enrollment_blocked_by_db(self):
+        self.section_a.capacity = 5
+        self.section_a.save()
+        application = self.build_accepted_application(self.applicant1)
+        application.lrn = "100000000221"
+        application.save()
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/assign-section/",
+            {"section": self.section_a.pk}, format="json",
+        )
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/confirm/", format="json"
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        application.refresh_from_db()
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                Enrollment.objects.create(
+                    student=application.student, school_year=self.school_year,
+                    grade_level=self.grade7, section=self.section_b,
+                    confirmed_by=self.registrar,
+                )
+
+
+# ---------------------------------------------------------------------------
+# Final confirmation
+# ---------------------------------------------------------------------------
+
+class ConfirmEnrollmentTests(EnrollmentTestCase):
+    def build_confirmed(self, **kwargs):
+        application = self.make_draft(**kwargs)
+        self.fill_required_documents(application)
+        applicant = application.applicant
+        self.login_as(applicant)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        application = self.accept_application(application)
+        # Brand-new applicants need an LRN before a student record can exist.
+        application.lrn = "100000000123"
+        application.save()
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/assign-section/",
+            {"section": self.section_a.pk}, format="json",
+        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f"/api/enrollment/applications/{application.pk}/confirm/", format="json"
+            )
+        assert response.status_code == 201, response.content
+        return application, response.data["enrollment"]
+
+    def test_confirmation_creates_student_enrollment_and_audit(self):
+        application, enrollment = self.build_confirmed()
+        application.refresh_from_db()
+        self.assertIsNotNone(application.student_id)
+        self.assertEqual(application.status, ApplicationStatus.ENROLLED)
+        row = Enrollment.objects.get(application=application)
+        self.assertEqual(row.status, Enrollment.Status.ACTIVE)
+        self.assertEqual(row.section_id, self.section_a.pk)
+        self.assertEqual(row.confirmed_by_id, self.registrar.pk)
+        self.assertEqual(row.student_id, application.student_id)
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action="enrollment.confirmed", target_id=str(row.pk)
+            ).exists()
+        )
+
+    def test_only_registrar_key_holders_can_confirm(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        # A student certainly cannot confirm.
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/confirm/", format="json"
+        )
+        self.assertEqual(response.status_code, 403)
+        # Neither can an administrator without the enrollment.confirm key.
+        self.login_as(self.plain_admin)
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/confirm/", format="json"
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_repeated_confirmation_is_idempotent(self):
+        application, enrollment = self.build_confirmed()
+        self.login_as(self.registrar)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f"/api/enrollment/applications/{application.pk}/confirm/", format="json"
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["created"])
+        self.assertEqual(response.data["enrollment"]["id"], enrollment["id"])
+        self.assertEqual(Enrollment.objects.filter(application=application).count(), 1)
+        # Both the submitting account and the linked student account are told —
+        # but only once, ever, no matter how many times confirmation is retried.
+        self.assertEqual(
+            Notification.objects.filter(
+                application=application,
+                notif_type=Notification.NotifType.ENROLLMENT_CONFIRMED,
+            ).count(),
+            2,
+        )
+        self.assertEqual(User.objects.filter(role=User.Role.STUDENT).count(), 5)
+        # The permanent student identity was created once, with the LRN.
+        self.assertEqual(
+            StudentProfile.objects.filter(lrn="100000000123").count(), 1
+        )
+
+    def test_returning_student_is_matched_not_duplicated(self):
+        # student1 (existing identity) applies for the same school year.
+        self.login_as(self.student1_user)
+        response = self.client.post(
+            "/api/enrollment/applications/my/",
+            {"period": self.period.pk, "enrollment_type": "returning", "grade_level": self.grade7.pk},
+            format="json",
+        )
+        application = EnrollmentApplication.objects.get(pk=response.data["id"])
+        self.fill_required_documents(application)
+        self.login_as(self.student1_user)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        self.accept_application(application)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/assign-section/",
+            {"section": self.section_b.pk}, format="json",
+        )
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/confirm/", format="json"
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        row = Enrollment.objects.get(application=application)
+        self.assertEqual(row.student_id, self.student1.pk)
+        # No new user account was created for an existing student.
+        self.assertEqual(User.objects.filter(role=User.Role.STUDENT).count(), 4)
+        # The roster source points at the new section.
+        self.student1.refresh_from_db()
+        self.assertEqual(self.student1.section_id, self.section_b.pk)
+
+    def test_lrn_match_links_existing_identity(self):
+        application = self.make_draft()
+        # Give the application student2's LRN; staff will confirm and the
+        # existing identity must be reused, not duplicated.
+        application.lrn = self.student2.lrn
+        application.first_name = "Sam"
+        application.last_name = "Student2"
+        application.date_of_birth = None
+        application.save()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        self.accept_application(application)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/assign-section/",
+            {"section": self.section_a.pk}, format="json",
+        )
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/confirm/", format="json"
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.student_id, self.student2.pk)
+        self.assertEqual(
+            User.objects.filter(role=User.Role.STUDENT).count(), 4,
+            "LRN match must not create a duplicate student account",
+        )
+
+    def test_new_student_creation_requires_lrn(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        self.accept_application(application)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/assign-section/",
+            {"section": self.section_a.pk}, format="json",
+        )
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/confirm/", format="json"
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Learner Reference Number", str(response.data))
+        # With an LRN supplied, confirmation succeeds and creates the profile.
+        # (update() avoids clobbering the section assignment with stale state)
+        EnrollmentApplication.objects.filter(pk=application.pk).update(
+            lrn="100000000099"
+        )
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/confirm/", format="json"
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.student.lrn, "100000000099")
+        self.assertEqual(application.student.user.role, User.Role.STUDENT)
+        self.assertFalse(
+            User.objects.filter(username=application.reference.lower().replace("-", "") + "x").exists()
+        )
+
+    def test_notification_failure_does_not_undo_confirmation(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        self.accept_application(application)
+        application.lrn = "100000000231"
+        application.save()
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/assign-section/",
+            {"section": self.section_a.pk}, format="json",
+        )
+        with mock.patch.object(
+            Notification.objects, "bulk_create", side_effect=RuntimeError("queue down")
+        ):
+            try:
+                with self.captureOnCommitCallbacks(execute=True):
+                    response = self.client.post(
+                        f"/api/enrollment/applications/{application.pk}/confirm/",
+                        format="json",
+                    )
+                self.assertEqual(response.status_code, 201)
+            except RuntimeError:
+                pass  # the post-commit notification failure surfaces here
+        self.assertTrue(
+            Enrollment.objects.filter(application=application).exists(),
+            "the committed enrollment must survive a notification failure",
+        )
+
+    def test_mid_confirmation_failure_rolls_back_everything(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        self.accept_application(application)
+        application.lrn = "100000000241"
+        application.save()
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/assign-section/",
+            {"section": self.section_a.pk}, format="json",
+        )
+        users_before = User.objects.count()
+        with mock.patch.object(
+            Enrollment.objects, "create", side_effect=RuntimeError("disk full")
+        ):
+            with self.assertRaises(RuntimeError):
+                self.client.post(
+                    f"/api/enrollment/applications/{application.pk}/confirm/",
+                    format="json",
+                )
+        self.assertEqual(User.objects.count(), users_before, "no partial student creation")
+        self.assertFalse(Enrollment.objects.filter(application=application).exists())
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.ACCEPTED)
+
+
+# ---------------------------------------------------------------------------
+# Staff queue, dashboard & reports
+# ---------------------------------------------------------------------------
+
+class StaffQueueAndReportTests(EnrollmentTestCase):
+    def build_application(self, applicant, **overrides):
+        application = self.make_draft(user=applicant, **overrides)
+        self.fill_required_documents(application)
+        self.login_as(applicant)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        return application
+
+    def test_staff_queue_filters_and_pagination(self):
+        self.build_application(self.applicant1)
+        self.build_application(self.applicant2)
+        self.login_as(self.registrar)
+        response = self.client.get("/api/enrollment/applications/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 2)
+        response = self.client.get(
+            f"/api/enrollment/applications/?status={ApplicationStatus.SUBMITTED}"
+        )
+        self.assertEqual(response.data["count"], 2)
+        response = self.client.get(
+            f"/api/enrollment/applications/?status={ApplicationStatus.ACCEPTED}"
+        )
+        self.assertEqual(response.data["count"], 0)
+        response = self.client.get("/api/enrollment/applications/?search=APP-")
+        self.assertEqual(response.data["count"], 2)
+        response = self.client.get(
+            "/api/enrollment/applications/?school_year=999999"
+        )
+        self.assertEqual(response.data["count"], 0)
+
+    def test_dashboard_and_report_use_real_data(self):
+        application = self.build_application(self.applicant1)
+        self.login_as(self.registrar)
+        response = self.client.get(
+            f"/api/enrollment/dashboard/?school_year={self.school_year.pk}"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["total_applications"], 1)
+        self.assertEqual(response.data["submitted"], 1)
+        self.assertEqual(response.data["pending_documents"], 1)
+        self.assertIn("sections", response.data)
+        response = self.client.get(
+            f"/api/enrollment/reports/school-year/?school_year={self.school_year.pk}"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["school_year"]["label"], "2026-2027")
+        statuses = {row["status"]: row["total"] for row in response.data["by_status"]}
+        self.assertEqual(statuses.get(ApplicationStatus.SUBMITTED), 1)
+
+    def test_my_enrollments_scoped_to_owner(self):
+        application = self.make_draft(user=self.student1_user)
+        self.fill_required_documents(application)
+        self.login_as(self.student1_user)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        self.accept_application(application)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/assign-section/",
+            {"section": self.section_a.pk}, format="json",
+        )
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/confirm/", format="json"
+        )
+        self.login_as(self.student1_user)
+        response = self.client.get("/api/enrollment/my-enrollments/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data), 1)
+        self.login_as(self.parent)
+        response = self.client.get("/api/enrollment/my-enrollments/")
+        self.assertEqual(len(response.data), 1)
+        self.login_as(self.student2_user)
+        response = self.client.get("/api/enrollment/my-enrollments/")
+        self.assertEqual(len(response.data), 0)
+
+    def test_manual_student_link(self):
+        application = self.make_draft()
+        application.lrn = ""
+        application.save()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        # The staff detail view surfaces plausible matches.
+        response = self.client.get(
+            f"/api/enrollment/applications/{application.pk}/"
+        )
+        self.assertEqual(response.status_code, 200)
+        # Manual link.
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/link-student/",
+            {"student": self.student2.pk}, format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.student_id, self.student2.pk)
+        # Linking twice is refused.
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/link-student/",
+            {"student": self.student1.pk}, format="json",
+        )
+        self.assertEqual(response.status_code, 400)

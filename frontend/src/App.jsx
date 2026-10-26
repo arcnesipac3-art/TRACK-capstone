@@ -46,6 +46,23 @@ const AdminFeeAssessmentDetailPage = lazy(() => import('./pages/AdminFeeAssessme
 const StudentFeesPage = lazy(() => import('./pages/StudentFeesPage'))
 const ParentFeesPage = lazy(() => import('./pages/ParentFeesPage'))
 
+// Enrollment & Admissions — one applicant portal shared by students and
+// their linked parents/guardians, one Registrar workspace for staff holding
+// the enrollment.* permission keys (Django enforces them server-side).
+const EnrollmentPortal = lazy(() => import('./pages/enrollment/EnrollmentPortal'))
+const EnrollmentLandingPage = lazy(() => import('./pages/enrollment/EnrollmentLandingPage'))
+const ApplicationWizardPage = lazy(() => import('./pages/enrollment/ApplicationWizardPage'))
+const MyApplicationsPage = lazy(() => import('./pages/enrollment/MyApplicationsPage'))
+const ApplicationDetailPage = lazy(() => import('./pages/enrollment/ApplicationDetailPage'))
+const MyEnrollmentsPage = lazy(() => import('./pages/enrollment/MyEnrollmentsPage'))
+const RegistrarDashboard = lazy(() => import('./pages/enrollment/RegistrarDashboard'))
+const RegistrarApplicationsPage = lazy(() => import('./pages/enrollment/RegistrarApplicationsPage'))
+const RegistrarApplicationReviewPage = lazy(() => import('./pages/enrollment/RegistrarApplicationReviewPage'))
+const RegistrarEnrollmentsPage = lazy(() => import('./pages/enrollment/RegistrarEnrollmentsPage'))
+const EnrollmentPeriodsPage = lazy(() => import('./pages/enrollment/EnrollmentPeriodsPage'))
+const EnrollmentRequirementsPage = lazy(() => import('./pages/enrollment/EnrollmentRequirementsPage'))
+const RegistrarReportsPage = lazy(() => import('./pages/enrollment/RegistrarReportsPage'))
+
 export default function App() {
   const { hash, pathname } = useLocation()
 
@@ -124,6 +141,15 @@ export default function App() {
               <Route path="/admin/assignments" element={<AssignmentsPage />} />
               <Route path="/admin/schedules" element={<SchedulesPage />} />
             </Route>
+            <Route element={<ProtectedRoute permission="enrollment.view" />}>
+              <Route path="/admin/enrollment" element={<RegistrarDashboard />} />
+              <Route path="/admin/enrollment/applications" element={<RegistrarApplicationsPage />} />
+              <Route path="/admin/enrollment/applications/:id" element={<RegistrarApplicationReviewPage />} />
+              <Route path="/admin/enrollment/enrollments" element={<RegistrarEnrollmentsPage />} />
+              <Route path="/admin/enrollment/periods" element={<EnrollmentPeriodsPage />} />
+              <Route path="/admin/enrollment/requirements" element={<EnrollmentRequirementsPage />} />
+              <Route path="/admin/enrollment/reports" element={<RegistrarReportsPage />} />
+            </Route>
             <Route path="/admin/requirements" element={<RequirementsPage scope="admin" />} />
             <Route path="/admin/attendance" element={<AttendancePage mode="admin" />} />
             <Route element={<ProtectedRoute permission="fees.view" />}>
@@ -159,6 +185,13 @@ export default function App() {
           {/* Student */}
           <Route element={<ProtectedRoute roles={['student']} />}>
             <Route path="/student/dashboard" element={<StudentDashboard />} />
+            <Route path="/student/enrollment" element={<EnrollmentPortal />}>
+              <Route index element={<EnrollmentLandingPage />} />
+              <Route path="new" element={<ApplicationWizardPage />} />
+              <Route path="applications" element={<MyApplicationsPage />} />
+              <Route path="applications/:id" element={<ApplicationDetailPage />} />
+              <Route path="history" element={<MyEnrollmentsPage />} />
+            </Route>
             <Route path="/student/requirements" element={<RequirementsPage scope="student" />} />
             <Route path="/student/submissions" element={<SubmissionsPage mode="mine" />} />
             <Route path="/student/attendance" element={<AttendancePage mode="student" />} />
@@ -168,6 +201,13 @@ export default function App() {
           {/* Parent */}
           <Route element={<ProtectedRoute roles={['parent']} />}>
             <Route path="/parent/dashboard" element={<ParentDashboard />} />
+            <Route path="/parent/enrollment" element={<EnrollmentPortal />}>
+              <Route index element={<EnrollmentLandingPage />} />
+              <Route path="new" element={<ApplicationWizardPage />} />
+              <Route path="applications" element={<MyApplicationsPage />} />
+              <Route path="applications/:id" element={<ApplicationDetailPage />} />
+              <Route path="history" element={<MyEnrollmentsPage />} />
+            </Route>
             <Route path="/parent/children" element={<ParentChildrenPage />} />
             <Route path="/parent/requirements" element={<RequirementsPage scope="parent" />} />
             <Route path="/parent/attendance" element={<AttendancePage mode="parent" />} />

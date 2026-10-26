@@ -18,6 +18,10 @@ const TYPE_LABELS = {
   attendance_absent: 'Absent',
   attendance_late: 'Late',
   announcement: 'Announcement',
+  enrollment_submitted: 'Application received',
+  enrollment_corrections: 'Corrections needed',
+  enrollment_decision: 'Application decision',
+  enrollment_confirmed: 'Enrollment confirmed',
 }
 
 export default function NotificationsPage() {

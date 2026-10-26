@@ -1,0 +1,287 @@
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import ApplicationWizardPage from './ApplicationWizardPage'
+import EnrollmentPortal from './EnrollmentPortal'
+import api from '../../services/api'
+import useFetch from '../../hooks/useFetch'
+
+vi.mock('../../services/api', () => ({
+  default: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), list: vi.fn() },
+  API_BASE: '/api',
+}))
+vi.mock('../../hooks/useFetch', () => ({ default: vi.fn() }))
+
+const PERIODS_PAYLOAD = {
+  count: 1,
+  results: [
+    {
+      id: 3,
+      name: 'First Semester 2026',
+      school_year_label: '2026-2027',
+      status: 'open',
+      is_accepting_applications: true,
+    },
+  ],
+}
+
+const GRADE_LEVELS = [
+  { id: 1, name: 'Grade 7', order: 1 },
+  { id: 11, name: 'Grade 11', order: 11 },
+]
+
+function draftDetail(overrides = {}) {
+  return {
+    id: 11,
+    reference: 'APP-0011',
+    status: 'draft',
+    period: 3,
+    period_label: 'First Semester 2026',
+    school_year: 1,
+    school_year_label: '2026-2027',
+    enrollment_type: 'new',
+    grade_level: 1,
+    grade_level_name: 'Grade 7',
+    strand: '',
+    previous_school: '',
+    previous_school_address: '',
+    lrn: '123456789012',
+    first_name: 'Liza',
+    middle_name: '',
+    last_name: 'Mabini',
+    date_of_birth: '2012-05-01',
+    sex: 'female',
+    address: 'Iligan City',
+    contact_number: '09170000000',
+    guardian_name: '',
+    guardian_relationship: '',
+    guardian_contact: '',
+    guardian_email: '',
+    documents: [
+      {
+        id: 5,
+        requirement: 1,
+        name: 'Birth Certificate',
+        is_required: true,
+        status: 'not_submitted',
+        original_filename: null,
+        review_note: '',
+      },
+    ],
+    events: [],
+    missing_documents: ['Birth Certificate'],
+    available_actions: [],
+    ...overrides,
+  }
+}
+
+/** The wizard reads periods + grade levels through useFetch. */
+function mockUseFetch() {
+  useFetch.mockImplementation((path) => {
+    if (path === '/enrollment/periods/') {
+      return { data: PERIODS_PAYLOAD, loading: false, error: null, reload: vi.fn() }
+    }
+    return { data: GRADE_LEVELS, loading: false, error: null, reload: vi.fn() }
+  })
+}
+
+function mockApi({ detail }) {
+  api.get.mockImplementation((path) => {
+    if (path.startsWith('/enrollment/applications/my/')) {
+      return Promise.resolve(detail)
+    }
+    return Promise.resolve(null)
+  })
+  api.patch.mockResolvedValue(detail)
+  api.post.mockResolvedValue({ id: detail.id, reference: detail.reference })
+}
+
+function renderWizard(entry = '/student/enrollment/new') {
+  return render(
+    <MemoryRouter initialEntries={[entry]}>
+      {/* Mirrors the production mounting: the portal layout at
+          /student/enrollment with `new` and `applications/:id` as children. */}
+      <Routes>
+        <Route path="/student/enrollment" element={<EnrollmentPortal />}>
+          <Route index element={<div>My applications page</div>} />
+          <Route path="new" element={<ApplicationWizardPage />} />
+          <Route
+            path="applications/:id"
+            element={<div>Application detail page</div>}
+          />
+        </Route>
+      </Routes>
+    </MemoryRouter>
+  )
+}
+
+/** Resume a draft and click through steps 2 → 3 → 4. */
+async function walkToDocuments(user) {
+  await screen.findByLabelText(/learner reference number/i)
+  await user.click(screen.getByRole('button', { name: /save & continue/i }))
+  await screen.findByRole('heading', { name: /parent \/ guardian/i })
+  await user.click(screen.getByRole('button', { name: /save & continue/i }))
+  await screen.findByRole('heading', { name: /^documents$/i })
+}
+
+describe('ApplicationWizardPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sessionStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('creates a draft and continues with server-prefilled student details', async () => {
+    mockUseFetch()
+    mockApi({ detail: draftDetail() })
+    const user = userEvent.setup()
+    renderWizard()
+
+    await user.selectOptions(
+      await screen.findByLabelText(/enrollment period/i),
+      '3'
+    )
+    await user.selectOptions(screen.getByLabelText(/grade level/i), '1')
+    await user.click(screen.getByRole('button', { name: /create draft/i }))
+
+    await waitFor(() => expect(api.post).toHaveBeenCalledTimes(1))
+    expect(api.post.mock.calls[0][0]).toBe('/enrollment/applications/my/')
+    expect(api.post.mock.calls[0][1]).toMatchObject({
+      period: 3,
+      enrollment_type: 'new',
+      grade_level: 1,
+    })
+
+    expect(
+      await screen.findByLabelText(/learner reference number/i)
+    ).toHaveValue('123456789012')
+    expect(screen.getByLabelText(/^first name/i)).toHaveValue('Liza')
+    expect(screen.getByLabelText(/date of birth/i)).toHaveValue('2012-05-01')
+    expect(screen.getByText(/draft app-0011/i)).toBeInTheDocument()
+  })
+
+  it('surfaces the duplicate-application error with a way back', async () => {
+    mockUseFetch()
+    api.post.mockRejectedValue(
+      Object.assign(
+        new Error('You already have an active application for this school year.'),
+        { status: 400 }
+      )
+    )
+    const user = userEvent.setup()
+    renderWizard()
+
+    await user.selectOptions(
+      await screen.findByLabelText(/enrollment period/i),
+      '3'
+    )
+    await user.selectOptions(screen.getByLabelText(/grade level/i), '1')
+    await user.click(screen.getByRole('button', { name: /create draft/i }))
+
+    expect(
+      await screen.findByText(/already have an active application/i)
+    ).toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: /go to my applications/i })
+    )
+    expect(await screen.findByText('My applications page')).toBeInTheDocument()
+  })
+
+  it('blocks submission while required documents are missing', async () => {
+    mockUseFetch()
+    mockApi({ detail: draftDetail() })
+    const user = userEvent.setup()
+    renderWizard('/student/enrollment/new?application=11')
+
+    await walkToDocuments(user)
+    await user.click(
+      screen.getByRole('button', { name: /continue to review/i })
+    )
+
+    expect(await screen.findByText(/still missing/i)).toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: /submit application/i })
+    )
+
+    expect(
+      await screen.findByText(/upload the missing required documents/i)
+    ).toBeInTheDocument()
+    expect(api.post).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('submits through the confirmation modal', async () => {
+    mockUseFetch()
+    mockApi({
+      detail: draftDetail({ missing_documents: [], documents: [] }),
+    })
+    const user = userEvent.setup()
+    renderWizard('/student/enrollment/new?application=11')
+
+    await walkToDocuments(user)
+    await user.click(
+      screen.getByRole('button', { name: /continue to review/i })
+    )
+
+    await user.click(
+      await screen.findByRole('button', { name: /submit application/i })
+    )
+    const dialog = await screen.findByRole('dialog', { name: /submit application/i })
+    expect(
+      within(dialog).getByText(/no longer edit the application/i)
+    ).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: /submit now/i }))
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/enrollment/applications/my/11/submit/')
+    )
+    expect(await screen.findByText('Application detail page')).toBeInTheDocument()
+  })
+
+  it('uploads a document straight to the multipart upload endpoint', async () => {
+    mockUseFetch()
+    mockApi({ detail: draftDetail() })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => '',
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const user = userEvent.setup()
+    renderWizard('/student/enrollment/new?application=11')
+
+    await walkToDocuments(user)
+
+    const input = await screen.findByLabelText(/upload birth certificate/i)
+    const file = new File(['pdf-bytes'], 'birth-certificate.pdf', {
+      type: 'application/pdf',
+    })
+    await user.upload(input, file)
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    const [url, options] = fetchMock.mock.calls[0]
+    expect(url).toBe('/api/enrollment/applications/my/11/documents/5/upload/')
+    expect(options.method).toBe('POST')
+    expect(options.body).toBeInstanceOf(FormData)
+    // No token in sessionStorage → no Authorization header to assert; the
+    // browser must set the multipart boundary itself, so no Content-Type.
+    expect(options.headers).toBeUndefined()
+    // The detail is reloaded afterwards so the status badges refresh.
+    await waitFor(() =>
+      expect(api.get).toHaveBeenCalledWith('/enrollment/applications/my/11/')
+    )
+  })
+
+  it('redirects a resumed application that is no longer a draft', async () => {
+    mockUseFetch()
+    mockApi({ detail: draftDetail({ status: 'submitted' }) })
+    renderWizard('/student/enrollment/new?application=11')
+
+    expect(await screen.findByText('Application detail page')).toBeInTheDocument()
+  })
+})

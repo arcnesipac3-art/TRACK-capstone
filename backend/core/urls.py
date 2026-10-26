@@ -5,6 +5,7 @@ All routes are prefixed with /api/ from config/urls.py
 
 from django.urls import path
 
+from . import enrollment_views
 from . import views
 
 urlpatterns = [
@@ -81,6 +82,34 @@ urlpatterns = [
     path("fee-reports/outstanding/", views.fee_outstanding_report, name="fee_outstanding_report"),
     path("reports/trends/", views.report_trends, name="report_trends"),
     path("fee-dashboard/", views.fee_dashboard_summary, name="fee_dashboard_summary"),
+
+    # ── Enrollment & Admissions ─────────────────────────────────────────────
+    # Applicant side (students & their linked parents/guardians)
+    path("enrollment/periods/", enrollment_views.EnrollmentPeriodListCreateView.as_view(), name="enrollment_period_list"),
+    path("enrollment/periods/<int:pk>/", enrollment_views.EnrollmentPeriodDetailView.as_view(), name="enrollment_period_detail"),
+    path("enrollment/requirements/", enrollment_views.EnrollmentRequirementListCreateView.as_view(), name="enrollment_requirement_list"),
+    path("enrollment/requirements/<int:pk>/", enrollment_views.EnrollmentRequirementDetailView.as_view(), name="enrollment_requirement_detail"),
+    path("enrollment/applications/my/", enrollment_views.MyEnrollmentApplicationsView.as_view(), name="my_enrollment_applications"),
+    path("enrollment/applications/my/<int:pk>/", enrollment_views.MyApplicationDetailView.as_view(), name="my_enrollment_application_detail"),
+    path("enrollment/applications/my/<int:pk>/submit/", enrollment_views.MyApplicationSubmitView.as_view(), name="my_application_submit"),
+    path("enrollment/applications/my/<int:pk>/resubmit/", enrollment_views.MyApplicationResubmitView.as_view(), name="my_application_resubmit"),
+    path("enrollment/applications/my/<int:pk>/withdraw/", enrollment_views.MyApplicationWithdrawView.as_view(), name="my_application_withdraw"),
+    path("enrollment/applications/my/<int:pk>/documents/<int:document_pk>/upload/", enrollment_views.MyApplicationDocumentUploadView.as_view(), name="my_application_document_upload"),
+    path("enrollment/my-enrollments/", enrollment_views.MyEnrollmentsView.as_view(), name="my_enrollments"),
+    # Document download (owner-side or staff with enrollment.view)
+    path("enrollment/applications/<int:pk>/documents/<int:document_pk>/download/", enrollment_views.ApplicationDocumentDownloadView.as_view(), name="application_document_download"),
+    # Staff side (Registrar workspace)
+    path("enrollment/applications/", enrollment_views.StaffApplicationListView.as_view(), name="enrollment_application_list"),
+    path("enrollment/applications/<int:pk>/", enrollment_views.StaffApplicationDetailView.as_view(), name="enrollment_application_detail"),
+    path("enrollment/applications/<int:pk>/action/", enrollment_views.StaffApplicationActionView.as_view(), name="enrollment_application_action"),
+    path("enrollment/applications/<int:pk>/documents/<int:document_pk>/action/", enrollment_views.StaffDocumentActionView.as_view(), name="enrollment_document_action"),
+    path("enrollment/applications/<int:pk>/section-recommendations/", enrollment_views.StaffSectionRecommendationsView.as_view(), name="enrollment_section_recommendations"),
+    path("enrollment/applications/<int:pk>/assign-section/", enrollment_views.StaffAssignSectionView.as_view(), name="enrollment_assign_section"),
+    path("enrollment/applications/<int:pk>/link-student/", enrollment_views.StaffLinkStudentView.as_view(), name="enrollment_link_student"),
+    path("enrollment/applications/<int:pk>/confirm/", enrollment_views.StaffConfirmEnrollmentView.as_view(), name="enrollment_confirm"),
+    path("enrollment/enrollments/", enrollment_views.EnrollmentListView.as_view(), name="enrollment_list"),
+    path("enrollment/dashboard/", enrollment_views.EnrollmentDashboardView.as_view(), name="enrollment_dashboard"),
+    path("enrollment/reports/school-year/", enrollment_views.EnrollmentReportView.as_view(), name="enrollment_report"),
 
     # ── Dashboard ────────────────────────────────────────────────────────────
     path("dashboard/", views.dashboard_summary, name="dashboard_summary"),

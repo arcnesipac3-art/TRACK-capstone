@@ -33,6 +33,23 @@ export const NAVIGATION = {
     { label: 'School Structure', to: '/admin/sections', icon: 'layers', perm: 'structure.manage' },
     { label: 'Class Assignments', to: '/admin/assignments', icon: 'book', perm: 'structure.manage' },
     { label: 'Class Schedules', to: '/admin/schedules', icon: 'clock', perm: 'structure.manage' },
+    {
+      label: 'Enrollment',
+      to: '/admin/enrollment',
+      icon: 'gradCap',
+      perm: 'enrollment.view',
+      // The Registrar workspace: application queue, confirmed enrollments,
+      // period & document-requirement configuration, and reports. Django
+      // enforces enrollment.view / enrollment.manage / enrollment.confirm on
+      // each endpoint behind these pages.
+      children: [
+        { label: 'Applications', to: '/admin/enrollment/applications', icon: 'file', perm: 'enrollment.view' },
+        { label: 'Enrollments', to: '/admin/enrollment/enrollments', icon: 'users', perm: 'enrollment.view' },
+        { label: 'Enrollment Periods', to: '/admin/enrollment/periods', icon: 'calendar', perm: 'enrollment.view' },
+        { label: 'Document Requirements', to: '/admin/enrollment/requirements', icon: 'clipboard', perm: 'enrollment.view' },
+        { label: 'Enrollment Reports', to: '/admin/enrollment/reports', icon: 'file', perm: 'enrollment.view' },
+      ],
+    },
     { label: 'Fees', to: '/admin/fees', icon: 'creditCard', perm: 'fees.view' },
     { label: 'Requirements', to: '/admin/requirements', icon: 'clipboard', perm: 'requirements.view' },
     { label: 'Attendance', to: '/admin/attendance', icon: 'calendar', perm: 'attendance.view' },
@@ -55,6 +72,7 @@ export const NAVIGATION = {
   ],
   student: [
     { label: 'Dashboard', to: '/student/dashboard', icon: 'grid' },
+    { label: 'Enrollment', to: '/student/enrollment', icon: 'gradCap' },
     { label: 'My Requirements', to: '/student/requirements', icon: 'clipboard' },
     { label: 'My Submissions', to: '/student/submissions', icon: 'file' },
     { label: 'My Attendance', to: '/student/attendance', icon: 'calendar' },
@@ -66,6 +84,7 @@ export const NAVIGATION = {
   ],
   parent: [
     { label: 'Dashboard', to: '/parent/dashboard', icon: 'grid' },
+    { label: 'Enrollment', to: '/parent/enrollment', icon: 'gradCap' },
     { label: 'My Children', to: '/parent/children', icon: 'users' },
     { label: 'Requirements', to: '/parent/requirements', icon: 'clipboard' },
     { label: 'Attendance', to: '/parent/attendance', icon: 'calendar' },
@@ -117,11 +136,12 @@ export function mobileItemsForRole(role) {
 export function titleForPath(pathname, role) {
   for (const items of Object.values(NAVIGATION)) {
     for (const item of items) {
-      if (item.to && pathname.startsWith(item.to)) return item.label
-      // Collapsible groups (Users) title by the matching child page.
+      // Collapsible groups (Users, Enrollment) title by the matching child
+      // page first — a group's own prefix also covers every child path.
       for (const child of item.children || []) {
         if (child.to && pathname.startsWith(child.to)) return child.label
       }
+      if (item.to && pathname.startsWith(item.to)) return item.label
     }
   }
   if (pathname === '/dashboard') return 'Dashboard'

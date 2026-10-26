@@ -3,10 +3,16 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
 from .models import (
     Announcement,
+    ApplicationDocument,
+    ApplicationReviewEvent,
     AttendanceRecord,
     AttendanceSession,
     AuditLog,
     ClassSchedule,
+    Enrollment,
+    EnrollmentApplication,
+    EnrollmentPeriod,
+    EnrollmentRequirement,
     FeeAssessment,
     FeeCategory,
     FeePayment,
@@ -180,3 +186,52 @@ class FeePaymentHistoryAdmin(admin.ModelAdmin):
     readonly_fields = ("timestamp",)
     list_filter = ("new_status",)
     search_fields = ("payment__student__user__last_name", "note")
+
+
+# ---------------------------------------------------------------------------
+# Enrollment & Admissions
+# ---------------------------------------------------------------------------
+
+@admin.register(EnrollmentPeriod)
+class EnrollmentPeriodAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "school_year", "status", "opens_at", "closes_at", "allow_waitlist", "created_at")
+    list_filter = ("status", "school_year", "allow_waitlist")
+    filter_horizontal = ("grade_levels",)
+    readonly_fields = ("created_by", "created_at", "updated_at")
+
+
+@admin.register(EnrollmentRequirement)
+class EnrollmentRequirementAdmin(admin.ModelAdmin):
+    list_display = ("name", "period", "grade_level", "enrollment_type", "is_required", "requires_verification", "is_active", "position")
+    list_filter = ("is_active", "is_required", "requires_verification", "period", "enrollment_type")
+    search_fields = ("name",)
+
+
+@admin.register(EnrollmentApplication)
+class EnrollmentApplicationAdmin(admin.ModelAdmin):
+    list_display = ("reference", "get_full_name", "status", "enrollment_type", "grade_level", "school_year", "assigned_section", "submitted_at")
+    list_filter = ("status", "enrollment_type", "school_year", "grade_level")
+    search_fields = ("reference", "first_name", "last_name", "lrn", "applicant_name")
+    readonly_fields = ("reference", "requirements_snapshot", "created_at", "updated_at")
+
+
+@admin.register(ApplicationDocument)
+class ApplicationDocumentAdmin(admin.ModelAdmin):
+    list_display = ("name", "application", "status", "is_required", "requires_verification", "submitted_at", "verified_at", "verified_by")
+    list_filter = ("status", "is_required", "requires_verification")
+    search_fields = ("name", "application__reference", "original_filename")
+
+
+@admin.register(ApplicationReviewEvent)
+class ApplicationReviewEventAdmin(admin.ModelAdmin):
+    list_display = ("application", "action", "actor_name", "from_status", "to_status", "created_at")
+    list_filter = ("action", "to_status")
+    search_fields = ("application__reference", "actor_name")
+    readonly_fields = ("application", "actor", "actor_name", "action", "from_status", "to_status", "note", "internal_note", "created_at")
+
+
+@admin.register(Enrollment)
+class EnrollmentAdmin(admin.ModelAdmin):
+    list_display = ("student", "school_year", "grade_level", "section_name", "status", "confirmed_by", "confirmed_at")
+    list_filter = ("status", "school_year", "grade_level")
+    search_fields = ("student__user__last_name", "student__lrn", "application__reference")
