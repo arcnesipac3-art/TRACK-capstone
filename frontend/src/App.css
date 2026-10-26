@@ -2051,6 +2051,14 @@
   color: rgba(255,255,255,0.65);
   margin: 0 0 clamp(24px,3.5vh,40px);
 }
+.hero-note a {
+  color: #9cc0ff;
+  font-weight: 600;
+  text-decoration: none;
+}
+.hero-note a:hover {
+  text-decoration: underline;
+}
 
 /* ── Statistics row ── */
 .hero-stats {

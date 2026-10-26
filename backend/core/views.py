@@ -575,6 +575,12 @@ class GradeLevelListCreateView(generics.ListCreateAPIView):
     ordering = ['order']
 
     def get_permissions(self):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            # Reference data: the public enrollment wizard needs the grade
+            # list before an account exists. Writes stay school-structure
+            # management.
+            from rest_framework.permissions import AllowAny
+            return [AllowAny()]
         return [AdminKeyOrReadOnly("structure.manage")]
 
     def get_queryset(self):

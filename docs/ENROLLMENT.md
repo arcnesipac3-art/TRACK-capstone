@@ -16,28 +16,37 @@ remain.
 |---|---|---|
 | Models | `backend/core/models.py` (§ Enrollment & Admissions) | `EnrollmentPeriod`, `EnrollmentRequirement`, `EnrollmentApplication`, `ApplicationDocument`, `ApplicationReviewEvent`, `Enrollment` |
 | Workflow service | `backend/core/enrollment.py` | Status state machine, requirement snapshotting, document materialization, section recommendations & capacity accounting, student identity matching, the atomic final-confirmation transaction, dashboard/report aggregates |
+| Guest auth | `backend/core/enrollment_auth.py` | `Authorization: Guest <token>` authenticator + `IsAuthenticatedOrGuest` permission for account-less applicants (see §7) |
 | Serializers | `backend/core/enrollment_serializers.py` | Applicant-facing (internal notes stripped) and staff-facing serializers, period/requirement configuration, action payloads |
-| API views | `backend/core/enrollment_views.py` | Applicant endpoints (`/api/enrollment/applications/my/...`) and staff endpoints (`/api/enrollment/applications/...`), document upload/download, reports |
+| API views | `backend/core/enrollment_views.py` | Applicant endpoints (`/api/enrollment/applications/my/...`), public endpoints (track/claim), and staff endpoints (`/api/enrollment/applications/...`), document upload/download, reports |
 | Notifications | `backend/core/enrollment_notifications.py` → re-exported by `core/notifications.py` | In-app notifications for submission, corrections, decisions, confirmation — all delivered post-commit and failure-swallowing |
 | Permissions | `backend/core/rbac.py` keys `enrollment.view`, `enrollment.manage`, `enrollment.confirm` | Seeded to the **REGISTRAR** department (and SYSADMIN) by migration `0007` |
-| Migration | `backend/core/migrations/0008_...` | Creates all six enrollment tables + `Section.capacity` + notification additions (additive only) |
+| Migrations | `backend/core/migrations/0008_...`, `0009_...` | `0008` creates the six enrollment tables + `Section.capacity` + notification additions; `0009` adds the guest/claim credentials to `EnrollmentApplication` (both additive only) |
 
 ### Frontend
 
 All pages live in `frontend/src/pages/enrollment/` (plain JSX, existing TRACK
 design system):
 
+- **Public portal** (`/enroll`, no account required): `PublicEnrollPage`
+  (open periods + start/track CTAs), `PublicTrackPage` (reference + contact
+  lookup to recover a lost token), plus `ApplicationWizardPage` and
+  `ApplicationDetailPage` mounted without login in guest mode (the detail page
+  renders the **Create your account** panel once enrollment is confirmed).
 - **Applicant portal** (mounted for both `/student/enrollment` and
   `/parent/enrollment`): `EnrollmentPortal` (layout), `EnrollmentLandingPage`,
   `ApplicationWizardPage` (5-step), `MyApplicationsPage`,
-  `ApplicationDetailPage` (timeline, documents, actions), `MyEnrollmentsPage`.
+  `ApplicationDetailPage` (timeline, documents, actions, account-claim panel),
+  `MyEnrollmentsPage`.
 - **Registrar portal** (`/admin/enrollment/*`, gated on `enrollment.view`):
   `RegistrarDashboard`, `RegistrarApplicationsPage` (server-paginated queue),
   `RegistrarApplicationReviewPage` (full review workspace),
   `RegistrarEnrollmentsPage`, `EnrollmentPeriodsPage` + `PeriodFormModal`,
   `EnrollmentRequirementsPage` + `RequirementFormModal`, `RegistrarReportsPage`.
 - Shared helpers: `frontend/src/utils/enrollment.js` (status maps, SHS
-  detection, authorized file download).
+  detection, authorized file download); `frontend/src/services/api.js` carries
+  the auth header — `Token` when signed in, otherwise `Guest <token>` when a
+  public application token is stored in `sessionStorage`.
 
 ### Design principles
 
@@ -48,8 +57,14 @@ design system):
   requirement checklist (`requirements_snapshot` + per-document snapshot
   fields) at creation. Later configuration edits never rewrite evidence.
 - **Ownership is server-derived.** Applicants/parents never pass a student id
-  as proof of ownership; access is resolved from the authenticated session
-  (submitting user, linked student account, or verified parent–child link).
+  as proof of ownership; access is resolved server-side — either the
+  authenticated session (submitting user, linked student account, or verified
+  parent–child link) or, for a public applicant, the one application their
+  non-guessable guest token authenticates.
+- **Accounts follow enrollment, never the reverse.** There is no open signup
+  anywhere in TRACK. A student without an account can apply publicly; a login
+  is only ever minted by an administrator, or by the one-time account claim
+  that becomes possible **after** the Registrar confirms enrollment.
 - **Capacity is backend-authoritative.** Rechecked at assignment *and* at
   confirmation under `select_for_update()` row locks (real on PostgreSQL; on
   SQLite the transaction + unique constraints still guarantee correctness).
@@ -101,18 +116,24 @@ replaced. "Verified" is set only by a reviewer — uploading never verifies.
 
 ## 3. Role & permission matrix
 
-| Capability | Student | Parent/Guardian | Teacher | Admin (dept-scoped) |
-|---|---|---|---|---|
-| Start/save/submit/withdraw/resubmit own application | ✅ own | ✅ linked children only | ❌ 403 | ❌ (use Registrar) |
-| Upload/replace documents (draft or corrections only) | ✅ own | ✅ linked children | ❌ | ❌ |
-| View progress timeline (applicant-facing notes) | ✅ own | ✅ linked children | ❌ | ❌ |
-| Download uploaded documents | ✅ own | ✅ linked children | ❌ (404) | ✅ `enrollment.view` |
-| Application queue, filters, review workspace | ❌ | ❌ | ❌ (403) | ✅ `enrollment.view` |
-| Verify/return/waive documents, decisions, corrections, section assignment, student linking | ❌ | ❌ | ❌ | ✅ `enrollment.manage` |
-| Final enrollment confirmation | ❌ | ❌ | ❌ | ✅ `enrollment.confirm` |
-| Configure periods & document requirements | ❌ | ❌ | ❌ | ✅ `enrollment.manage` |
-| Reports & dashboard | ❌ | ❌ | ❌ | ✅ `enrollment.view` |
+| Capability | Public (no account) | Student | Parent/Guardian | Teacher | Admin (dept-scoped) |
+|---|---|---|---|---|---|
+| Browse open periods & document requirements | ✅ (no credential) | ✅ | ✅ | ✅ | ✅ |
+| Start/save/submit/withdraw/resubmit an application | ✅ own, via guest token | ✅ own | ✅ linked children only | ❌ 403 | ❌ (use Registrar) |
+| Upload/replace documents (draft or corrections only) | ✅ own, via guest token | ✅ own | ✅ linked children | ❌ | ❌ |
+| View progress timeline (applicant-facing notes) | ✅ own, via guest token | ✅ own | ✅ linked children | ❌ | ❌ |
+| Download uploaded documents | ✅ own, via guest token | ✅ own | ✅ linked children | ❌ (404) | ✅ `enrollment.view` |
+| Recover access (reference + contact lookup) | ✅ own application only | n/a (account) | n/a (account) | ❌ | n/a |
+| Create a student login (account claim) | ✅ own, only after enrollment is confirmed | — | — | ❌ | ✅ `users.manage` (any time) |
+| Application queue, filters, review workspace | ❌ | ❌ | ❌ | ❌ (403) | ✅ `enrollment.view` |
+| Verify/return/waive documents, decisions, corrections, section assignment, student linking | ❌ | ❌ | ❌ | ❌ | ✅ `enrollment.manage` |
+| Final enrollment confirmation | ❌ | ❌ | ❌ | ❌ | ✅ `enrollment.confirm` |
+| Configure periods & document requirements | ❌ | ❌ | ❌ | ❌ | ✅ `enrollment.manage` |
+| Reports & dashboard | ❌ | ❌ | ❌ | ❌ | ✅ `enrollment.view` |
 
+- The **public/guest** column is served by `IsAuthenticatedOrGuest` +
+  `Authorization: Guest <token>` (`enrollment_auth.py`). The token scopes to
+  exactly one application row; staff endpoints ignore it entirely (401).
 - The **Registrar** department holds all three keys by default (seeded).
   **Finance/Comms/Attendance** departments do **not** receive enrollment keys;
   grant them explicitly via Departments & Roles if school policy needs it.
@@ -177,7 +198,12 @@ replaced. "Verified" is set only by a reviewer — uploading never verifies.
 **Student identity matching** (in order): explicitly linked profile → reuse;
 exact **LRN** match → link existing identity (recorded as a review event);
 otherwise create a brand-new student account (username derived from the
-application reference, random unusable password, LRN required). Uncertain
+application reference, random password nobody is issued, LRN required). A
+newly created account is **claimable**: the application receives a one-time
+`account_claim_token`, and the enrolled student uses it after confirmation to
+choose their own username and password (see §7 — `POST /enrollment/claim-account/`).
+If the LRN matched an existing student, no new account and no claim token are
+created — that student signs in with their existing credentials. Uncertain
 name/DOB matches are only *suggested* in the review workspace and must be
 linked manually by staff — nothing auto-merges.
 
@@ -200,12 +226,28 @@ All under `/api/`. Authentication: DRF token (`Authorization: Token …`) as
 the rest of TRACK. Applicant endpoints scope to the caller's own records;
 staff endpoints require admin + permission keys.
 
+### Public portal (no account required)
+
+| Method & path | Auth | Purpose |
+|---|---|---|
+| `GET /enrollment/periods/` | none | Open periods (closed history stays staff-only) |
+| `GET /enrollment/requirements/?period=` | none | The document checklist for a period |
+| `GET /grade-levels/` | none | Reference data for the wizard's grade dropdown (writes stay `structure.manage`) |
+| `POST /enrollment/applications/my/` | none | Start an **account-less** application → 201 detail including `guest_token` (store it — it is the credential for every later call) |
+| `POST /enrollment/public/track/` | none, throttled | `{reference, contact}` → `{application_id, status, guest_token}`; `contact` must match the guardian email or a contact number on the application; every failure returns the same 404 (no reference probing) |
+| `POST /enrollment/claim-account/` | none, throttled | `{claim_token, username, password}` → `{token, user}` (identical shape to `/auth/token/`). Only works on an **enrolled** application whose student account was just minted; single-use; validates username uniqueness + Django password validators; consumes the guest token |
+
+All other applicant endpoints accept **either** a signed-in account **or**
+`Authorization: Guest <token>` (guest requests are scoped to that single
+application; `Token`/`Session` credentials always take precedence when both
+could apply).
+
 ### Applicant
 
 | Method & path | Purpose |
 |---|---|
-| `GET /enrollment/periods/` | Open/upcoming periods (staff see all) |
-| `POST /enrollment/applications/my/` | Create draft `{period, enrollment_type, grade_level, strand?, previous_school?, previous_school_address?, student?}` → 201 detail (prefilled + snapshot + document slots) |
+| `GET /enrollment/periods/` | Open/upcoming periods (staff see all; public for everyone) |
+| `POST /enrollment/applications/my/` | Create draft `{period, enrollment_type, grade_level, strand?, previous_school?, previous_school_address?, student?}` → 201 detail (prefilled + snapshot + document slots; `guest_token` in the response for public applicants) |
 | `GET /enrollment/applications/my/` | Paginated own applications |
 | `GET/PATCH/DELETE /enrollment/applications/my/{id}/` | Detail / edit (draft & corrections only) / delete draft |
 | `POST /enrollment/applications/my/{id}/submit/` | Draft → Submitted (all required documents must be uploaded; period must still accept submissions) |
@@ -230,8 +272,8 @@ staff endpoints require admin + permission keys.
 | `GET /enrollment/enrollments/` | `enrollment.view` | Confirmed enrollment history (filters + search) |
 | `GET /enrollment/dashboard/` | `enrollment.view` | Real status counts, pending documents, section utilization, `by_grade` (`?school_year=` adds occupancy) |
 | `GET /enrollment/reports/school-year/` | `enrollment.view` | `by_status`, `by_grade`, `by_type`, section occupancy (`?school_year=` required) |
-| `GET/POST /enrollment/periods/`, `GET/PATCH/DELETE /enrollment/periods/{id}/` | read: auth / write: `enrollment.manage` | Period configuration; delete refused (400) when applications exist; closing never deletes/cancels anything |
-| `GET/POST /enrollment/requirements/`, `GET/PATCH/DELETE /enrollment/requirements/{id}/` | read: auth / write: `enrollment.manage` | Requirement configuration; delete refused (400) once referenced |
+| `GET/POST /enrollment/periods/`, `GET/PATCH/DELETE /enrollment/periods/{id}/` | read: public / write: `enrollment.manage` | Period configuration; delete refused (400) when applications exist; closing never deletes/cancels anything |
+| `GET/POST /enrollment/requirements/`, `GET/PATCH/DELETE /enrollment/requirements/{id}/` | read: public / write: `enrollment.manage` | Requirement configuration; delete refused (400) once referenced |
 
 Status codes: 401 unauthenticated · 403 missing permission · 404 not found
 **or not owned** (no record enumeration) · 400 workflow/validation ·
@@ -246,15 +288,40 @@ Authorization: Token <registrar token>
 {}→ 201 {"enrollment": {"id": 7, "student_name": " Juan Dela Cruz", "grade_level_name": "Grade 7", "section_display": "Sampaguita", "school_year_label": "2026-2027", "status": "active", ...}, "created": true}
 ```
 
+### Example — public applicant to claimed account
+
+```http
+POST /api/enrollment/applications/my/                # no credentials
+{"period": 3, "enrollment_type": "new", "grade_level": 1}
+→ 201 {"id": 42, "reference": "APP-9F3C21AB07", "guest_token": "6b1f…", "status": "draft", ...}
+
+Authorization: Guest 6b1f…                            # every later call
+PATCH /api/enrollment/applications/my/42/             # identity + guardian block
+POST   /api/enrollment/applications/my/42/documents/7/upload/   (multipart)
+POST   /api/enrollment/applications/my/42/submit/
+        … registrar reviews, accepts, assigns a section, confirms …
+
+GET /api/enrollment/applications/my/42/               # still Guest …
+→ {"status": "enrolled", "claim_token": "9aa2…", "account_claim_available": true, ...}
+
+POST /api/enrollment/claim-account/                   # no credentials
+{"claim_token": "9aa2…", "username": "juandelacruz", "password": "…"}
+→ 200 {"token": "…", "user": {"username": "juandelacruz", "role": "student", …}}   # sign in as student
+```
+
 ---
 
 ## 8. Migration & environment
 
-- **Migration**: `backend/core/migrations/0008_section_capacity_alter_notification_notif_type_and_more.py`
-  — additive only (six new tables, nullable `Section.capacity`, one new
-  nullable `Notification.application` FK, notification choice-list update).
-  Applied to the dev SQLite DB; reversible; no existing rows touched; no data
-  fabricated. Fresh environments: `python manage.py migrate`.
+- **Migrations**: 
+  - `backend/core/migrations/0008_section_capacity_alter_notification_notif_type_and_more.py`
+    — additive only (six new tables, nullable `Section.capacity`, one new
+    nullable `Notification.application` FK, notification choice-list update).
+  - `backend/core/migrations/0009_enrollmentapplication_account_claim_token_and_more.py`
+    — additive only (three nullable columns on `EnrollmentApplication`:
+    `guest_token`, `account_claim_token`, `account_claimed_at`).
+  - Both applied to the dev SQLite DB; reversible; no existing rows touched;
+    no data fabricated. Fresh environments: `python manage.py migrate`.
 - **No new environment variables** are required. Existing `DATABASE_URL`
   (PostgreSQL in production) enables real row locking for capacity checks;
   on SQLite the transaction + unique constraints provide the same guarantees
@@ -272,11 +339,11 @@ Authorization: Token <registrar token>
 ### Backend — `python manage.py test core`
 
 ```
-Ran 294 tests — all passing (last full run; includes the 56 new
+Ran 312 tests — all passing (last full run; includes the 74
 core.tests_enrollment tests and every pre-existing TRACK test).
 ```
 
-New coverage (`backend/core/tests_enrollment.py`, 56 tests):
+New coverage (`backend/core/tests_enrollment.py`, 74 tests):
 period validation/close semantics/historical immutability · draft creation,
 prefill, snapshotting, duplicate-open-application guard · submit/resubmit/
 withdraw + double-submit · the full state machine (illegal moves by
@@ -291,41 +358,62 @@ creation · idempotent repeat confirmation (single row, single notification
 pair) · notification-failure isolation (committed enrollment survives) ·
 mid-confirmation rollback (no partial student/enrollment) · audit events ·
 queue filters, dashboard and report figures · manual student linking ·
-unauthorized/anonymous/wrong-role access.
+unauthorized/anonymous/wrong-role access · **public (account-less)
+applications** (guest create/edit/upload/submit/withdraw, guest-token
+scoping to exactly one application, staff endpoints ignoring guest tokens,
+public period/requirement/grade-level reads, lost-token recovery through
+reference + contact lookup, LRN duplicate guard for account-less filings) ·
+**post-enrollment account claim** (claim token minted only when confirmation
+creates a *new* student account; claim requires ENROLLED status; single-use;
+username uniqueness + password validators; guest credential consumed on
+success; LRN match to an existing student never reissues an account).
 
 ### Frontend — `npm test` (Vitest)
 
 ```
-Test Files  29 passed (29)
-     Tests  325 passed (325)
+Test Files  31 passed (31)
+     Tests  342 passed (342)
 ```
 
-39 new enrollment tests: landing/wizard/detail flows, draft + prefill +
+56 enrollment-related tests: landing/wizard/detail flows, draft + prefill +
 duplicate handling, missing-document submit block, confirmation dialogs with
 single-submission guards, 404/permission/conflict states, period close &
 delete rules, registrar action payloads, confirm button gating, dashboard
-error-not-zeros.
+error-not-zeros, **public portal** (public landing + periods, track page
+success/failure, guest-token persistence, header precedence Token > Guest,
+claim form mismatch guard + successful claim storing the auth token).
+
+### End-to-end browser walkthrough (live dev servers)
+
+The full public flow was exercised against `runserver` + Vite in a real
+browser: public landing → wizard (draft created, guest token persisted,
+5 steps, PDF upload) → submit → registrar queue (start review, verify
+document, accept, assign section, confirm) → applicant page shows
+**ENROLLED** with the **Create your account** panel → claim (mismatch guard
+first, then success) → auto-login as the new student at
+`/student/enrollment` with the guest token cleared.
 
 ### Other commands run
 
 - `python manage.py check` — no issues.
 - `python manage.py makemigrations --check --dry-run` — no pending changes.
 - `npm run build` — succeeds; enrollment pages code-split into lazy chunks.
-- `npm run lint` (oxlint) — no errors (one `set-state-in-effect` warning in
-  the review page matching an existing codebase pattern).
+- `npm run lint` (oxlint) — no errors (7 pre-existing warnings elsewhere in
+  the codebase, unchanged by this work).
 
 ---
 
 ## 10. Known limitations & school-policy decisions
 
-1. **No guest applications.** TRACK's authentication architecture is
-   account-based (students/parents hold accounts created by staff); the
-   applicant portal is authenticated-only. If KNHS wants a public
-   application form, it needs an explicit policy decision (spam control,
-   identity verification) first.
+1. **Public applications are bearer-token based.** A guest applicant's
+   access is their `guest_token`, stored in browser storage. If the browser
+   is cleared, recovery needs the reference + guardian email/contact lookup
+   (`/enrollment/public/track/`); with neither, the Registrar must help
+   manually. There is no email delivery of tokens (TRACK has no mail backend).
 2. **LRN required for new students.** Confirmation refuses to mint a student
    identity without a Learner Reference Number; staff must link an existing
-   record or obtain the LRN. (Reliable-identifier policy.)
+   record or obtain the LRN. (Reliable-identifier policy.) A public applicant
+   who cannot provide an LRN stalls at confirmation, not before.
 3. **Waitlisting is opt-in per period** (`allow_waitlist`); default off.
 4. **Waivers** are a staff action (`waive`) with recorded note; whether any
    requirement *may* be waived is school policy — the system records the
@@ -339,7 +427,16 @@ error-not-zeros.
 7. **STRAND** is a free-text field; offering specific SHS strands per period
    is not yet configurable.
 8. **Notifications are in-app only** (the whole TRACK system currently has no
-   email/SMS delivery).
+   email/SMS delivery). A guest applicant therefore has no notification
+   channel until they claim their account — they track progress through the
+   portal instead.
 9. **Concurrency testing** runs on SQLite in CI-style tests; the row-lock
    paths (`select_for_update`) are exercised for real on PostgreSQL in
    production.
+10. **Duplicate public applications** are guarded on the LRN (one open
+    application per LRN per school year) — a determined applicant without an
+    LRN could still file twice; the registrar sees both in the queue.
+11. **Account claims are self-service only after confirmation**; a lost
+    claim token is recovered by the Registrar resetting the password through
+    the existing admin flow (the account exists but has no known password
+    until claimed or reset).

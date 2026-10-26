@@ -63,6 +63,12 @@ const EnrollmentPeriodsPage = lazy(() => import('./pages/enrollment/EnrollmentPe
 const EnrollmentRequirementsPage = lazy(() => import('./pages/enrollment/EnrollmentRequirementsPage'))
 const RegistrarReportsPage = lazy(() => import('./pages/enrollment/RegistrarReportsPage'))
 
+// Public (account-less) enrollment portal — anyone can apply and track an
+// application; the account is only claimed after the Registrar confirms it.
+const PublicEnrollLayout = lazy(() => import('./pages/enrollment/PublicEnrollLayout'))
+const PublicEnrollPage = lazy(() => import('./pages/enrollment/PublicEnrollPage'))
+const PublicTrackPage = lazy(() => import('./pages/enrollment/PublicTrackPage'))
+
 export default function App() {
   const { hash, pathname } = useLocation()
 
@@ -98,7 +104,9 @@ export default function App() {
     pathname === '/about' ||
     pathname === '/location' ||
     pathname === '/terms' ||
-    pathname === '/privacy'
+    pathname === '/privacy' ||
+    pathname === '/enroll' ||
+    pathname.startsWith('/enroll/')
   useLayoutEffect(() => {
     document.body.classList.toggle('route-fade-stage', isPublicRoute)
   }, [isPublicRoute])
@@ -114,6 +122,14 @@ export default function App() {
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
+
+      {/* ── Public enrollment portal (account-less) ────────────────── */}
+      <Route path="/enroll" element={<PublicEnrollLayout />}>
+        <Route index element={<PublicEnrollPage />} />
+        <Route path="track" element={<PublicTrackPage />} />
+        <Route path="apply" element={<ApplicationWizardPage />} />
+        <Route path="applications/:id" element={<ApplicationDetailPage />} />
+      </Route>
 
       {/* ── Authenticated application shell ────────────────────────── */}
       <Route element={<ProtectedRoute />}>

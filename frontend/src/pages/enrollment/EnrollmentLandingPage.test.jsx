@@ -125,6 +125,28 @@ describe('EnrollmentLandingPage', () => {
     expect(RELOAD_APPS).toHaveBeenCalled()
   })
 
+  it('offers the public apply/track CTAs when the session is unauthorized', async () => {
+    const unauthorized = Object.assign(
+      new Error('Authentication credentials were not provided.'),
+      { status: 401 }
+    )
+    mockUseFetch({
+      apps: { error: unauthorized },
+      periods: { data: { count: 0, results: [] } },
+    })
+    renderLanding()
+
+    expect(
+      await screen.findByText(/apply or track without an account/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /start an application/i })
+    ).toHaveAttribute('href', '/enroll/apply')
+    expect(
+      screen.getByRole('link', { name: /track my application/i })
+    ).toHaveAttribute('href', '/enroll/track')
+  })
+
   it('shows empty states for periods and applications', async () => {
     mockUseFetch({
       apps: { data: { count: 0, results: [] } },

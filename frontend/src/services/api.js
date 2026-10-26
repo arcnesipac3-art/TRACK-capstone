@@ -7,6 +7,10 @@
  *   No cookies, no CSRF needed — works cross-origin without any browser
  *   restrictions.
  *
+ *   Account-less enrollment applicants get a `Guest <key>` header instead
+ *   (stored as `track.enrollment.guest`); the auth token always wins when
+ *   both are present. See authHeader().
+ *
  * Development (same-origin via Vite proxy):
  *   Same token flow — the Vite proxy forwards /api/* to Django, so the
  *   token header passes through unchanged.
@@ -16,6 +20,7 @@ const RAW_BASE = import.meta.env.VITE_API_BASE_URL || '/api'
 export const API_BASE = RAW_BASE.replace(/\/+$/, '')
 
 const TOKEN_KEY = 'track.auth.token'
+const GUEST_TOKEN_KEY = 'track.enrollment.guest'
 
 export class ApiError extends Error {
   constructor(message, status, details = null) {
@@ -48,6 +53,47 @@ function clearStoredToken() {
   try {
     sessionStorage.removeItem(TOKEN_KEY)
   } catch {}
+}
+
+/* ------------------------------------------------------------------ */
+/* Guest enrollment credential (account-less application flow)         */
+/* ------------------------------------------------------------------ */
+
+/** Guest token issued by the public enrollment endpoints, or null. */
+export function getGuestToken() {
+  try {
+    return sessionStorage.getItem(GUEST_TOKEN_KEY)
+  } catch {
+    return null
+  }
+}
+
+/** Store the guest token returned by a public application / track request. */
+export function setGuestToken(token) {
+  try {
+    if (token) sessionStorage.setItem(GUEST_TOKEN_KEY, token)
+  } catch {}
+}
+
+/** Drop the guest credential (e.g. when it is no longer meaningful). */
+export function clearGuestToken() {
+  try {
+    sessionStorage.removeItem(GUEST_TOKEN_KEY)
+  } catch {}
+}
+
+/**
+ * The Authorization header for the current browser state:
+ *   stored auth token  → `Token <t>`  (takes precedence)
+ *   guest enrollment   → `Guest <t>`  (account-less applicants)
+ *   neither            → {}           (fully public endpoints)
+ */
+export function authHeader() {
+  const token = getStoredToken()
+  if (token) return { Authorization: `Token ${token}` }
+  const guest = getGuestToken()
+  if (guest) return { Authorization: `Guest ${guest}` }
+  return {}
 }
 
 /* ------------------------------------------------------------------ */
@@ -90,8 +136,7 @@ async function request(path, { method = 'GET', body, params, signal, headers: ex
   const headers = { Accept: 'application/json', ...extraHeaders }
   if (body !== undefined) headers['Content-Type'] = 'application/json'
 
-  const token = getStoredToken()
-  if (token) headers['Authorization'] = `Token ${token}`
+  Object.assign(headers, authHeader())
 
   let response
   try {
@@ -181,6 +226,34 @@ export const api = {
   },
 
   me: () => request('/auth/me/'),
+
+  /* Public enrollment (account-less) helpers */
+  /** Look up an application by reference + guardian email / contact number.
+   *  Success saves the returned guest token for follow-up requests. */
+  trackApplication: async ({ reference, contact }) => {
+    const data = await request('/enrollment/public/track/', {
+      method: 'POST',
+      body: { reference, contact },
+    })
+    if (data && data.guest_token) setGuestToken(data.guest_token)
+    return data
+  },
+
+  /** Exchange the one-time claim token from an enrolled application for a
+   *  real account. Stores the returned auth token exactly like login(). */
+  claimAccount: async ({ claim_token, username, password }) => {
+    const data = await request('/enrollment/claim-account/', {
+      method: 'POST',
+      body: { claim_token, username, password },
+    })
+    if (data && data.token) {
+      // The backend consumes the guest credential together with the claim —
+      // stop presenting a token that no longer exists server-side.
+      clearGuestToken()
+      setStoredToken(data.token)
+    }
+    return data ? data.user : null
+  },
 }
 
 export default api

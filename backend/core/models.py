@@ -1346,6 +1346,20 @@ class EnrollmentApplication(models.Model):
     )
     section_assigned_at = models.DateTimeField(null=True, blank=True)
 
+    # -- public (account-less) access & post-enrollment account claim
+    # A guest application has no `applicant` account yet; `guest_token` is the
+    # non-guessable credential its owner uses to track and edit it (it can be
+    # re-issued through the reference + contact lookup). After the Registrar
+    # confirms enrollment, `account_claim_token` lets the enrolled student set
+    # up their account exactly once; `account_claimed_at` records the claim.
+    guest_token = models.CharField(
+        max_length=64, unique=True, null=True, blank=True, editable=False
+    )
+    account_claim_token = models.CharField(
+        max_length=64, unique=True, null=True, blank=True, editable=False
+    )
+    account_claimed_at = models.DateTimeField(null=True, blank=True)
+
     # -- checklist frozen when the application record is created
     requirements_snapshot = models.JSONField(default=list, blank=True)
 
@@ -1384,15 +1398,23 @@ class EnrollmentApplication(models.Model):
     def save(self, *args, **kwargs):
         if self.period_id and not self.school_year_id:
             self.school_year_id = self.period.school_year_id
+        import secrets
+
         if not self.reference:
             # Non-guessable reference: 40 bits of CSPRNG entropy, retrying on
             # the (astronomically unlikely) collision.
-            import secrets
-
             while True:
                 candidate = f"APP-{secrets.token_hex(5).upper()}"
                 if not EnrollmentApplication.objects.filter(reference=candidate).exists():
                     self.reference = candidate
+                    break
+        if self.applicant_id is None and not self.guest_token:
+            # Account-less applications need their own non-guessable credential
+            # (128 bits) so the owner can return to them without an account.
+            while True:
+                candidate = secrets.token_hex(16)
+                if not EnrollmentApplication.objects.filter(guest_token=candidate).exists():
+                    self.guest_token = candidate
                     break
         super().save(*args, **kwargs)
 

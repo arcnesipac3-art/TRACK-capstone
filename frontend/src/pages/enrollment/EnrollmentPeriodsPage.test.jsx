@@ -15,6 +15,7 @@ vi.mock('../../services/api', () => ({
   },
   API_BASE: '/api',
   ApiError: class ApiError extends Error {},
+  authHeader: () => ({}),
 }))
 
 vi.mock('../../hooks/useFetch', () => ({ default: vi.fn() }))

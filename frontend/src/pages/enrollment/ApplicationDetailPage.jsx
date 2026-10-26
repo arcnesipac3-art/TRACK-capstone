@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useAuth } from '../../context/AuthContext'
 import ErrorMessage from '../../components/ErrorMessage'
 import Icon from '../../components/Icon'
 import { ButtonLoader, PageLoader } from '../../components/loading'
 import Modal from '../../components/Modal'
 import PageHeader from '../../components/PageHeader'
 import StatusBadge from '../../components/StatusBadge'
-import api, { API_BASE } from '../../services/api'
+import api, { API_BASE, authHeader } from '../../services/api'
 import useFetch from '../../hooks/useFetch'
 import {
   ENROLLMENT_TYPES,
@@ -53,11 +54,161 @@ function humanize(value) {
 }
 
 /**
+ * Inline "create your account" panel shown on an enrolled application whose
+ * one-time claim credential is still unconsumed. Exchanges it for a real
+ * DRF token (stored exactly like a login), refreshes the session and drops
+ * the applicant into the student enrollment portal.
+ */
+function ClaimAccountPanel({ claimToken }) {
+  const navigate = useNavigate()
+  const { refreshUser } = useAuth()
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [formError, setFormError] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  async function handleSubmit(event) {
+    event.preventDefault()
+    if (busy) return
+    const errors = {}
+    if (!username.trim()) errors.username = 'Choose a username.'
+    if (!password) errors.password = 'Choose a password.'
+    else if (confirmPassword !== password) {
+      errors.confirmPassword = 'The two passwords do not match.'
+    }
+    setFieldErrors(errors)
+    setFormError(null)
+    if (Object.keys(errors).length > 0) return
+
+    setBusy(true)
+    try {
+      await api.claimAccount({
+        claim_token: claimToken,
+        username: username.trim(),
+        password,
+      })
+      await refreshUser()
+      navigate('/student/enrollment')
+    } catch (err) {
+      // DRF may return per-field errors ({username: [...]} / {password: [...]}).
+      const mapped = {}
+      if (err && err.details && typeof err.details === 'object') {
+        if (err.details.username) {
+          mapped.username = Array.isArray(err.details.username)
+            ? err.details.username.join(' ')
+            : String(err.details.username)
+        }
+        if (err.details.password) {
+          mapped.password = Array.isArray(err.details.password)
+            ? err.details.password.join(' ')
+            : String(err.details.password)
+        }
+      }
+      setFieldErrors(mapped)
+      setFormError(Object.keys(mapped).length > 0 ? null : err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function fieldError(name) {
+    return fieldErrors[name] ? (
+      <span className="field-error" id={`claim-${name}-err`}>
+        <Icon name="info" size={13} />
+        {fieldErrors[name]}
+      </span>
+    ) : null
+  }
+
+  return (
+    <section className="card card-pad stack stack-sm" aria-labelledby="claim-heading">
+      <h2 id="claim-heading" style={{ fontSize: '1rem', margin: 0 }}>
+        Create your account
+      </h2>
+      <p className="subtle" style={{ margin: 0 }}>
+        Your enrollment is confirmed. Set up the TRACK account you will use from
+        now on — it replaces the reference number you used to track this
+        application.
+      </p>
+
+      {formError && (
+        <div className="alert alert-error" role="alert">
+          <Icon name="info" size={16} />
+          <span className="grow">{formError}</span>
+        </div>
+      )}
+
+      <form className="stack stack-sm" onSubmit={handleSubmit} noValidate>
+        <div className="field">
+          <label htmlFor="claim-username">Username</label>
+          <input
+            id="claim-username"
+            className="input"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            disabled={busy}
+            autoComplete="username"
+            aria-invalid={fieldErrors.username ? 'true' : undefined}
+            aria-describedby={fieldErrors.username ? 'claim-username-err' : undefined}
+          />
+          {fieldError('username')}
+        </div>
+
+        <div className="row row-wrap">
+          <div className="field grow">
+            <label htmlFor="claim-password">Password</label>
+            <input
+              id="claim-password"
+              className="input"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={busy}
+              autoComplete="new-password"
+              aria-invalid={fieldErrors.password ? 'true' : undefined}
+              aria-describedby={fieldErrors.password ? 'claim-password-err' : undefined}
+            />
+            {fieldError('password')}
+          </div>
+          <div className="field grow">
+            <label htmlFor="claim-confirm-password">Confirm password</label>
+            <input
+              id="claim-confirm-password"
+              className="input"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              disabled={busy}
+              autoComplete="new-password"
+              aria-invalid={fieldErrors.confirmPassword ? 'true' : undefined}
+              aria-describedby={
+                fieldErrors.confirmPassword ? 'claim-confirm-password-err' : undefined
+              }
+            />
+            {fieldError('confirmPassword')}
+          </div>
+        </div>
+
+        <div className="row row-end row-wrap">
+          <button type="submit" className="btn btn-primary" disabled={busy}>
+            {busy && <ButtonLoader />}
+            {busy ? 'Creating account…' : 'Create account'}
+          </button>
+        </div>
+      </form>
+    </section>
+  )
+}
+
+/**
  * Upload one requirement file. The shared api client always sends JSON, so
- * the multipart body goes through fetch directly with the stored DRF token.
+ * the multipart body goes through fetch directly with the shared auth header
+ * (Token for signed-in users, Guest for account-less applicants).
  */
 async function uploadDocumentFile(applicationId, docId, file) {
-  const token = sessionStorage.getItem('track.auth.token')
+  const headers = authHeader()
   const formData = new FormData()
   formData.append('file', file)
 
@@ -67,7 +218,7 @@ async function uploadDocumentFile(applicationId, docId, file) {
       `${API_BASE}/enrollment/applications/my/${applicationId}/documents/${docId}/upload/`,
       {
         method: 'POST',
-        headers: token ? { Authorization: `Token ${token}` } : undefined,
+        headers: Object.keys(headers).length ? headers : undefined,
         body: formData,
       }
     )
@@ -96,6 +247,7 @@ async function uploadDocumentFile(applicationId, docId, file) {
 /** Single enrollment application: summary, timeline, documents, actions. */
 export default function ApplicationDetailPage() {
   const { id } = useParams()
+  const { user } = useAuth()
   const [searchParams] = useSearchParams()
   const justSubmitted = searchParams.get('submitted') === '1'
 
@@ -275,6 +427,19 @@ export default function ApplicationDetailPage() {
             )}
           </div>
         </section>
+      )}
+
+      {/* Account-less applicants: claim the account minted at confirmation,
+          or point sign-in seekers at the login page. */}
+      {app.account_claim_available && <ClaimAccountPanel claimToken={app.claim_token} />}
+      {app.status === 'enrolled' && !app.account_claim_available && !user && (
+        <div className="alert alert-info" role="status">
+          <Icon name="info" size={16} />
+          <span className="grow">
+            An account already exists for this student —{' '}
+            <Link to="/login">sign in</Link> with your existing credentials instead.
+          </span>
+        </div>
       )}
 
       <div className="enr-grid-2">

@@ -3,6 +3,8 @@
  * applicant and Registrar portals.
  */
 
+import { authHeader } from '../services/api';
+
 export const APPLICATION_STATUS = {
   draft: { label: 'Draft', tone: 'neutral' },
   submitted: { label: 'Submitted', tone: 'blue' },
@@ -62,12 +64,13 @@ export function isSeniorHigh(gradeLevelName) {
 
 /**
  * Download an authorized document. A plain <a href> cannot carry the
- * Authorization header, so the file is fetched as a blob first.
+ * Authorization header, so the file is fetched as a blob first. Guests
+ * (account-less applicants) download with their guest credential.
  */
 export async function downloadAuthorizedFile(apiBase, path, filename) {
-  const token = sessionStorage.getItem('track.auth.token');
+  const headers = authHeader();
   const response = await fetch(`${apiBase}/${path}`, {
-    headers: token ? { Authorization: `Token ${token}` } : undefined,
+    headers: Object.keys(headers).length ? headers : undefined,
   });
   if (!response.ok) {
     throw new Error('The file could not be downloaded.');

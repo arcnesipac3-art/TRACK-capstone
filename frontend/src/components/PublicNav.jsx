@@ -76,6 +76,13 @@ export default function PublicNav({ activeSection = '', onScrollToTop }) {
         ? <a href="#faq" className={navClass('faq')} onClick={close}>FAQ</a>
         : <Link to="/#faq" onClick={close}>FAQ</Link>
       }
+      <Link
+        to="/enroll"
+        className={!isLanding && pathname.startsWith('/enroll') ? 'nav-active' : ''}
+        onClick={close}
+      >
+        Enroll
+      </Link>
       {pathname === '/location'
         ? <a href="#map" onClick={close}>Find Us</a>
         : <Link to="/location" className={pathname === '/location' ? 'nav-active' : ''} onClick={close}>Find Us</Link>

@@ -115,7 +115,27 @@ export default function EnrollmentLandingPage() {
           />
         )}
 
-        {!loading && error && (
+        {!loading && error && (error.status === 401 || error.status === 403) && (
+          <div className="card-body">
+            <EmptyState
+              icon="gradCap"
+              title="Apply or track without an account"
+              message="You are not signed in here. You can still start an enrollment application or follow one you already submitted — no account needed."
+              action={
+                <div className="row row-wrap" style={{ gap: 8, justifyContent: 'center' }}>
+                  <Link className="btn btn-primary btn-sm" to="/enroll/apply">
+                    Start an application
+                  </Link>
+                  <Link className="btn btn-secondary btn-sm" to="/enroll/track">
+                    Track my application
+                  </Link>
+                </div>
+              }
+            />
+          </div>
+        )}
+
+        {!loading && error && error.status !== 401 && error.status !== 403 && (
           <div className="card-body">
             <ErrorMessage
               error={error}

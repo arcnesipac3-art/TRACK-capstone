@@ -4,13 +4,15 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ApplicationDetailPage from './ApplicationDetailPage'
 import EnrollmentPortal from './EnrollmentPortal'
+import AuthContext from '../../context/AuthContext'
 import api from '../../services/api'
 import useFetch from '../../hooks/useFetch'
 
 vi.mock('../../hooks/useFetch', () => ({ default: vi.fn() }))
 vi.mock('../../services/api', () => ({
-  default: { post: vi.fn() },
+  default: { post: vi.fn(), claimAccount: vi.fn() },
   API_BASE: '/api',
+  authHeader: () => ({}),
 }))
 
 function makeDetail(overrides = {}) {
@@ -72,17 +74,32 @@ function makeDetail(overrides = {}) {
   }
 }
 
+/** Anonymous visitor — the page reads auth state for the claim panel. */
+const anonymousAuth = {
+  user: null,
+  status: 'anonymous',
+  isAuthenticated: false,
+  isLoading: false,
+  bootstrapError: null,
+  login: vi.fn(),
+  logout: vi.fn(),
+  refreshUser: vi.fn(),
+}
+
 function renderDetail(app, entry = '/student/enrollment/applications/9') {
   const reload = vi.fn()
   useFetch.mockReturnValue({ data: app, loading: false, error: null, reload })
   render(
-    <MemoryRouter initialEntries={[entry]}>
-      <Routes>
-        <Route path="/student/enrollment" element={<EnrollmentPortal />}>
-          <Route path="applications/:id" element={<ApplicationDetailPage />} />
-        </Route>
-      </Routes>
-    </MemoryRouter>
+    <AuthContext.Provider value={anonymousAuth}>
+      <MemoryRouter initialEntries={[entry]}>
+        <Routes>
+          <Route path="/student/enrollment" element={<EnrollmentPortal />}>
+            <Route index element={<div>Student enrollment portal</div>} />
+            <Route path="applications/:id" element={<ApplicationDetailPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </AuthContext.Provider>
   )
   return { reload }
 }
@@ -183,13 +200,15 @@ describe('ApplicationDetailPage', () => {
       reload,
     })
     render(
-      <MemoryRouter initialEntries={['/student/enrollment/applications/9']}>
-        <Routes>
-          <Route path="/student/enrollment" element={<EnrollmentPortal />}>
-            <Route path="applications/:id" element={<ApplicationDetailPage />} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
+      <AuthContext.Provider value={anonymousAuth}>
+        <MemoryRouter initialEntries={['/student/enrollment/applications/9']}>
+          <Routes>
+            <Route path="/student/enrollment" element={<EnrollmentPortal />}>
+              <Route path="applications/:id" element={<ApplicationDetailPage />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>
     )
 
     expect(
@@ -202,5 +221,107 @@ describe('ApplicationDetailPage', () => {
 
     await user.click(screen.getByRole('button', { name: /try again/i }))
     expect(reload).toHaveBeenCalled()
+  })
+})
+
+describe('ApplicationDetailPage — account claim', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    sessionStorage.clear()
+  })
+
+  it('blocks submission of mismatched passwords client-side', async () => {
+    const user = userEvent.setup()
+    renderDetail(
+      makeDetail({
+        status: 'enrolled',
+        account_claim_available: true,
+        claim_token: 'claim-abc',
+      })
+    )
+
+    expect(
+      await screen.findByRole('heading', { name: /create your account/i })
+    ).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText(/^username$/i), 'liza123')
+    await user.type(screen.getByLabelText(/^password$/i), 'secret-pass')
+    await user.type(screen.getByLabelText(/confirm password/i), 'different')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    expect(
+      await screen.findByText(/the two passwords do not match/i)
+    ).toBeInTheDocument()
+    expect(api.claimAccount).not.toHaveBeenCalled()
+  })
+
+  it('claims the account and enters the student enrollment portal', async () => {
+    api.claimAccount.mockResolvedValue({ id: 77, username: 'liza123' })
+    const user = userEvent.setup()
+    renderDetail(
+      makeDetail({
+        status: 'enrolled',
+        account_claim_available: true,
+        claim_token: 'claim-abc',
+      })
+    )
+
+    await user.type(await screen.findByLabelText(/^username$/i), 'liza123')
+    await user.type(screen.getByLabelText(/^password$/i), 'secret-pass')
+    await user.type(screen.getByLabelText(/confirm password/i), 'secret-pass')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    await waitFor(() =>
+      expect(api.claimAccount).toHaveBeenCalledWith({
+        claim_token: 'claim-abc',
+        username: 'liza123',
+        password: 'secret-pass',
+      })
+    )
+    expect(await screen.findByText('Student enrollment portal')).toBeInTheDocument()
+  })
+
+  it('surfaces a server rejection from the claim endpoint', async () => {
+    api.claimAccount.mockRejectedValue(
+      Object.assign(new Error('This claim token has already been used.'), {
+        status: 400,
+        details: null,
+      })
+    )
+    const user = userEvent.setup()
+    renderDetail(
+      makeDetail({
+        status: 'enrolled',
+        account_claim_available: true,
+        claim_token: 'spent-token',
+      })
+    )
+
+    await user.type(await screen.findByLabelText(/^username$/i), 'liza123')
+    await user.type(screen.getByLabelText(/^password$/i), 'secret-pass')
+    await user.type(screen.getByLabelText(/confirm password/i), 'secret-pass')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    expect(
+      await screen.findByText(/this claim token has already been used/i)
+    ).toBeInTheDocument()
+  })
+
+  it('points at sign-in when an account already exists for the enrolled student', () => {
+    renderDetail(
+      makeDetail({ status: 'enrolled', account_claim_available: false })
+    )
+
+    expect(screen.getByRole('heading', { level: 1, name: /app-0009/i })).toBeInTheDocument()
+    expect(
+      screen.getByText(/an account already exists for this student/i)
+    ).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /sign in/i })).toHaveAttribute(
+      'href',
+      '/login'
+    )
+    expect(
+      screen.queryByRole('heading', { name: /create your account/i })
+    ).not.toBeInTheDocument()
   })
 })

@@ -8,7 +8,14 @@ import { API_BASE } from './api'
 async function freshApi() {
   vi.resetModules()
   const mod = await import('./api')
-  return { api: mod.api, ApiError: mod.ApiError }
+  return {
+    api: mod.api,
+    ApiError: mod.ApiError,
+    authHeader: mod.authHeader,
+    setGuestToken: mod.setGuestToken,
+    getGuestToken: mod.getGuestToken,
+    clearGuestToken: mod.clearGuestToken,
+  }
 }
 
 /** Builds a minimal Response-like object for the mocked fetch. */
@@ -101,6 +108,92 @@ describe('Token auth', () => {
     await api.post('/users/', { username: 'x' })
     const [, init] = global.fetch.mock.calls[0]
     expect(init.headers['Content-Type']).toBe('application/json')
+  })
+})
+
+describe('Guest enrollment auth', () => {
+  it('sends a Guest header when only a guest token is stored', async () => {
+    const { api } = await freshApi()
+    sessionStorage.setItem('track.enrollment.guest', 'guest-abc')
+    global.fetch.mockResolvedValue(jsonResponse({}))
+    await api.get('/enrollment/applications/my/')
+    const [, init] = global.fetch.mock.calls[0]
+    expect(init.headers['Authorization']).toBe('Guest guest-abc')
+  })
+
+  it('lets the auth token win over the guest token', async () => {
+    const { api } = await freshApi()
+    sessionStorage.setItem('track.auth.token', 'real-token')
+    sessionStorage.setItem('track.enrollment.guest', 'guest-abc')
+    global.fetch.mockResolvedValue(jsonResponse({}))
+    await api.get('/enrollment/applications/my/')
+    const [, init] = global.fetch.mock.calls[0]
+    expect(init.headers['Authorization']).toBe('Token real-token')
+  })
+
+  it('authHeader() follows the Token > Guest > none precedence', async () => {
+    const { authHeader, setGuestToken, clearGuestToken } = await freshApi()
+
+    expect(authHeader()).toEqual({})
+
+    setGuestToken('guest-abc')
+    expect(authHeader()).toEqual({ Authorization: 'Guest guest-abc' })
+
+    sessionStorage.setItem('track.auth.token', 'real-token')
+    expect(authHeader()).toEqual({ Authorization: 'Token real-token' })
+
+    sessionStorage.removeItem('track.auth.token')
+    clearGuestToken()
+    expect(authHeader()).toEqual({})
+    expect(sessionStorage.getItem('track.enrollment.guest')).toBeNull()
+  })
+
+  it('trackApplication posts to the public track endpoint and stores the guest token', async () => {
+    const { api, getGuestToken } = await freshApi()
+    global.fetch.mockResolvedValue(
+      jsonResponse({
+        reference: 'APP-1234567890',
+        application_id: 12,
+        status: 'submitted',
+        guest_token: 'b'.repeat(64),
+      })
+    )
+    const data = await api.trackApplication({
+      reference: 'APP-1234567890',
+      contact: 'rosa@example.com',
+    })
+    const [url, init] = global.fetch.mock.calls[0]
+    expect(url).toBe(`${API_BASE}/enrollment/public/track/`)
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body)).toEqual({
+      reference: 'APP-1234567890',
+      contact: 'rosa@example.com',
+    })
+    expect(data.application_id).toBe(12)
+    expect(getGuestToken()).toBe('b'.repeat(64))
+  })
+
+  it('claimAccount posts the claim token and stores the returned auth token', async () => {
+    const { api } = await freshApi()
+    global.fetch.mockResolvedValue(
+      jsonResponse({ token: 'claim-token-1', user: { id: 5, username: 'liza' } })
+    )
+    const user = await api.claimAccount({
+      claim_token: 'one-time-claim',
+      username: 'liza',
+      password: 'secret',
+    })
+    const [url, init] = global.fetch.mock.calls[0]
+    expect(url).toBe(`${API_BASE}/enrollment/claim-account/`)
+    expect(init.method).toBe('POST')
+    expect(JSON.parse(init.body)).toEqual({
+      claim_token: 'one-time-claim',
+      username: 'liza',
+      password: 'secret',
+    })
+    // Stored exactly like login(), and the user profile is returned.
+    expect(sessionStorage.getItem('track.auth.token')).toBe('claim-token-1')
+    expect(user).toEqual({ id: 5, username: 'liza' })
   })
 })
 

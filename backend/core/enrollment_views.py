@@ -5,11 +5,16 @@ Two audiences share one URL namespace, split by path:
 
   * applicant side  — /api/enrollment/applications/my/... : students and
     their linked parents/guardians manage their own applications. Ownership
-    always comes from the authenticated session (queryset scoping), never
-    from a student id or reference the frontend supplies.
+    always comes from the server side (queryset scoping), never from a
+    student id or reference the frontend supplies — either the authenticated
+    session, or the guest token of a public (account-less) applicant.
   * staff side      — /api/enrollment/applications/... : administrators
     holding the enrollment.view / enrollment.manage / enrollment.confirm
     permission keys (the Registrar department by default).
+
+Public visitors without any credential may browse open periods and the
+document requirements (AllowAny GETs); everything that touches an
+application requires either an account or the application's guest token.
 
 Every status move runs through the state machine in core/enrollment.py;
 serializers can never smuggle an arbitrary status. Capacity, identity and
@@ -17,18 +22,22 @@ confirmation rules are re-validated server-side at the moment they run.
 """
 
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Count, Q
 from django.http import FileResponse
 from django.utils import timezone
 from rest_framework import generics, status
+from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import APIException, PermissionDenied, ValidationError
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from . import enrollment as workflow
+from .enrollment_auth import GUEST_AUTHENTICATION_CLASSES, IsAuthenticatedOrGuest
 from .enrollment_serializers import (
     ApplicationDocumentSerializer,
     ApplicationDocumentStaffSerializer,
@@ -49,10 +58,12 @@ from .enrollment_serializers import (
 from .models import (
     ApplicationDocument,
     ApplicationStatus,
+    AuditLog,
     Enrollment,
     EnrollmentApplication,
     EnrollmentPeriod,
     EnrollmentRequirement,
+    User,
 )
 from .notifications import (
     notify_enrollment_corrections,
@@ -61,6 +72,7 @@ from .notifications import (
 )
 from .pagination import TrackPagination
 from .permissions import AdminCan
+from .serializers import UserSerializer
 from .views import _client_ip
 
 
@@ -90,7 +102,12 @@ def _visible_applications(user):
     Applications the user may manage as applicant/guardian. Ownership is
     derived from the account: the submitting user, the linked student's own
     account, or a parent/guardian with a verified link to that student.
+    A public (account-less) applicant is scoped to exactly the one
+    application their guest token authenticates.
     """
+    guest_application = getattr(user, "guest_application", None)
+    if guest_application is not None:
+        return EnrollmentApplication.objects.filter(pk=guest_application.pk)
     if not user or not user.is_authenticated:
         return EnrollmentApplication.objects.none()
     scope = Q(applicant=user) | Q(student__user=user)
@@ -116,7 +133,8 @@ class EnrollmentPeriodListCreateView(generics.ListCreateAPIView):
 
     def get_permissions(self):
         if self.request.method in ("GET", "HEAD", "OPTIONS"):
-            return [IsAuthenticated()]
+            # Public: applicants without an account browse open windows here.
+            return [AllowAny()]
         from .permissions import AdminCan
         return [AdminCan(write_key="enrollment.manage")]
 
@@ -150,7 +168,7 @@ class EnrollmentPeriodDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request.method in ("GET", "HEAD", "OPTIONS"):
-            return [IsAuthenticated()]
+            return [AllowAny()]
         from .permissions import AdminCan
         return [AdminCan(write_key="enrollment.manage")]
 
@@ -181,14 +199,16 @@ class EnrollmentRequirementListCreateView(generics.ListCreateAPIView):
 
     def get_permissions(self):
         if self.request.method in ("GET", "HEAD", "OPTIONS"):
-            return [IsAuthenticated()]
+            # Public: the requirement checklist is what a prospective
+            # applicant needs to see before starting an application.
+            return [AllowAny()]
         from .permissions import AdminCan
         return [AdminCan(write_key="enrollment.manage")]
 
     def get_queryset(self):
         qs = EnrollmentRequirement.objects.select_related(
             "period", "period__school_year", "grade_level"
-        ).order_by("period__-school_year__start_date", "position", "name")
+        ).order_by("-period__school_year__start_date", "position", "name")
         period = self.request.query_params.get("period")
         grade_level = self.request.query_params.get("grade_level")
         enrollment_type = self.request.query_params.get("enrollment_type")
@@ -214,7 +234,7 @@ class EnrollmentRequirementDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request.method in ("GET", "HEAD", "OPTIONS"):
-            return [IsAuthenticated()]
+            return [AllowAny()]
         from .permissions import AdminCan
         return [AdminCan(write_key="enrollment.manage")]
 
@@ -234,8 +254,17 @@ class EnrollmentRequirementDetailView(generics.RetrieveUpdateDestroyAPIView):
 # ---------------------------------------------------------------------------
 
 class MyEnrollmentApplicationsView(generics.ListCreateAPIView):
-    permission_classes = [IsAuthenticated]
+    authentication_classes = GUEST_AUTHENTICATION_CLASSES
+    permission_classes = [IsAuthenticatedOrGuest]
     """List everything this account may manage; start a new draft application."""
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            # The public entry point: with no credential at all this creates
+            # an account-less (guest) application whose token comes back in
+            # the response; with a session it behaves exactly as before.
+            return [AllowAny()]
+        return [IsAuthenticatedOrGuest()]
 
     def get_serializer_class(self):
         if self.request.method == "POST":
@@ -248,10 +277,23 @@ class MyEnrollmentApplicationsView(generics.ListCreateAPIView):
         ).prefetch_related("documents")
 
     def create(self, request, *args, **kwargs):
-        if request.user.is_admin or request.user.is_teacher:
+        if request.user.is_authenticated and (
+            request.user.is_admin or request.user.is_teacher
+        ):
             raise PermissionDenied(
                 "Enrollment applications are submitted by students or their "
                 "parents/guardians."
+            )
+        guest_application = getattr(request.user, "guest_application", None)
+        if guest_application is not None and guest_application.status not in (
+            ApplicationStatus.REJECTED,
+            ApplicationStatus.ENROLLED,
+            ApplicationStatus.WITHDRAWN,
+            ApplicationStatus.CANCELLED,
+        ):
+            raise ValidationError(
+                "This browser already has an open application. Track it "
+                "instead of starting another one."
             )
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -269,7 +311,8 @@ class MyEnrollmentApplicationsView(generics.ListCreateAPIView):
 
 
 class MyApplicationDetailView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = [IsAuthenticated]
+    authentication_classes = GUEST_AUTHENTICATION_CLASSES
+    permission_classes = [IsAuthenticatedOrGuest]
     """Read, edit (draft/corrections) or discard (draft only) own application."""
 
     def get_serializer_class(self):
@@ -319,7 +362,8 @@ class MyApplicationDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class MyApplicationSubmitView(APIView):
-    permission_classes = [IsAuthenticated]
+    authentication_classes = GUEST_AUTHENTICATION_CLASSES
+    permission_classes = [IsAuthenticatedOrGuest]
     """Draft → Submitted, gated on every required document being present."""
 
     def post(self, request, pk):
@@ -357,6 +401,7 @@ class MyApplicationSubmitView(APIView):
                 )
         except (workflow.EnrollmentWorkflowError, workflow.EnrollmentConflictError) as exc:
             raise _workflow_error(exc)
+        application.refresh_from_db()
         output = EnrollmentApplicationDetailSerializer(
             application, context={"request": request}
         )
@@ -364,7 +409,8 @@ class MyApplicationSubmitView(APIView):
 
 
 class MyApplicationResubmitView(APIView):
-    permission_classes = [IsAuthenticated]
+    authentication_classes = GUEST_AUTHENTICATION_CLASSES
+    permission_classes = [IsAuthenticatedOrGuest]
     """Incomplete → Resubmitted after the applicant fixed the documents."""
 
     def post(self, request, pk):
@@ -394,6 +440,7 @@ class MyApplicationResubmitView(APIView):
                 )
         except (workflow.EnrollmentWorkflowError, workflow.EnrollmentConflictError) as exc:
             raise _workflow_error(exc)
+        application.refresh_from_db()
         output = EnrollmentApplicationDetailSerializer(
             application, context={"request": request}
         )
@@ -401,7 +448,8 @@ class MyApplicationResubmitView(APIView):
 
 
 class MyApplicationWithdrawView(APIView):
-    permission_classes = [IsAuthenticated]
+    authentication_classes = GUEST_AUTHENTICATION_CLASSES
+    permission_classes = [IsAuthenticatedOrGuest]
     """Applicant-initiated withdrawal while the application is still live."""
 
     def post(self, request, pk):
@@ -428,6 +476,7 @@ class MyApplicationWithdrawView(APIView):
                 )
         except (workflow.EnrollmentWorkflowError, workflow.EnrollmentConflictError) as exc:
             raise _workflow_error(exc)
+        application.refresh_from_db()
         output = EnrollmentApplicationDetailSerializer(
             application, context={"request": request}
         )
@@ -461,7 +510,8 @@ def _content_signature_ok(header: bytes, extension: str) -> bool:
 
 
 class MyApplicationDocumentUploadView(APIView):
-    permission_classes = [IsAuthenticated]
+    authentication_classes = GUEST_AUTHENTICATION_CLASSES
+    permission_classes = [IsAuthenticatedOrGuest]
     """Upload or replace one document slot (multipart, field name `file`)."""
 
     parser_classes = [MultiPartParser, FormParser]
@@ -527,7 +577,8 @@ def _document_owner_or_staff(user, application):
 
 
 class ApplicationDocumentDownloadView(APIView):
-    permission_classes = [IsAuthenticated]
+    authentication_classes = GUEST_AUTHENTICATION_CLASSES
+    permission_classes = [IsAuthenticatedOrGuest]
     """Short-lived authorized download — files are never exposed through the
     public media URL; access re-checks ownership/staff permission per request."""
 
@@ -552,6 +603,177 @@ class ApplicationDocumentDownloadView(APIView):
             as_attachment=True,
             filename=safe_name,
         )
+
+
+# ---------------------------------------------------------------------------
+# Public portal — application lookup & post-enrollment account claim
+# ---------------------------------------------------------------------------
+
+def _normalize_contact(value):
+    """Digits-and-letters only, so '0917 123-4567' matches '09171234567'."""
+    return "".join(ch for ch in str(value or "") if ch.isalnum())
+
+
+class PublicApplicationTrackView(APIView):
+    """
+    POST {reference, contact} → credentials for an account-less application.
+
+    This is the recovery path when the browser lost its stored guest token:
+    the caller must present the APP-XXXXXXXXXX reference AND a contact value
+    that matches the guardian email or a contact number recorded on the
+    application. Every failure returns the same 404 so the endpoint cannot be
+    used to probe which references exist.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        reference = str(request.data.get("reference") or "").strip().upper()
+        contact = str(request.data.get("contact") or "").strip()
+        failure = Response(
+            {"detail": (
+                "No public application matched that reference and contact "
+                "details. Check both entries, or contact the Registrar."
+            )},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+        if not reference or not contact:
+            return failure
+
+        application = EnrollmentApplication.objects.filter(
+            reference=reference,
+            applicant__isnull=True,
+            guest_token__isnull=False,
+        ).first()
+        if application is None:
+            return failure
+
+        email_match = (
+            bool(application.guardian_email)
+            and contact.lower() == application.guardian_email.strip().lower()
+        )
+        given = _normalize_contact(contact)
+        phone_match = bool(given) and given in {
+            _normalize_contact(application.guardian_contact),
+            _normalize_contact(application.contact_number),
+        }
+        if not (email_match or phone_match):
+            return failure
+
+        return Response({
+            "reference": application.reference,
+            "application_id": application.pk,
+            "status": application.status,
+            "guest_token": application.guest_token,
+        })
+
+
+class ClaimAccountView(APIView):
+    """
+    One-time account setup for an enrolled student (POST {claim_token,
+    username, password}).
+
+    Only an application that reached ENROLLED with a freshly minted student
+    account holds a claim token, and the token is consumed on success — so
+    accounts can only be created by people whose enrollment the Registrar
+    confirmed. On success the caller receives a DRF token shaped exactly like
+    POST /api/auth/token/, letting the frontend sign the new student in
+    immediately.
+    """
+
+    permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "auth"
+
+    def post(self, request):
+        from django.contrib.auth.password_validation import validate_password
+        from django.contrib.auth.validators import UnicodeUsernameValidator
+
+        claim_token = str(request.data.get("claim_token") or "").strip()
+        username = str(request.data.get("username") or "").strip()
+        password = str(request.data.get("password") or "")
+
+        application = EnrollmentApplication.objects.select_related(
+            "student", "student__user"
+        ).filter(account_claim_token=claim_token).first()
+        if application is None:
+            raise ValidationError({"detail": "This account setup link is not valid."})
+        if application.status != ApplicationStatus.ENROLLED:
+            raise ValidationError({"detail": (
+                "An account can only be created after the Registrar confirms "
+                "the enrollment."
+            )})
+        if application.account_claimed_at is not None:
+            raise ValidationError({"detail": (
+                "This account has already been set up. Sign in instead."
+            )})
+        if not application.student_id or not application.student.user_id:
+            raise ValidationError({"detail": (
+                "No student account exists for this application yet."
+            )})
+        user = application.student.user
+
+        if not username or not password:
+            raise ValidationError({"detail": "Choose a username and a password."})
+        if len(username) > 150:
+            raise ValidationError({"username": "The username is too long (150 max)."})
+        try:
+            UnicodeUsernameValidator()(username)
+        except DjangoValidationError as exc:
+            raise ValidationError({"username": list(exc.messages)})
+        if User.objects.filter(username=username).exclude(pk=user.pk).exists():
+            raise ValidationError({"username": "That username is already taken."})
+
+        # Validate against the identity the account will actually hold.
+        user.username = username
+        try:
+            validate_password(password, user=user)
+        except DjangoValidationError as exc:
+            raise ValidationError({"password": list(exc.messages)})
+
+        with transaction.atomic():
+            user.set_password(password)
+            user.save(update_fields=["username", "password"])
+            application.account_claim_token = None
+            application.account_claimed_at = timezone.now()
+            if application.applicant_id is None:
+                # A public applicant's application becomes owned by the new
+                # account; a parent-submitted application keeps the parent.
+                application.applicant = user
+                application.applicant_name = (
+                    user.get_full_name() or application.applicant_name
+                )
+                # The guest credential dies with the claim: access now flows
+                # through the account, not the browser-stored token.
+                application.guest_token = None
+            application.save(
+                update_fields=[
+                    "account_claim_token", "account_claimed_at",
+                    "applicant", "applicant_name", "guest_token", "updated_at",
+                ]
+            )
+            workflow.log_application_event(
+                application,
+                user,
+                "account_claimed",
+                note="The student set up their account after enrollment.",
+            )
+            AuditLog.objects.create(
+                actor=user,
+                action="enrollment.account_claimed",
+                target_model="EnrollmentApplication",
+                target_id=str(application.pk),
+                description=(
+                    f"{user.get_full_name()} claimed their student account "
+                    f"for {application.reference}."
+                ),
+                ip_address=_client_ip(request),
+            )
+
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response({"token": token.key, "user": UserSerializer(user).data})
 
 
 # ---------------------------------------------------------------------------
@@ -968,14 +1190,25 @@ class EnrollmentListView(generics.ListAPIView):
 
 class MyEnrollmentsView(generics.ListAPIView):
     """Confirmed enrollments for the student's own profile or a parent's
-    linked children."""
+    linked children. A public applicant sees the enrollment attached to
+    their own application."""
 
     serializer_class = EnrollmentSerializer
     pagination_class = None
-    permission_classes = [IsAuthenticated]
+    authentication_classes = GUEST_AUTHENTICATION_CLASSES
+    permission_classes = [IsAuthenticatedOrGuest]
 
     def get_queryset(self):
         user = self.request.user
+        guest_application = getattr(user, "guest_application", None)
+        if guest_application is not None:
+            return Enrollment.objects.filter(
+                application=guest_application
+            ).select_related(
+                "student", "student__user", "school_year", "grade_level", "section"
+            )
+        if not user.is_authenticated:
+            return Enrollment.objects.none()
         if user.is_parent and hasattr(user, "parent_profile"):
             return Enrollment.objects.filter(
                 student__in=user.parent_profile.children.all()

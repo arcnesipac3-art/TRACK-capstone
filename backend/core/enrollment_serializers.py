@@ -266,6 +266,15 @@ class EnrollmentApplicationDetailSerializer(serializers.ModelSerializer):
     student_profile_id = serializers.IntegerField(
         source="student_id", read_only=True, default=None
     )
+    # Public-applicant credentials. Both are owner-only (this serializer is
+    # never used for staff or other applicants) and are the whole reason an
+    # account-less applicant can return to their application and, once
+    # enrolled, set up their account.
+    guest_token = serializers.CharField(read_only=True)
+    claim_token = serializers.CharField(
+        source="account_claim_token", read_only=True, default=None
+    )
+    account_claim_available = serializers.SerializerMethodField()
 
     class Meta:
         model = EnrollmentApplication
@@ -281,6 +290,7 @@ class EnrollmentApplicationDetailSerializer(serializers.ModelSerializer):
             "student_profile_id", "linked_student_name",
             "submitted_at", "reviewed_at", "decided_at",
             "requirements_snapshot", "created_at", "updated_at",
+            "guest_token", "claim_token", "account_claim_available",
         ]
 
     def get_period_label(self, obj):
@@ -303,6 +313,15 @@ class EnrollmentApplicationDetailSerializer(serializers.ModelSerializer):
         if not obj.student_id:
             return None
         return obj.student.user.get_full_name() or obj.student.user.username
+
+    def get_account_claim_available(self, obj):
+        """True when a one-time account setup is waiting for the enrolled
+        student (set at confirmation, consumed on claim)."""
+        return bool(
+            obj.account_claim_token
+            and obj.status == ApplicationStatus.ENROLLED
+            and obj.account_claimed_at is None
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -339,7 +358,8 @@ class EnrollmentApplicationCreateSerializer(serializers.ModelSerializer):
             )
 
         user = self.context["request"].user
-        if EnrollmentApplication.objects.filter(
+        is_guest = not user.is_authenticated
+        if not is_guest and EnrollmentApplication.objects.filter(
             applicant=user, school_year=period.school_year
         ).exclude(
             status__in=[
@@ -355,10 +375,20 @@ class EnrollmentApplicationCreateSerializer(serializers.ModelSerializer):
 
         # Optional existing-student link (returning student / guardian of a
         # linked child). Ownership is verified server-side — never trusted
-        # from the payload alone.
+        # from the payload alone. Public (account-less) applicants cannot
+        # link a student record: there is no account to own the link, and
+        # staff can link manually during review.
         profile = None
         student_id = attrs.pop("student", None)
         if student_id:
+            if is_guest:
+                raise serializers.ValidationError(
+                    {"student": (
+                        "Sign in to apply for a linked student record. As a "
+                        "public applicant, your student record is matched by "
+                        "the Registrar during review."
+                    )}
+                )
             from .models import StudentProfile
             try:
                 profile = StudentProfile.objects.select_related("user").get(pk=student_id)
@@ -385,17 +415,22 @@ class EnrollmentApplicationCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         profile = validated_data.pop("_profile", None)
         user = self.context["request"].user
+        is_guest = not user.is_authenticated
         period: EnrollmentPeriod = validated_data["period"]
 
         application = EnrollmentApplication(
-            applicant=user,
-            applicant_name=user.get_full_name() or user.username,
+            # A public applicant has no account: the row itself (and its
+            # guest token) is the identity until enrollment is confirmed.
+            applicant=None if is_guest else user,
+            applicant_name=(
+                "" if is_guest else (user.get_full_name() or user.username)
+            ),
             school_year=period.school_year,
             **validated_data,
         )
         if profile is not None:
             application.student = profile
-        elif user.is_student and hasattr(user, "student_profile"):
+        elif not is_guest and user.is_student and hasattr(user, "student_profile"):
             application.student = user.student_profile
             profile = user.student_profile
 
@@ -413,14 +448,15 @@ class EnrollmentApplicationCreateSerializer(serializers.ModelSerializer):
             application.contact_number = (
                 application.contact_number or profile.contact_number
             )
-        else:
+        elif not is_guest:
             application.first_name = application.first_name or user.first_name
             application.middle_name = application.middle_name or user.middle_name
             application.last_name = application.last_name or user.last_name
 
         # Guardian block: a student applicant inherits the linked parent's
-        # details; a parent applicant records themselves.
-        if user.is_parent and hasattr(user, "parent_profile"):
+        # details; a parent applicant records themselves. A public applicant
+        # fills the guardian block in the wizard instead.
+        if not is_guest and user.is_parent and hasattr(user, "parent_profile"):
             parent = user.parent_profile
             application.guardian_name = application.guardian_name or user.get_full_name()
             application.guardian_relationship = (
@@ -485,6 +521,33 @@ class EnrollmentApplicationUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 {"enrollment_type": "This enrollment type is not accepted in the selected period."}
             )
+
+        # Public applicants have no account, so the per-account uniqueness
+        # constraint cannot catch a double application. The LRN is the
+        # school's canonical student identifier — reject a second open
+        # application carrying the same one for this school year.
+        request = self.context.get("request")
+        user = getattr(request, "user", None) if request else None
+        if user is not None and not user.is_authenticated:
+            new_lrn = attrs.get("lrn", instance.lrn)
+            if new_lrn:
+                duplicate = EnrollmentApplication.objects.filter(
+                    lrn=new_lrn, school_year=instance.school_year
+                ).exclude(pk=instance.pk).exclude(
+                    status__in=[
+                        ApplicationStatus.REJECTED,
+                        ApplicationStatus.ENROLLED,
+                        ApplicationStatus.WITHDRAWN,
+                        ApplicationStatus.CANCELLED,
+                    ]
+                ).exists()
+                if duplicate:
+                    raise serializers.ValidationError(
+                        {"lrn": (
+                            "An application with this Learner Reference Number "
+                            "is already open for this school year."
+                        )}
+                    )
         return attrs
 
     def update(self, instance, validated_data):

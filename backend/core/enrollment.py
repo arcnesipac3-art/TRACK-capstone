@@ -17,6 +17,7 @@ This module owns every rule the enrollment endpoints enforce:
 Nothing here touches HTTP concerns; views stay thin and call these helpers.
 """
 
+import secrets
 import uuid
 
 from django.db import transaction
@@ -183,6 +184,7 @@ def transition(application, new_status, actor, *, action, note="", internal_note
     ApplicationReviewEvent.objects.create(
         application=application,
         actor=actor if isinstance(actor, User) else None,
+        actor_name=_actor_display_name(actor),
         action=action,
         from_status=old_status,
         to_status=new_status,
@@ -192,8 +194,19 @@ def transition(application, new_status, actor, *, action, note="", internal_note
     return application
 
 
+def _actor_display_name(actor):
+    """History must stay readable for account-less (guest) applicants, who
+    have no User row to derive a name from."""
+    if actor is not None and not isinstance(actor, User):
+        return "Applicant (guest)"
+    return ""
+
+
 def _resolve_actor_kind(actor, actor_kind):
     if isinstance(actor, User) and not actor.is_admin:
+        return "applicant"
+    if actor is not None and not isinstance(actor, User):
+        # A guest applicant (anonymous actor) is never staff.
         return "applicant"
     return actor_kind
 
@@ -203,6 +216,7 @@ def log_application_event(application, actor, action, *, note="", internal_note=
     ApplicationReviewEvent.objects.create(
         application=application,
         actor=actor if isinstance(actor, User) else None,
+        actor_name=_actor_display_name(actor),
         action=action,
         note=note,
         internal_note=internal_note,
@@ -498,7 +512,9 @@ def match_or_create_student(application, registrar):
         )
 
     # New permanent identity. The account username is derived from the
-    # non-guessable reference; the password is unusable (login is staff-issued).
+    # non-guessable reference and its password is a random secret nobody is
+    # issued — after confirmation the student claims the account once with
+    # account_claim_token and chooses their own username/password.
     with transaction.atomic():
         base = application.reference.lower().replace("-", "")
         username = base
@@ -522,7 +538,10 @@ def match_or_create_student(application, registrar):
             contact_number=application.contact_number,
         )
     application.student = profile
-    application.save(update_fields=["student", "updated_at"])
+    application.account_claim_token = secrets.token_hex(16)
+    application.save(
+        update_fields=["student", "account_claim_token", "updated_at"]
+    )
     log_application_event(
         application,
         registrar,

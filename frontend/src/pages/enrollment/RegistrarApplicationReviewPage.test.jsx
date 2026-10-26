@@ -15,6 +15,7 @@ vi.mock('../../services/api', () => ({
   },
   API_BASE: '/api',
   ApiError: class ApiError extends Error {},
+  authHeader: () => ({}),
 }))
 
 // The review page reads permissions through the auth context — swapped per

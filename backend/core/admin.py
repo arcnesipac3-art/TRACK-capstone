@@ -212,7 +212,7 @@ class EnrollmentApplicationAdmin(admin.ModelAdmin):
     list_display = ("reference", "get_full_name", "status", "enrollment_type", "grade_level", "school_year", "assigned_section", "submitted_at")
     list_filter = ("status", "enrollment_type", "school_year", "grade_level")
     search_fields = ("reference", "first_name", "last_name", "lrn", "applicant_name")
-    readonly_fields = ("reference", "requirements_snapshot", "created_at", "updated_at")
+    readonly_fields = ("reference", "requirements_snapshot", "account_claimed_at", "created_at", "updated_at")
 
 
 @admin.register(ApplicationDocument)

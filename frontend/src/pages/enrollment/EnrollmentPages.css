@@ -194,3 +194,73 @@
   font-size: 1rem;
   margin: 0;
 }
+
+/* --- Public (account-less) portal at /enroll --------------------------- */
+
+.enr-public-main {
+  padding: 36px 0 64px;
+}
+
+.enr-public-container {
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Navy hero band inside the content column — same family as the public
+   page heroes (.res-hero) but sized for the portal's narrower column. */
+.enr-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: flex-start;
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(88% 120% at 88% -12%, rgba(15, 95, 205, 0.46) 0%, rgba(15, 95, 205, 0.20) 48%, transparent 76%),
+    linear-gradient(160deg, var(--navy-800) 0%, var(--navy-900) 100%);
+  color: var(--on-navy);
+  padding: clamp(28px, 5vw, 48px);
+}
+
+.enr-hero-eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7fb0ff;
+}
+
+.enr-hero h1 {
+  margin: 0;
+  max-width: 24ch;
+  font-size: clamp(1.5rem, 3.6vw, 2.2rem);
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  color: var(--on-navy);
+}
+
+.enr-hero-lede {
+  margin: 0;
+  max-width: 62ch;
+  line-height: 1.6;
+  color: #b9c9e6;
+}
+
+.enr-hero-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--on-navy-muted);
+}
+
+@media (max-width: 767px) {
+  .enr-public-main {
+    padding: 20px 0 48px;
+  }
+
+  .enr-public-container {
+    padding: 0 16px;
+  }
+}

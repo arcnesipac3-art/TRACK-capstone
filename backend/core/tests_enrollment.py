@@ -17,6 +17,7 @@ from datetime import timedelta
 import tempfile
 from unittest import mock
 
+from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, transaction
 from django.test import override_settings
@@ -26,6 +27,7 @@ from rest_framework.test import APITestCase
 
 from .models import (
     ApplicationDocument,
+    ApplicationReviewEvent,
     ApplicationStatus,
     AuditLog,
     Department,
@@ -152,6 +154,39 @@ class EnrollmentTestCase(TrackTestCase):
         assert response.status_code == 200, response.content
         application.refresh_from_db()
         return application
+
+    def guest_create(self, **overrides):
+        """Start an application with no account at all (public portal)."""
+        self.client.logout()
+        payload = {
+            "period": self.period.pk,
+            "enrollment_type": EnrollmentType.NEW,
+            "grade_level": self.grade7.pk,
+        }
+        payload.update(overrides)
+        response = self.client.post(
+            "/api/enrollment/applications/my/", payload, format="json"
+        )
+        assert response.status_code == 201, response.content
+        return response.data
+
+    @staticmethod
+    def guest_headers(token):
+        return {"HTTP_AUTHORIZATION": f"Guest {token}"}
+
+    def guest_upload_required_documents(self, application, token):
+        """Upload a valid file for every required slot, as a public applicant."""
+        headers = self.guest_headers(token)
+        for document in application.documents.filter(is_required=True):
+            upload = SimpleUploadedFile(
+                "certificate.pdf", b"%PDF-1.4 test content", content_type="application/pdf"
+            )
+            response = self.client.post(
+                f"/api/enrollment/applications/my/{application.pk}/documents/{document.pk}/upload/",
+                {"file": upload},
+                **headers,
+            )
+            assert response.status_code == 200, response.content
 
 
 # ---------------------------------------------------------------------------
@@ -1403,3 +1438,470 @@ class StaffQueueAndReportTests(EnrollmentTestCase):
             {"student": self.student1.pk}, format="json",
         )
         self.assertEqual(response.status_code, 400)
+
+
+# ---------------------------------------------------------------------------
+# Public (account-less) applications
+# ---------------------------------------------------------------------------
+
+class GuestEnrollmentTests(EnrollmentTestCase):
+    """The public portal: apply, track and manage an application with no
+    account, authenticated solely by the application's guest token."""
+
+    def setUp(self):
+        super().setUp()
+        # The public lookup/claim endpoints share the "auth" throttle scope;
+        # reset its counters so tests never trip the per-minute rate.
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+        super().tearDown()
+
+    def test_periods_and_requirements_are_public(self):
+        self.client.logout()
+        response = self.client.get("/api/enrollment/periods/")
+        self.assertEqual(response.status_code, 200)
+        labels = [row["name"] for row in response.data["results"]]
+        self.assertIn("SY 2026-2027 Registration", labels)
+
+        response = self.client.get(
+            "/api/enrollment/requirements/", {"period": self.period.pk}
+        )
+        self.assertEqual(response.status_code, 200)
+        names = [row["name"] for row in response.data["results"]]
+        self.assertIn("Birth Certificate", names)
+
+    def test_grade_levels_are_public_for_the_anonymous_wizard(self):
+        # Step 1 of the public wizard needs the grade list before any
+        # credential exists; writes stay school-structure management.
+        self.client.logout()
+        response = self.client.get("/api/grade-levels/")
+        self.assertEqual(response.status_code, 200)
+        names = [row["name"] for row in response.data["results"]]
+        self.assertIn("Grade 7", names)
+        response = self.client.post(
+            "/api/grade-levels/", {"name": "Grade X", "order": 99}, format="json"
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_guest_creates_application_without_an_account(self):
+        data = self.guest_create()
+        self.assertTrue(data.get("guest_token"))
+        self.assertEqual(len(data["guest_token"]), 32)
+        application = EnrollmentApplication.objects.get(pk=data["id"])
+        self.assertIsNone(application.applicant_id)
+        self.assertEqual(application.guest_token, data["guest_token"])
+        self.assertTrue(application.reference.startswith("APP-"))
+
+        # The list is scoped to exactly this one application.
+        response = self.client.get(
+            "/api/enrollment/applications/my/",
+            **self.guest_headers(data["guest_token"]),
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(response.data["results"][0]["id"], application.pk)
+
+    def test_guest_edits_only_their_own_application(self):
+        first = self.guest_create()
+        second = self.guest_create()
+        headers = self.guest_headers(first["guest_token"])
+
+        response = self.client.get(
+            f"/api/enrollment/applications/my/{second['id']}/", **headers
+        )
+        self.assertEqual(response.status_code, 404)
+
+        response = self.client.patch(
+            f"/api/enrollment/applications/my/{first['id']}/",
+            {"first_name": "Juan", "last_name": "Dela Cruz",
+             "guardian_email": "guardian@example.com"},
+            format="json", **headers,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["first_name"], "Juan")
+
+        response = self.client.patch(
+            f"/api/enrollment/applications/my/{second['id']}/",
+            {"first_name": "Someone Else"},
+            format="json", **headers,
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_invalid_or_missing_guest_token_is_rejected(self):
+        self.client.logout()
+        response = self.client.get("/api/enrollment/applications/my/")
+        self.assertEqual(response.status_code, 401)
+        response = self.client.get(
+            "/api/enrollment/applications/my/",
+            HTTP_AUTHORIZATION="Guest not-a-real-token",
+        )
+        self.assertEqual(response.status_code, 401)
+
+    def test_guest_cannot_start_a_second_open_application(self):
+        first = self.guest_create()
+        response = self.client.post(
+            "/api/enrollment/applications/my/",
+            {"period": self.period.pk, "enrollment_type": EnrollmentType.NEW,
+             "grade_level": self.grade7.pk},
+            format="json",
+            **self.guest_headers(first["guest_token"]),
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            EnrollmentApplication.objects.filter(applicant__isnull=True).count(), 1
+        )
+
+    def test_guest_full_flow_edit_upload_submit_withdraw(self):
+        data = self.guest_create()
+        headers = self.guest_headers(data["guest_token"])
+        application = EnrollmentApplication.objects.get(pk=data["id"])
+
+        response = self.client.patch(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            {"first_name": "Juan", "middle_name": "Cruz",
+             "last_name": "Dela Cruz", "date_of_birth": "2012-05-04",
+             "sex": "male", "address": "Poblacion",
+             "contact_number": "09171234567",
+             "guardian_name": "Maria Dela Cruz",
+             "guardian_relationship": "Mother",
+             "guardian_contact": "09171234567",
+             "guardian_email": "maria@example.com"},
+            format="json", **headers,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+
+        self.guest_upload_required_documents(application, data["guest_token"])
+
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            format="json", **headers,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["status"], ApplicationStatus.SUBMITTED)
+
+        # The history records a guest actor without inventing a user.
+        event = ApplicationReviewEvent.objects.filter(
+            application=application, action="submitted"
+        ).first()
+        self.assertIsNotNone(event)
+        self.assertIsNone(event.actor_id)
+        self.assertEqual(event.actor_name, "Applicant (guest)")
+
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/withdraw/",
+            format="json", **headers,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.WITHDRAWN)
+
+    def test_guest_document_download_requires_ownership(self):
+        data = self.guest_create()
+        application = EnrollmentApplication.objects.get(pk=data["id"])
+        self.guest_upload_required_documents(application, data["guest_token"])
+        document = application.documents.filter(is_required=True).first()
+        url = (
+            f"/api/enrollment/applications/{application.pk}/"
+            f"documents/{document.pk}/download/"
+        )
+        response = self.client.get(url, **self.guest_headers(data["guest_token"]))
+        self.assertEqual(response.status_code, 200)
+
+        self.client.logout()
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 401)
+
+    def test_guest_header_does_not_open_staff_endpoints(self):
+        data = self.guest_create()
+        headers = self.guest_headers(data["guest_token"])
+        response = self.client.get("/api/enrollment/applications/", **headers)
+        self.assertEqual(response.status_code, 401)
+        response = self.client.get("/api/enrollment/dashboard/", **headers)
+        self.assertEqual(response.status_code, 401)
+
+    def test_public_lookup_recovers_a_lost_token(self):
+        data = self.guest_create()
+        headers = self.guest_headers(data["guest_token"])
+        application = EnrollmentApplication.objects.get(pk=data["id"])
+        response = self.client.patch(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            {"guardian_email": "maria@example.com",
+             "guardian_contact": "0917 123-4567"},
+            format="json", **headers,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.client.logout()
+
+        # Email (any casing) works.
+        response = self.client.post(
+            "/api/enrollment/public/track/",
+            {"reference": data["reference"], "contact": "MARIA@example.com"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["guest_token"], data["guest_token"])
+        self.assertEqual(response.data["application_id"], application.pk)
+
+        # So does a phone number written with spaces and dashes.
+        response = self.client.post(
+            "/api/enrollment/public/track/",
+            {"reference": data["reference"], "contact": "0917 123-4567"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+
+        # Wrong contact and wrong reference give the same generic 404.
+        response = self.client.post(
+            "/api/enrollment/public/track/",
+            {"reference": data["reference"], "contact": "attacker@example.com"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 404)
+        response = self.client.post(
+            "/api/enrollment/public/track/",
+            {"reference": "APP-0000000000", "contact": "maria@example.com"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_lookup_never_returns_account_applications(self):
+        application = self.make_draft()
+        self.client.logout()
+        response = self.client.post(
+            "/api/enrollment/public/track/",
+            {"reference": application.reference, "contact": "anything@example.com"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_guest_duplicate_lrn_is_rejected(self):
+        first = self.guest_create()
+        second = self.guest_create()
+        response = self.client.patch(
+            f"/api/enrollment/applications/my/{first['id']}/",
+            {"lrn": "100000000777"}, format="json",
+            **self.guest_headers(first["guest_token"]),
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        response = self.client.patch(
+            f"/api/enrollment/applications/my/{second['id']}/",
+            {"lrn": "100000000777"}, format="json",
+            **self.guest_headers(second["guest_token"]),
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("lrn", response.data)
+
+
+# ---------------------------------------------------------------------------
+# Post-enrollment account claim
+# ---------------------------------------------------------------------------
+
+class AccountClaimTests(EnrollmentTestCase):
+    """Only a confirmed enrollment may mint a login — through the one-time
+    claim token issued when the student account is created."""
+
+    def setUp(self):
+        super().setUp()
+        cache.clear()
+
+    def tearDown(self):
+        cache.clear()
+        super().tearDown()
+
+    def build_guest_confirmed(self, lrn="100000000555"):
+        """Drive a public application all the way to a confirmed enrollment."""
+        data = self.guest_create()
+        headers = self.guest_headers(data["guest_token"])
+        application = EnrollmentApplication.objects.get(pk=data["id"])
+        response = self.client.patch(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            {"first_name": "Juan", "last_name": "Dela Cruz",
+             "date_of_birth": "2012-05-04", "guardian_email": "maria@example.com"},
+            format="json", **headers,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.guest_upload_required_documents(application, data["guest_token"])
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            format="json", **headers,
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+
+        self.login_as(self.registrar)
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        application = self.accept_application(application)
+        application.lrn = lrn
+        application.save()
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/assign-section/",
+            {"section": self.section_a.pk}, format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f"/api/enrollment/applications/{application.pk}/confirm/",
+                format="json",
+            )
+        self.assertEqual(response.status_code, 201, response.content)
+        application.refresh_from_db()
+        return application, data
+
+    def test_confirmation_issues_a_one_time_claim_token(self):
+        application, data = self.build_guest_confirmed()
+        self.assertEqual(application.status, ApplicationStatus.ENROLLED)
+        self.assertTrue(application.account_claim_token)
+        self.assertEqual(len(application.account_claim_token), 32)
+        self.assertIsNone(application.account_claimed_at)
+
+        # The public owner sees the claim offer through their token.
+        self.client.logout()
+        response = self.client.get(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            **self.guest_headers(data["guest_token"]),
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.data["account_claim_available"])
+        self.assertEqual(response.data["claim_token"], application.account_claim_token)
+
+    def test_enrolled_student_claims_their_account(self):
+        application, data = self.build_guest_confirmed()
+        claim_token = application.account_claim_token
+        old_guest_token = data["guest_token"]
+        self.client.logout()
+
+        response = self.client.post(
+            "/api/enrollment/claim-account/",
+            {"claim_token": claim_token, "username": "juandelacruz",
+             "password": "Claim-Passw0rd!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["user"]["username"], "juandelacruz")
+        self.assertTrue(response.data["token"])
+
+        # The application is now owned by the new account; guest access dies.
+        application.refresh_from_db()
+        self.assertIsNotNone(application.applicant_id)
+        self.assertEqual(application.student.user.username, "juandelacruz")
+        self.assertIsNone(application.guest_token)
+        self.assertIsNone(application.account_claim_token)
+        self.assertIsNotNone(application.account_claimed_at)
+
+        response = self.client.get(
+            "/api/enrollment/applications/my/",
+            **self.guest_headers(old_guest_token),
+        )
+        self.assertEqual(response.status_code, 401)
+
+        # The chosen credentials really sign in.
+        response = self.client.post(
+            "/api/auth/token/",
+            {"username": "juandelacruz", "password": "Claim-Passw0rd!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+
+        # ...and the claim token is single-use.
+        response = self.client.post(
+            "/api/enrollment/claim-account/",
+            {"claim_token": claim_token, "username": "secondaccount",
+             "password": "Claim-Passw0rd!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_claim_requires_a_confirmed_enrollment(self):
+        self.client.logout()
+        response = self.client.post(
+            "/api/enrollment/claim-account/",
+            {"claim_token": "f" * 32, "username": "someone",
+             "password": "Claim-Passw0rd!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+        # A real token on an unconfirmed application is still too early.
+        data = self.guest_create()
+        application = EnrollmentApplication.objects.get(pk=data["id"])
+        application.account_claim_token = "e" * 32
+        application.save()
+        response = self.client.post(
+            "/api/enrollment/claim-account/",
+            {"claim_token": "e" * 32, "username": "someone",
+             "password": "Claim-Passw0rd!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Registrar confirms", str(response.data))
+
+    def test_claim_validates_credentials(self):
+        application, data = self.build_guest_confirmed()
+        claim_token = application.account_claim_token
+        self.client.logout()
+
+        # Taken username.
+        response = self.client.post(
+            "/api/enrollment/claim-account/",
+            {"claim_token": claim_token, "username": "t_applicant1",
+             "password": "Claim-Passw0rd!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("username", response.data)
+
+        # Weak password.
+        response = self.client.post(
+            "/api/enrollment/claim-account/",
+            {"claim_token": claim_token, "username": "freshstudent",
+             "password": "12345678"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("password", response.data)
+
+        # Missing pieces.
+        response = self.client.post(
+            "/api/enrollment/claim-account/", {"claim_token": claim_token},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+
+        # Failed attempts never consume the token.
+        application.refresh_from_db()
+        self.assertIsNotNone(application.account_claim_token)
+        self.assertIsNone(application.account_claimed_at)
+
+    def test_existing_student_match_is_not_reissued_an_account(self):
+        # The LRN already belongs to a student who has an account: confirm
+        # links the existing identity instead of minting a second user.
+        application, data = self.build_guest_confirmed(lrn="100000000001")
+        application.refresh_from_db()
+        self.assertEqual(application.student_id, self.student1.pk)
+        self.assertIsNone(application.account_claim_token)
+
+        self.client.logout()
+        response = self.client.get(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            **self.guest_headers(data["guest_token"]),
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertFalse(response.data["account_claim_available"])
+        self.assertIsNone(response.data["claim_token"])
+
+    def test_guest_sees_their_confirmed_enrollment(self):
+        application, data = self.build_guest_confirmed()
+        self.client.logout()
+        response = self.client.get(
+            "/api/enrollment/my-enrollments/",
+            **self.guest_headers(data["guest_token"]),
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(len(response.data), 1)
+        expected = Enrollment.objects.get(application=application)
+        self.assertEqual(response.data[0]["id"], expected.pk)

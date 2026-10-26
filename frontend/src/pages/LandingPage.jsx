@@ -137,7 +137,7 @@ const STEPS = [
   {
     icon: 'clipboard',
     title: 'Sign In to Your Account',
-    body: 'Use the account issued by the school registrar. One sign-in gives you access to every module your role is authorized for.',
+    body: 'New students apply through the public enrollment portal first — the account follows once enrollment is confirmed. Everyone else signs in with the account the school issued.',
   },
   {
     icon: 'send',
@@ -169,8 +169,8 @@ const TRUST = [
   },
   {
     icon: 'user',
-    title: 'Registrar-issued Accounts',
-    body: 'There is no public sign-up. Every account is issued and controlled by the school. Unauthorized access is not possible by design.',
+    title: 'Accounts After Enrollment',
+    body: 'There is no open sign-up — students apply publicly at /enroll, and an account is only created once the school confirms the enrollment.',
   },
 ]
 
@@ -224,7 +224,7 @@ const FAQS = [
   },
   {
     q: 'How do I get an account?',
-    a: 'Accounts are issued by the school registrar — there is no public sign-up. Contact the TRACK administrator if you need access or if your credentials have stopped working.',
+    a: 'New students do not need one to apply — submit an application through the public enrollment portal at /enroll and track it with your reference number. Your account is created after the Registrar confirms your enrollment. Existing students, teachers and staff receive their accounts from the school registrar.',
   },
   {
     q: 'What can a parent or student see?',
@@ -244,7 +244,7 @@ const FAQS = [
   },
   {
     q: 'Is my data safe?',
-    a: 'All records are scoped strictly by role and enforced server-side. Every significant action is logged in an audit trail. Accounts are issued and revoked by the school — there is no way to self-register.',
+    a: 'All records are scoped strictly by role and enforced server-side. Every significant action is logged in an audit trail. Accounts are issued and revoked by the school — the only public entry point is the enrollment application at /enroll.',
   },
   {
     q: 'Where do announcements and reminders appear?',
@@ -488,10 +488,15 @@ export default function LandingPage() {
                 <Link className="hero-btn-primary hero-btn-pulse" to={dashboardHref}>
                   {signedIn ? 'Go to my dashboard' : 'Sign in to TRACK'}
                 </Link>
+                <Link className="hero-btn-secondary" to="/enroll">
+                  Enroll
+                </Link>
                 <a className="hero-btn-secondary" href="#features">Explore features</a>
               </div>
 
-              <p className="hero-note">Accounts are issued by the school registrar.</p>
+              <p className="hero-note">
+                New student? <Link to="/enroll">Apply without an account →</Link>
+              </p>
 
               <div className="hero-stats">
                 <StatCounter value={4} label="Roles" sublabel={'ADMINS · TEACHERS\nSTUDENTS · PARENTS'} />
@@ -893,7 +898,7 @@ export default function LandingPage() {
 
         <div className="foot-bottom">
           <p>© {SITE_YEAR} TRACK · Purok 10 Mato-og, Kiwalan, Iligan City, Philippines</p>
-          <p>Accounts are issued and controlled by the school registrar.</p>
+          <p>Accounts are created after enrollment is confirmed and controlled by the school registrar.</p>
         </div>
       </footer>
     </div>

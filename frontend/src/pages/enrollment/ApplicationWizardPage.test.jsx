@@ -4,12 +4,14 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ApplicationWizardPage from './ApplicationWizardPage'
 import EnrollmentPortal from './EnrollmentPortal'
-import api from '../../services/api'
+import api, { setGuestToken } from '../../services/api'
 import useFetch from '../../hooks/useFetch'
 
 vi.mock('../../services/api', () => ({
   default: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), list: vi.fn() },
   API_BASE: '/api',
+  authHeader: () => ({}),
+  setGuestToken: vi.fn(),
 }))
 vi.mock('../../hooks/useFetch', () => ({ default: vi.fn() }))
 
@@ -162,6 +164,30 @@ describe('ApplicationWizardPage', () => {
     expect(screen.getByLabelText(/^first name/i)).toHaveValue('Liza')
     expect(screen.getByLabelText(/date of birth/i)).toHaveValue('2012-05-01')
     expect(screen.getByText(/draft app-0011/i)).toBeInTheDocument()
+  })
+
+  it('stores the guest token returned by an account-less draft create', async () => {
+    mockUseFetch()
+    mockApi({ detail: draftDetail() })
+    api.post.mockResolvedValue({
+      id: 11,
+      reference: 'APP-0011',
+      guest_token: 'c'.repeat(64),
+    })
+    const user = userEvent.setup()
+    renderWizard()
+
+    await user.selectOptions(
+      await screen.findByLabelText(/enrollment period/i),
+      '3'
+    )
+    await user.selectOptions(screen.getByLabelText(/grade level/i), '1')
+    await user.click(screen.getByRole('button', { name: /create draft/i }))
+
+    await waitFor(() =>
+      expect(setGuestToken).toHaveBeenCalledWith('c'.repeat(64))
+    )
+    expect(await screen.findByLabelText(/learner reference number/i)).toBeInTheDocument()
   })
 
   it('surfaces the duplicate-application error with a way back', async () => {

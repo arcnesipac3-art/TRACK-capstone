@@ -270,12 +270,20 @@ export default function LoginPage() {
           <div className="auth-divider" aria-hidden="true" />
 
           <p className="auth-note">
-            Accounts are issued by the school registrar. Trouble signing in? Contact the TRACK administrator.
+            Accounts are created after a student&apos;s enrollment is confirmed —
+            there is no sign-up form here. Trouble signing in? Contact the TRACK
+            administrator.
           </p>
-          <Link to="/" className="back-home">
-            <Icon name="arrowLeft" size={14} />
-            Back to home
-          </Link>
+          <div className="stack stack-xs" style={{ alignItems: 'flex-start' }}>
+            <Link to="/enroll" className="back-home">
+              <Icon name="arrowRight" size={14} />
+              Apply without an account →
+            </Link>
+            <Link to="/" className="back-home">
+              <Icon name="arrowLeft" size={14} />
+              Back to home
+            </Link>
+          </div>
         </div>
       </main>
 

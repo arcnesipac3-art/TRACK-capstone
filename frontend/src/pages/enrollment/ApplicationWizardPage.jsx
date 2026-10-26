@@ -5,7 +5,7 @@ import Modal from '../../components/Modal'
 import { ButtonLoader } from '../../components/loading'
 import PageHeader from '../../components/PageHeader'
 import StatusBadge from '../../components/StatusBadge'
-import api, { API_BASE } from '../../services/api'
+import api, { API_BASE, authHeader, setGuestToken } from '../../services/api'
 import useFetch from '../../hooks/useFetch'
 import {
   ENROLLMENT_TYPES,
@@ -105,11 +105,12 @@ function fieldErrorsFrom(err) {
 
 /**
  * Upload one requirement file. The shared api client always JSON-serializes
- * its body, so multipart uploads go through fetch directly with the stored
- * DRF token — the browser sets the multipart boundary itself.
+ * its body, so multipart uploads go through fetch directly with the shared
+ * auth header (Token for signed-in users, Guest for account-less applicants)
+ * — the browser sets the multipart boundary itself.
  */
 async function uploadDocumentFile(applicationId, docId, file) {
-  const token = sessionStorage.getItem('track.auth.token')
+  const headers = authHeader()
   const formData = new FormData()
   formData.append('file', file)
 
@@ -119,7 +120,7 @@ async function uploadDocumentFile(applicationId, docId, file) {
       `${API_BASE}/enrollment/applications/my/${applicationId}/documents/${docId}/upload/`,
       {
         method: 'POST',
-        headers: token ? { Authorization: `Token ${token}` } : undefined,
+        headers: Object.keys(headers).length ? headers : undefined,
         body: formData,
       }
     )
@@ -352,6 +353,10 @@ export default function ApplicationWizardPage() {
         period: Number(details.period),
         ...detailsPayload(),
       })
+      // A guest (account-less) draft create returns the one-time guest
+      // credential — store it before any follow-up request so they keep
+      // access to their own application.
+      if (created && created.guest_token) setGuestToken(created.guest_token)
       let detail = created
       try {
         detail = await api.get(`/enrollment/applications/my/${created.id}/`)

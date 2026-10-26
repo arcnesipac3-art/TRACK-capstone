@@ -96,6 +96,10 @@ urlpatterns = [
     path("enrollment/applications/my/<int:pk>/withdraw/", enrollment_views.MyApplicationWithdrawView.as_view(), name="my_application_withdraw"),
     path("enrollment/applications/my/<int:pk>/documents/<int:document_pk>/upload/", enrollment_views.MyApplicationDocumentUploadView.as_view(), name="my_application_document_upload"),
     path("enrollment/my-enrollments/", enrollment_views.MyEnrollmentsView.as_view(), name="my_enrollments"),
+    # Public portal (no account required): browse is AllowAny on the period
+    # and requirement GETs; these two complete the account-less flow.
+    path("enrollment/public/track/", enrollment_views.PublicApplicationTrackView.as_view(), name="enrollment_public_track"),
+    path("enrollment/claim-account/", enrollment_views.ClaimAccountView.as_view(), name="enrollment_claim_account"),
     # Document download (owner-side or staff with enrollment.view)
     path("enrollment/applications/<int:pk>/documents/<int:document_pk>/download/", enrollment_views.ApplicationDocumentDownloadView.as_view(), name="application_document_download"),
     # Staff side (Registrar workspace)
