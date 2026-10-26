@@ -19,20 +19,33 @@ function StatCounter({ value, label, sublabel }) {
   useEffect(() => {
     const el = ref.current
     if (!el || fired) return
+
+    const animate = () => {
+      const duration = 900
+      const start = performance.now()
+      function tick(now) {
+        const p = Math.min((now - start) / duration, 1)
+        const eased = 1 - Math.pow(1 - p, 3)
+        setCount(Math.round(eased * value))
+        if (p < 1) requestAnimationFrame(tick)
+      }
+      requestAnimationFrame(tick)
+    }
+
+    // Never construct an observer blindly: in browsers (and test environments)
+    // without IntersectionObserver the throw would take the whole landing page
+    // down. Play the count immediately instead of leaving it pinned at zero.
+    if (typeof IntersectionObserver === 'undefined') {
+      animate()
+      return undefined
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) return
         setFired(true)
         observer.disconnect()
-        const duration = 900
-        const start = performance.now()
-        function tick(now) {
-          const p = Math.min((now - start) / duration, 1)
-          const eased = 1 - Math.pow(1 - p, 3)
-          setCount(Math.round(eased * value))
-          if (p < 1) requestAnimationFrame(tick)
-        }
-        requestAnimationFrame(tick)
+        animate()
       },
       { threshold: 0.5 },
     )

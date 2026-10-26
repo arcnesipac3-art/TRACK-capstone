@@ -6,6 +6,7 @@ import Icon from '../components/Icon'
 import ListSkeleton from '../components/loading/ListSkeleton'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
+import TableSkeleton from '../components/loading/TableSkeleton'
 import api from '../services/api'
 import useFetch from '../hooks/useFetch'
 import {

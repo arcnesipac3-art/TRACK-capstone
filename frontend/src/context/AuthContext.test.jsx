@@ -1,7 +1,8 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { AuthProvider, useAuth } from './AuthContext'
+import { AuthProvider } from './AuthProvider'
+import { useAuth } from './AuthContext'
 import api, { ApiError } from '../services/api'
 
 // Mock the whole API module so no network is touched.
@@ -15,14 +16,18 @@ vi.mock('../services/api', () => {
     }
   }
   return {
+    // AuthProvider restores the session with api.get('/auth/me/') so it can
+    // pass an AbortSignal for the 10s timeout — mock that path, not api.me.
     default: {
       ensureCsrf: vi.fn().mockResolvedValue(undefined),
+      get: vi.fn(),
       me: vi.fn(),
       login: vi.fn(),
       logout: vi.fn().mockResolvedValue({}),
     },
     api: {
       ensureCsrf: vi.fn().mockResolvedValue(undefined),
+      get: vi.fn(),
       me: vi.fn(),
       login: vi.fn(),
       logout: vi.fn().mockResolvedValue({}),
@@ -73,14 +78,14 @@ beforeEach(() => {
 
 describe('AuthProvider', () => {
   it('starts in the loading state before the session is restored', () => {
-    api.me.mockReturnValue(new Promise(() => {})) // never resolves
+    api.get.mockReturnValue(new Promise(() => {})) // never resolves
     renderAuth()
     expect(screen.getByTestId('loading').textContent).toBe('true')
     expect(screen.getByTestId('status').textContent).toBe('loading')
   })
 
   it('restores an existing session from /auth/me/', async () => {
-    api.me.mockResolvedValue({
+    api.get.mockResolvedValue({
       id: 1,
       username: 'ada',
       first_name: 'Ada',
@@ -94,11 +99,15 @@ describe('AuthProvider', () => {
     expect(screen.getByTestId('authenticated').textContent).toBe('true')
     expect(screen.getByTestId('role').textContent).toBe('admin')
     expect(screen.getByTestId('fullname').textContent).toBe('Ada Admin')
-    expect(api.me).toHaveBeenCalled()
+    // The restore must go through the abortable GET, not the plain api.me().
+    expect(api.get).toHaveBeenCalledWith(
+      '/auth/me/',
+      expect.objectContaining({ signal: expect.anything() }),
+    )
   })
 
   it('treats a 401/403 from /auth/me/ as a clean anonymous state', async () => {
-    api.me.mockRejectedValue(new ApiError('Not authenticated', 401))
+    api.get.mockRejectedValue(new ApiError('Not authenticated', 401))
     renderAuth()
     await waitFor(() =>
       expect(screen.getByTestId('status').textContent).toBe('anonymous')
@@ -107,7 +116,7 @@ describe('AuthProvider', () => {
   })
 
   it('records a bootstrap error for a network failure instead of pretending to be signed out silently', async () => {
-    api.me.mockRejectedValue(new ApiError('Cannot reach the TRACK server.', 0))
+    api.get.mockRejectedValue(new ApiError('Cannot reach the TRACK server.', 0))
     renderAuth()
     await waitFor(() =>
       expect(screen.getByTestId('status').textContent).toBe('anonymous')
@@ -118,7 +127,7 @@ describe('AuthProvider', () => {
 
   it('login() stores the returned profile and marks the session authenticated', async () => {
     const user = userEvent.setup()
-    api.me.mockRejectedValue(new ApiError('no session', 401))
+    api.get.mockRejectedValue(new ApiError('no session', 401))
     api.login.mockResolvedValue({
       user: {
         id: 7,
@@ -144,7 +153,7 @@ describe('AuthProvider', () => {
   })
 
   it('normalises legacy role names from the backend', async () => {
-    api.me.mockResolvedValue({ id: 1, username: 'x', role: 'administrator' })
+    api.get.mockResolvedValue({ id: 1, username: 'x', role: 'administrator' })
     renderAuth()
     await waitFor(() =>
       expect(screen.getByTestId('role').textContent).toBe('admin')
@@ -152,7 +161,7 @@ describe('AuthProvider', () => {
   })
 
   it('maps an unrecognised role to null so it can never pass a role gate', async () => {
-    api.me.mockResolvedValue({ id: 1, username: 'x', role: 'hacker' })
+    api.get.mockResolvedValue({ id: 1, username: 'x', role: 'hacker' })
     renderAuth()
     await waitFor(() =>
       expect(screen.getByTestId('status').textContent).toBe('authenticated')
@@ -162,7 +171,7 @@ describe('AuthProvider', () => {
 
   it('logout() clears local state even if the server call fails', async () => {
     const user = userEvent.setup()
-    api.me.mockResolvedValue({ id: 1, username: 'ada', role: 'admin' })
+    api.get.mockResolvedValue({ id: 1, username: 'ada', role: 'admin' })
     api.logout.mockRejectedValue(new ApiError('network down', 0))
     renderAuth()
     await waitFor(() =>
@@ -178,7 +187,7 @@ describe('AuthProvider', () => {
   })
 
   it('never exposes a password or token in the context value', async () => {
-    api.me.mockResolvedValue({ id: 1, username: 'ada', role: 'admin' })
+    api.get.mockResolvedValue({ id: 1, username: 'ada', role: 'admin' })
 
     // Probe that renders the context's own keys and profile shape into the
     // DOM — no outer-variable assignment during render.
@@ -211,7 +220,7 @@ describe('AuthProvider', () => {
 
 describe('permission helpers', () => {
   it('normalizes administrator RBAC data and answers can() per key', async () => {
-    api.me.mockResolvedValue({
+    api.get.mockResolvedValue({
       id: 9,
       username: 'ada',
       first_name: 'Ada',
@@ -234,7 +243,7 @@ describe('permission helpers', () => {
   })
 
   it('holds no keys for non-administrators, even if the payload sent some', async () => {
-    api.me.mockResolvedValue({
+    api.get.mockResolvedValue({
       id: 3,
       username: 'tina',
       first_name: 'Tina',

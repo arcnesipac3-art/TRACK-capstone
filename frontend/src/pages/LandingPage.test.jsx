@@ -71,13 +71,13 @@ describe('LandingPage', () => {
     renderLanding()
 
     expect(
-      screen.getByRole('heading', { level: 1, name: /tracked in one place/i }),
+      screen.getByRole('heading', { level: 1, name: /all school records/i }),
     ).toBeInTheDocument()
     expect(document.querySelectorAll('.feature-card')).toHaveLength(8)
     expect(document.querySelectorAll('.role-card')).toHaveLength(4)
     expect(document.querySelectorAll('.faq-item')).toHaveLength(8)
     expect(document.querySelector('.cta-card')).toBeInTheDocument()
-    expect(document.querySelectorAll('[data-reveal]')).toHaveLength(6)
+    expect(document.querySelectorAll('[data-reveal]')).toHaveLength(9)
   })
 })
 
@@ -105,7 +105,7 @@ describe('LandingPage scroll reveal', () => {
     expect(document.querySelector('.landing')).toHaveClass('reveal-ready')
     const observer = FakeIntersectionObserver.latest
     expect(observer).not.toBeNull()
-    expect(observer.targets.size).toBe(6)
+    expect(observer.targets.size).toBe(9)
     expect(observer.options).toMatchObject({ threshold: 0.06 })
     // Nothing hidden-and-unrevealed yet: the callback has not fired.
     expect(document.querySelectorAll('.reveal-in')).toHaveLength(0)
