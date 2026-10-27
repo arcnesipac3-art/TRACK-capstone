@@ -1,18 +1,19 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ApplicationDetailPage from './ApplicationDetailPage'
 import EnrollmentPortal from './EnrollmentPortal'
 import AuthContext from '../../context/AuthContext'
-import api from '../../services/api'
+import api, { clearGuestToken } from '../../services/api'
 import useFetch from '../../hooks/useFetch'
 
 vi.mock('../../hooks/useFetch', () => ({ default: vi.fn() }))
 vi.mock('../../services/api', () => ({
-  default: { post: vi.fn(), claimAccount: vi.fn() },
+  default: { post: vi.fn(), delete: vi.fn(), claimAccount: vi.fn() },
   API_BASE: '/api',
   authHeader: () => ({}),
+  clearGuestToken: vi.fn(),
 }))
 
 function makeDetail(overrides = {}) {
@@ -95,6 +96,7 @@ function renderDetail(app, entry = '/student/enrollment/applications/9') {
         <Routes>
           <Route path="/student/enrollment" element={<EnrollmentPortal />}>
             <Route index element={<div>Student enrollment portal</div>} />
+            <Route path="applications" element={<div>My applications</div>} />
             <Route path="applications/:id" element={<ApplicationDetailPage />} />
           </Route>
         </Routes>
@@ -155,6 +157,100 @@ describe('ApplicationDetailPage', () => {
 
     await user.click(confirm)
     expect(api.post).toHaveBeenCalledTimes(1)
+  })
+
+  it('deletes a cancelled application after confirmation and returns to the list', async () => {
+    api.delete.mockResolvedValue(null)
+    const user = userEvent.setup()
+    renderDetail(makeDetail({ status: 'cancelled', available_actions: [] }))
+
+    await user.click(screen.getByRole('button', { name: /delete application/i }))
+    const dialog = await screen.findByRole('dialog', {
+      name: /delete this application/i,
+    })
+    expect(within(dialog).getByText(/cannot be undone/i)).toBeInTheDocument()
+
+    await user.click(within(dialog).getByRole('button', { name: /delete application/i }))
+
+    await waitFor(() =>
+      expect(api.delete).toHaveBeenCalledWith('/enrollment/applications/my/9/')
+    )
+    expect(await screen.findByText('My applications')).toBeInTheDocument()
+  })
+
+  it('offers the delete action on a draft next to submit', () => {
+    renderDetail(
+      makeDetail({ status: 'draft', available_actions: ['submitted'] })
+    )
+
+    expect(
+      screen.getByRole('button', { name: /submit application/i })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /^delete application$/i })
+    ).toBeInTheDocument()
+  })
+
+  it('hides the delete action while the application is still in play', () => {
+    renderDetail(makeDetail({ status: 'under_review' }))
+    expect(
+      screen.queryByRole('button', { name: /delete application/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it('hides the delete action on an enrolled application', () => {
+    renderDetail(makeDetail({ status: 'enrolled' }))
+    expect(
+      screen.queryByRole('button', { name: /delete application/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it('clears the guest token when a public applicant deletes their application', async () => {
+    api.delete.mockResolvedValue(null)
+    const user = userEvent.setup()
+    useFetch.mockReturnValue({
+      data: makeDetail({ status: 'cancelled', available_actions: [] }),
+      loading: false,
+      error: null,
+      reload: vi.fn(),
+    })
+    render(
+      <AuthContext.Provider value={anonymousAuth}>
+        <MemoryRouter initialEntries={['/enroll/applications/9']}>
+          <Routes>
+            <Route
+              path="/enroll"
+              element={
+                <div>
+                  Public enrollment home
+                  <Outlet />
+                </div>
+              }
+            >
+              <Route path="applications/:id" element={<ApplicationDetailPage />} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>
+    )
+
+    await user.click(
+      await screen.findByRole('button', { name: /delete application/i })
+    )
+    const dialog = await screen.findByRole('dialog', {
+      name: /delete this application/i,
+    })
+    await user.click(
+      within(dialog).getByRole('button', { name: /delete application/i })
+    )
+
+    await waitFor(() =>
+      expect(api.delete).toHaveBeenCalledWith('/enrollment/applications/my/9/')
+    )
+    // The token belonged to the deleted row — dropped, and the visitor is
+    // back on the public landing instead of a dead detail page.
+    expect(clearGuestToken).toHaveBeenCalled()
+    expect(await screen.findByText('Public enrollment home')).toBeInTheDocument()
   })
 
   it('greets a fresh submission with a success notice', () => {

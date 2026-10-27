@@ -328,7 +328,8 @@ class MyEnrollmentApplicationsView(generics.ListCreateAPIView):
 class MyApplicationDetailView(generics.RetrieveUpdateDestroyAPIView):
     authentication_classes = GUEST_AUTHENTICATION_CLASSES
     permission_classes = [IsAuthenticatedOrGuest]
-    """Read, edit (draft/corrections) or discard (draft only) own application."""
+    """Read, edit (draft/corrections) or discard own application — drafts and
+    finished applications (cancelled / withdrawn / rejected) only."""
 
     def get_serializer_class(self):
         if self.request.method in ("PUT", "PATCH"):
@@ -366,12 +367,24 @@ class MyApplicationDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Response(output.data)
 
     def perform_destroy(self, instance):
-        # Only unsent drafts may be discarded; anything that entered review is
-        # preserved with its history and must be withdrawn or cancelled instead.
-        if instance.status != ApplicationStatus.DRAFT:
+        # Deletable: drafts that were never sent, plus applications whose
+        # outcome is already decided and closed — cancelled (staff call),
+        # withdrawn (the applicant's own call) and rejected. The state machine
+        # gives none of those a way out, so the row would otherwise sit in the
+        # applicant's list forever with nothing left to do.
+        # Everything else keeps its history: live applications are withdrawn
+        # first, and an enrolled application is the record of enrollment.
+        if instance.status not in (
+            ApplicationStatus.DRAFT,
+            ApplicationStatus.CANCELLED,
+            ApplicationStatus.WITHDRAWN,
+            ApplicationStatus.REJECTED,
+        ):
             raise ValidationError({"detail": (
-                "Only draft applications can be deleted. Submitted applications "
-                "must be withdrawn instead."
+                "Only draft, cancelled, withdrawn or rejected applications can "
+                "be deleted. Applications still in the Registrar's queue must "
+                "be withdrawn first, and enrolled applications are kept for "
+                "the record."
             )})
         instance.delete()
 

@@ -106,6 +106,14 @@ smuggle an arbitrary status through a serializer (`status` is not writable).
 Each transition writes an immutable `ApplicationReviewEvent`
 (actor, action, from→to, applicant-facing note, staff-only internal note).
 
+**Deleting** (`DELETE /enrollment/applications/my/{id}/`) is allowed only on
+**drafts** and the terminal states **cancelled / withdrawn / rejected** — the
+owner clearing a finished application out of their list. Live applications
+keep their history (withdraw first, then delete), and **enrolled** is never
+deletable. On the public portal the delete also consumes the row's guest
+token (the token dies with the application) and returns the visitor to
+`/enroll`.
+
 ### Document statuses
 
 `not_submitted → submitted → verified | returned → submitted …`, plus
@@ -249,7 +257,7 @@ could apply).
 | `GET /enrollment/periods/` | Open/upcoming periods (staff see all; public for everyone) |
 | `POST /enrollment/applications/my/` | Create draft `{period, enrollment_type, grade_level, strand?, previous_school?, previous_school_address?, student?}` → 201 detail (prefilled + snapshot + document slots; `guest_token` in the response for public applicants). Anonymous calls throttled 10/min per IP (`auth` scope) |
 | `GET /enrollment/applications/my/` | Paginated own applications |
-| `GET/PATCH/DELETE /enrollment/applications/my/{id}/` | Detail / edit (draft & corrections only) / delete draft |
+| `GET/PATCH/DELETE /enrollment/applications/my/{id}/` | Detail / edit (draft & corrections only) / delete **draft, cancelled, withdrawn or rejected** (400 for live states — withdraw first — and for enrolled) |
 | `POST /enrollment/applications/my/{id}/submit/` | Draft → Submitted (all required documents must be uploaded; period must still accept submissions) |
 | `POST /enrollment/applications/my/{id}/resubmit/` | Corrections → Resubmitted |
 | `POST /enrollment/applications/my/{id}/withdraw/` | Applicant withdrawal from live states |
@@ -339,11 +347,11 @@ POST /api/enrollment/claim-account/                   # no credentials
 ### Backend — `python manage.py test core`
 
 ```
-Ran 313 tests — all passing (last full run; includes the 75
+Ran 316 tests — all passing (last full run; includes the 78
 core.tests_enrollment tests and every pre-existing TRACK test).
 ```
 
-New coverage (`backend/core/tests_enrollment.py`, 75 tests):
+New coverage (`backend/core/tests_enrollment.py`, 78 tests):
 period validation/close semantics/historical immutability · draft creation,
 prefill, snapshotting, duplicate-open-application guard · submit/resubmit/
 withdraw + double-submit · the full state machine (illegal moves by
@@ -369,13 +377,17 @@ applicant is keyed per user so a public flood cannot lock an account out) ·
 **post-enrollment account claim** (claim token minted only when confirmation
 creates a *new* student account; claim requires ENROLLED status; single-use;
 username uniqueness + password validators; guest credential consumed on
-success; LRN match to an existing student never reissues an account).
+success; LRN match to an existing student never reissues an account) ·
+**finished-application delete** (owner may delete draft/cancelled/withdrawn/
+rejected — each driven through its real flow; every live status and enrolled
+refused with 400; guest deletes their own cancelled row and the token dies
+with it).
 
 ### Frontend — `npm test` (Vitest)
 
 ```
 Test Files  31 passed (31)
-     Tests  347 passed (347)
+     Tests  352 passed (352)
 ```
 
 56 enrollment-related tests: landing/wizard/detail flows, draft + prefill +
@@ -387,7 +399,9 @@ success/failure, guest-token persistence, header precedence Token > Guest,
 claim form mismatch guard + successful claim storing the auth token,
 returning-guest “Continue your application” on `/enroll`, guest duplicate
 banner linking straight to the open application, `/auth/me/` skipped when no
-token is stored).
+token is stored, **delete affordance on finished applications** —
+confirmation dialog → `DELETE …/my/{id}/` → back to the list, hidden on
+live/enrolled states, guest token cleared after a public delete).
 
 ### End-to-end browser walkthrough (live dev servers)
 

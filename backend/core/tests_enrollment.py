@@ -478,6 +478,86 @@ class ApplicationDraftTests(EnrollmentTestCase):
         self.assertEqual(response.status_code, 204)
         self.assertFalse(EnrollmentApplication.objects.filter(pk=draft.pk).exists())
 
+    def test_finished_applications_can_be_deleted_by_their_owner(self):
+        # Withdrawn — the applicant's own terminal decision.
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        with self.captureOnCommitCallbacks(execute=True):
+            self.client.post(
+                f"/api/enrollment/applications/my/{application.pk}/withdraw/",
+                format="json",
+            )
+        response = self.client.delete(
+            f"/api/enrollment/applications/my/{application.pk}/"
+        )
+        self.assertEqual(response.status_code, 204, response.content)
+        self.assertFalse(EnrollmentApplication.objects.filter(pk=application.pk).exists())
+
+        # Cancelled — staff called it off; the state machine offers no way out.
+        application = self.make_draft()
+        self.login_as(self.registrar)
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "cancel", "reason": "Duplicate filing."}, format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.login_as(self.applicant1)
+        response = self.client.delete(
+            f"/api/enrollment/applications/my/{application.pk}/"
+        )
+        self.assertEqual(response.status_code, 204, response.content)
+
+        # Rejected — a final decision against the applicant.
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "reject", "reason": "Grade level is full."},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.login_as(self.applicant1)
+        response = self.client.delete(
+            f"/api/enrollment/applications/my/{application.pk}/"
+        )
+        self.assertEqual(response.status_code, 204, response.content)
+        self.assertFalse(EnrollmentApplication.objects.filter(pk=application.pk).exists())
+
+    def test_live_and_enrolled_applications_cannot_be_deleted(self):
+        # Everything still in play keeps its history: applications in the
+        # Registrar's queue (withdraw first) and the enrollment record itself.
+        application = self.make_draft()
+        self.login_as(self.applicant1)
+        for live in (
+            ApplicationStatus.SUBMITTED,
+            ApplicationStatus.UNDER_REVIEW,
+            ApplicationStatus.INCOMPLETE,
+            ApplicationStatus.RESUBMITTED,
+            ApplicationStatus.ACCEPTED,
+            ApplicationStatus.WAITLISTED,
+            ApplicationStatus.ENROLLED,
+        ):
+            application.status = live
+            application.save(update_fields=["status", "updated_at"])
+            response = self.client.delete(
+                f"/api/enrollment/applications/my/{application.pk}/"
+            )
+            self.assertEqual(response.status_code, 400, live)
+        self.assertTrue(EnrollmentApplication.objects.filter(pk=application.pk).exists())
+
     def test_withdraw_flow(self):
         application = self.make_draft()
         self.fill_required_documents(application)
@@ -1552,6 +1632,30 @@ class GuestEnrollmentTests(EnrollmentTestCase):
         self.assertEqual(
             EnrollmentApplication.objects.filter(applicant__isnull=True).count(), 1
         )
+
+    def test_guest_can_delete_own_finished_application(self):
+        # Same delete rule as signed-in applicants, scoped to the guest's own
+        # row: a cancelled application can be cleared from the public portal.
+        data = self.guest_create()
+        application = EnrollmentApplication.objects.get(pk=data["id"])
+        application.status = ApplicationStatus.CANCELLED
+        application.save(update_fields=["status", "updated_at"])
+
+        response = self.client.delete(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            **self.guest_headers(data["guest_token"]),
+        )
+        self.assertEqual(response.status_code, 204, response.content)
+        self.assertFalse(
+            EnrollmentApplication.objects.filter(pk=application.pk).exists()
+        )
+
+        # The token dies with the application: it no longer authenticates.
+        response = self.client.get(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            **self.guest_headers(data["guest_token"]),
+        )
+        self.assertEqual(response.status_code, 401)
 
     def test_anonymous_create_is_rate_limited_per_ip(self):
         # The public create branch is AllowAny — without a cap a script

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import ErrorMessage from '../../components/ErrorMessage'
 import Icon from '../../components/Icon'
@@ -7,7 +7,7 @@ import { ButtonLoader, PageLoader } from '../../components/loading'
 import Modal from '../../components/Modal'
 import PageHeader from '../../components/PageHeader'
 import StatusBadge from '../../components/StatusBadge'
-import api, { API_BASE, authHeader } from '../../services/api'
+import api, { API_BASE, authHeader, clearGuestToken } from '../../services/api'
 import useFetch from '../../hooks/useFetch'
 import {
   ENROLLMENT_TYPES,
@@ -47,7 +47,19 @@ const ACTION_CONFIG = {
     endpoint: 'withdraw',
     buttonMod: 'btn-danger',
   },
+  delete: {
+    label: 'Delete application',
+    title: 'Delete this application?',
+    body: 'Deleting permanently removes this application and its uploaded documents from your list. This cannot be undone.',
+    confirmLabel: 'Delete application',
+    endpoint: null, // DELETE, not a workflow POST — handled in confirmAction
+    buttonMod: 'btn-danger',
+  },
 }
+
+/** Statuses whose outcome is final — the owner may clear them from their
+ *  list. Mirrors the DELETE rule enforced by the API (drafts too). */
+const DELETABLE_STATUSES = ['draft', 'cancelled', 'withdrawn', 'rejected']
 
 function humanize(value) {
   return String(value || '').replace(/_/g, ' ')
@@ -248,6 +260,8 @@ async function uploadDocumentFile(applicationId, docId, file) {
 export default function ApplicationDetailPage() {
   const { id } = useParams()
   const { user } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const justSubmitted = searchParams.get('submitted') === '1'
 
@@ -269,6 +283,20 @@ export default function ApplicationDetailPage() {
     setBusyAction(pendingAction)
     setActionError(null)
     try {
+      if (pendingAction === 'delete') {
+        await api.delete(`/enrollment/applications/my/${id}/`)
+        setPendingAction(null)
+        if (location.pathname.startsWith('/enroll')) {
+          // Public portal: the guest token belonged to the row just removed —
+          // drop it so /enroll stops presenting a dead application.
+          clearGuestToken()
+          navigate('/enroll')
+        } else {
+          // Back to the applicant's list (…/applications).
+          navigate(location.pathname.replace(/\/[^/]+$/, ''))
+        }
+        return
+      }
       await api.post(
         `/enrollment/applications/my/${id}/${ACTION_CONFIG[pendingAction].endpoint}/`
       )
@@ -337,6 +365,7 @@ export default function ApplicationDetailPage() {
   const status = applicationStatus(app.status)
   const missing = app.missing_documents || []
   const available = app.available_actions || []
+  const deletable = DELETABLE_STATUSES.includes(app.status)
   const editableDocs = app.status === 'draft' || app.status === 'incomplete'
   const events = app.events || []
   const documents = app.documents || []
@@ -387,13 +416,15 @@ export default function ApplicationDetailPage() {
         </div>
       )}
 
-      {available.length > 0 && (
+      {(available.length > 0 || deletable) && (
         <section className="card card-pad">
           <div className="row row-wrap" style={{ gap: 10, alignItems: 'center' }}>
             <span className="grow subtle">
               {busyAction
                 ? 'Working…'
-                : 'You still have actions available on this application.'}
+                : available.length > 0
+                  ? 'You still have actions available on this application.'
+                  : 'This application is finished — keep it for your records, or delete it from your list.'}
             </span>
             {available.includes('submitted') && (
               <button
@@ -423,6 +454,16 @@ export default function ApplicationDetailPage() {
                 disabled={Boolean(busyAction)}
               >
                 Withdraw application
+              </button>
+            )}
+            {deletable && (
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                onClick={() => setPendingAction('delete')}
+                disabled={Boolean(busyAction)}
+              >
+                Delete application
               </button>
             )}
           </div>
