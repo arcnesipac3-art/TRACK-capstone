@@ -1553,6 +1553,39 @@ class GuestEnrollmentTests(EnrollmentTestCase):
             EnrollmentApplication.objects.filter(applicant__isnull=True).count(), 1
         )
 
+    def test_anonymous_create_is_rate_limited_per_ip(self):
+        # The public create branch is AllowAny — without a cap a script
+        # could mint one guest application per request and flood the
+        # Registrar's queue. The "auth" scope keys anonymous callers by IP.
+        self.client.logout()
+        url = "/api/enrollment/applications/my/"
+        payload = {
+            "period": self.period.pk,
+            "enrollment_type": EnrollmentType.NEW,
+            "grade_level": self.grade7.pk,
+        }
+        codes = [
+            self.client.post(url, payload, format="json").status_code
+            for _ in range(11)
+        ]
+        self.assertEqual(codes[:10], [201] * 10, codes)
+        self.assertEqual(codes[10], 429, codes)
+        # The throttled request never reached the view: exactly the cap
+        # worth of rows exists.
+        self.assertEqual(
+            EnrollmentApplication.objects.filter(applicant__isnull=True).count(),
+            10,
+        )
+        last = self.client.post(url, payload, format="json")
+        self.assertIn("throttled", str(last.data).lower())
+
+        # A signed-in applicant is keyed by user id, not by IP — a flood
+        # against the public endpoint cannot lock an account out of
+        # starting its one allowed application.
+        self.login_as(self.applicant1)
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, 201, response.content)
+
     def test_guest_full_flow_edit_upload_submit_withdraw(self):
         data = self.guest_create()
         headers = self.guest_headers(data["guest_token"])

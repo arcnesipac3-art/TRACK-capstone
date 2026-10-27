@@ -6,6 +6,20 @@ import useFetch from '../../hooks/useFetch'
 
 vi.mock('../../hooks/useFetch', () => ({ default: vi.fn() }))
 
+// The page checks for a returning guest's application through the real api
+// client — stub only that call and let everything else come from the module.
+const { apiGet } = vi.hoisted(() => ({ apiGet: vi.fn() }))
+
+vi.mock('../../services/api', async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    default: { ...actual.default, get: apiGet },
+    getGuestToken: () => sessionStorage.getItem('track.enrollment.guest'),
+    clearGuestToken: () => sessionStorage.removeItem('track.enrollment.guest'),
+  }
+})
+
 const PERIOD = {
   id: 3,
   name: 'First Semester 2026',
@@ -43,6 +57,7 @@ function renderPublicEnroll() {
 describe('PublicEnrollPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    sessionStorage.clear()
   })
 
   it('renders open enrollment periods from the API with the public CTAs', async () => {
@@ -103,5 +118,60 @@ describe('PublicEnrollPage', () => {
     expect(
       screen.getAllByRole('link', { name: /track my application/i })[0]
     ).toHaveAttribute('href', '/enroll/track')
+  })
+
+  it('offers to continue a returning guest’s open application', async () => {
+    sessionStorage.setItem('track.enrollment.guest', 'a'.repeat(32))
+    mockPeriods({ data: { count: 1, results: [PERIOD] } })
+    apiGet.mockResolvedValue({
+      results: [{ id: 7, reference: 'APP-0007', status: 'under_review' }],
+    })
+    renderPublicEnroll()
+
+    expect(
+      await screen.findByRole('link', { name: /continue your application/i })
+    ).toHaveAttribute('href', '/enroll/applications/7')
+    expect(screen.getByText('APP-0007')).toBeInTheDocument()
+    expect(screen.getByText('Under Review', { selector: '.badge' })).toBeInTheDocument()
+    // A second open application is impossible — no misleading Start button.
+    expect(
+      screen.queryByRole('link', { name: 'Start an Application' })
+    ).not.toBeInTheDocument()
+    expect(apiGet).toHaveBeenCalledWith(
+      '/enrollment/applications/my/',
+      expect.objectContaining({ params: { page_size: 1 } }),
+    )
+  })
+
+  it('keeps Start for a guest whose application already ended, with a view link', async () => {
+    sessionStorage.setItem('track.enrollment.guest', 'b'.repeat(32))
+    mockPeriods({ data: { count: 1, results: [PERIOD] } })
+    apiGet.mockResolvedValue({
+      results: [{ id: 9, reference: 'APP-0009', status: 'enrolled' }],
+    })
+    renderPublicEnroll()
+
+    expect(
+      await screen.findByRole('link', { name: 'Start an Application' })
+    ).toHaveAttribute('href', '/enroll/apply')
+    expect(screen.getByText('APP-0009')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /view it/i })
+    ).toHaveAttribute('href', '/enroll/applications/9')
+  })
+
+  it('forgets a rejected guest token instead of offering a dead link', async () => {
+    sessionStorage.setItem('track.enrollment.guest', 'c'.repeat(32))
+    mockPeriods({ data: { count: 1, results: [PERIOD] } })
+    apiGet.mockRejectedValue(
+      Object.assign(new Error('Invalid token.'), { status: 401 }),
+    )
+    renderPublicEnroll()
+
+    expect(
+      await screen.findByRole('link', { name: 'Start an Application' })
+    ).toBeInTheDocument()
+    expect(sessionStorage.getItem('track.enrollment.guest')).toBeNull()
+    expect(screen.queryByText(/APP-/)).not.toBeInTheDocument()
   })
 })

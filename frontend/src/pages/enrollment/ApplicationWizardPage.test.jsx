@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ApplicationWizardPage from './ApplicationWizardPage'
 import EnrollmentPortal from './EnrollmentPortal'
-import api, { setGuestToken } from '../../services/api'
+import api, { getGuestToken, getStoredToken, setGuestToken } from '../../services/api'
 import useFetch from '../../hooks/useFetch'
 
 vi.mock('../../services/api', () => ({
@@ -12,6 +12,10 @@ vi.mock('../../services/api', () => ({
   API_BASE: '/api',
   authHeader: () => ({}),
   setGuestToken: vi.fn(),
+  // The wizard resolves an existing guest application when the server
+  // refuses a second open one — defaults are overridden per test below.
+  getStoredToken: vi.fn(),
+  getGuestToken: vi.fn(),
 }))
 vi.mock('../../hooks/useFetch', () => ({ default: vi.fn() }))
 
@@ -113,6 +117,11 @@ function renderWizard(entry = '/student/enrollment/new') {
             element={<div>Application detail page</div>}
           />
         </Route>
+        <Route
+          path="/enroll/applications/:id"
+          element={<div>Guest application detail</div>}
+        />
+        <Route path="/enroll/apply" element={<ApplicationWizardPage />} />
       </Routes>
     </MemoryRouter>
   )
@@ -131,6 +140,9 @@ describe('ApplicationWizardPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     sessionStorage.clear()
+    // Default world: a signed-in account with no guest credential.
+    getStoredToken.mockReturnValue('auth-token')
+    getGuestToken.mockReturnValue(null)
   })
 
   afterEach(() => {
@@ -215,6 +227,46 @@ describe('ApplicationWizardPage', () => {
       screen.getByRole('button', { name: /go to my applications/i })
     )
     expect(await screen.findByText('My applications page')).toBeInTheDocument()
+  })
+
+  it('links a public applicant straight to their existing application', async () => {
+    // A guest (no account, only the browser token) hitting the
+    // one-open-application rule gets a direct way to their own copy.
+    mockUseFetch()
+    getStoredToken.mockReturnValue(null)
+    getGuestToken.mockReturnValue('g'.repeat(32))
+    api.post.mockRejectedValue(
+      Object.assign(
+        new Error(
+          'This browser already has an open application. Track it instead of starting another one.',
+        ),
+        { status: 400 },
+      ),
+    )
+    api.get.mockResolvedValue({
+      results: [{ id: 42, reference: 'APP-42', status: 'draft' }],
+    })
+    const user = userEvent.setup()
+    renderWizard('/enroll/apply')
+
+    await user.selectOptions(
+      await screen.findByLabelText(/enrollment period/i),
+      '3',
+    )
+    await user.selectOptions(screen.getByLabelText(/grade level/i), '1')
+    await user.click(screen.getByRole('button', { name: /create draft/i }))
+
+    expect(
+      await screen.findByText(/already has an open application/i),
+    ).toBeInTheDocument()
+    expect(api.get).toHaveBeenCalledWith(
+      '/enrollment/applications/my/',
+      expect.objectContaining({ params: { page_size: 1 } }),
+    )
+    await user.click(
+      screen.getByRole('button', { name: /open my application/i }),
+    )
+    expect(await screen.findByText('Guest application detail')).toBeInTheDocument()
   })
 
   it('blocks submission while required documents are missing', async () => {

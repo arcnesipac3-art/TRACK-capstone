@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from './AuthProvider'
 import { useAuth } from './AuthContext'
 import api, { ApiError } from '../services/api'
@@ -18,12 +18,15 @@ vi.mock('../services/api', () => {
   return {
     // AuthProvider restores the session with api.get('/auth/me/') so it can
     // pass an AbortSignal for the 10s timeout — mock that path, not api.me.
+    // getStoredToken is read from the real sessionStorage so tests control
+    // it exactly the way the app does.
     default: {
       ensureCsrf: vi.fn().mockResolvedValue(undefined),
       get: vi.fn(),
       me: vi.fn(),
       login: vi.fn(),
       logout: vi.fn().mockResolvedValue({}),
+      getStoredToken: () => sessionStorage.getItem('track.auth.token'),
     },
     api: {
       ensureCsrf: vi.fn().mockResolvedValue(undefined),
@@ -34,6 +37,7 @@ vi.mock('../services/api', () => {
     },
     ApiError,
     API_BASE: '/api',
+    getStoredToken: () => sessionStorage.getItem('track.auth.token'),
   }
 })
 
@@ -74,6 +78,13 @@ function renderAuth() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // The provider only queries /auth/me/ when a credential exists — every
+  // test here simulates a browser that has one.
+  sessionStorage.setItem('track.auth.token', 'test-token')
+})
+
+afterEach(() => {
+  sessionStorage.clear()
 })
 
 describe('AuthProvider', () => {
@@ -113,6 +124,17 @@ describe('AuthProvider', () => {
       expect(screen.getByTestId('status').textContent).toBe('anonymous')
     )
     expect(screen.getByTestId('authenticated').textContent).toBe('false')
+  })
+
+  it('never calls /auth/me/ when the browser holds no token', async () => {
+    sessionStorage.removeItem('track.auth.token')
+    renderAuth()
+    await waitFor(() =>
+      expect(screen.getByTestId('status').textContent).toBe('anonymous')
+    )
+    // Public pages would otherwise log a 401 on every visit.
+    expect(api.get).not.toHaveBeenCalled()
+    expect(screen.getByTestId('loading').textContent).toBe('false')
   })
 
   it('records a bootstrap error for a network failure instead of pretending to be signed out silently', async () => {

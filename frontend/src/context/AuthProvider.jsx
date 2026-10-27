@@ -3,7 +3,7 @@
  * The context it supplies, and the useAuth hook, live in AuthContext.jsx.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import api, { ApiError } from '../services/api'
+import api, { ApiError, getStoredToken } from '../services/api'
 import AuthContext from './AuthContext'
 
 const VALID_ROLES = ['admin', 'teacher', 'student', 'parent']
@@ -52,6 +52,15 @@ export function AuthProvider({ children }) {
   const [bootstrapError, setBootstrapError] = useState(null)
 
   const loadSession = useCallback(async (opts = {}) => {
+    // Token auth is this app's only sign-in path, so with no stored token
+    // /auth/me/ could only answer 401. Skip the request entirely — public
+    // pages (e.g. /enroll) would otherwise log a 401 on every visit.
+    if (!getStoredToken()) {
+      setUser(null)
+      setStatus('anonymous')
+      setBootstrapError(null)
+      return null
+    }
     // Abort the session check after 10 seconds so the app never freezes
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 10000)

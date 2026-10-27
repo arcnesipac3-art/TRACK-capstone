@@ -5,7 +5,13 @@ import Modal from '../../components/Modal'
 import { ButtonLoader } from '../../components/loading'
 import PageHeader from '../../components/PageHeader'
 import StatusBadge from '../../components/StatusBadge'
-import api, { API_BASE, authHeader, setGuestToken } from '../../services/api'
+import api, {
+  API_BASE,
+  authHeader,
+  getGuestToken,
+  getStoredToken,
+  setGuestToken,
+} from '../../services/api'
 import useFetch from '../../hooks/useFetch'
 import {
   ENROLLMENT_TYPES,
@@ -187,6 +193,9 @@ export default function ApplicationWizardPage() {
   const [busy, setBusy] = useState(false)
   const [saved, setSaved] = useState(false)
   const [duplicate, setDuplicate] = useState(false)
+  // Set when the duplicate is a public (guest) applicant's own application:
+  // its id lets the banner link straight to it instead of dead-ending.
+  const [duplicateAppId, setDuplicateAppId] = useState(null)
   const [dirty, setDirty] = useState({
     details: false,
     student: false,
@@ -369,10 +378,25 @@ export default function ApplicationWizardPage() {
       if (
         err &&
         err.status === 400 &&
-        /already have an active application/i.test(err.message || '')
+        /already (?:have an active application|has an open application)/i.test(
+          err.message || '',
+        )
       ) {
         // Shown once in the info banner below (with the way back), not twice.
         setDuplicate(err.message)
+        // A public (guest) applicant's copy lives behind their browser token
+        // — resolve it so the banner offers "Open my application" directly.
+        if (!getStoredToken() && getGuestToken()) {
+          try {
+            const mine = await api.get('/enrollment/applications/my/', {
+              params: { page_size: 1 },
+            })
+            const first = mine && Array.isArray(mine.results) ? mine.results[0] : null
+            if (first) setDuplicateAppId(first.id)
+          } catch {
+            /* banner still offers the generic path below */
+          }
+        }
       } else {
         setError(err.message)
       }
@@ -610,9 +634,13 @@ export default function ApplicationWizardPage() {
           <button
             type="button"
             className="btn btn-secondary btn-sm"
-            onClick={() => navigate('..')}
+            onClick={() =>
+              navigate(
+                duplicateAppId ? `/enroll/applications/${duplicateAppId}` : '..',
+              )
+            }
           >
-            Go to my applications
+            {duplicateAppId ? 'Open my application' : 'Go to my applications'}
           </button>
         </div>
       )}

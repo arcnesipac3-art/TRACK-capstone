@@ -43,6 +43,11 @@ function getStoredToken() {
   }
 }
 
+// Exported so AuthProvider can skip the pointless /auth/me/ round-trip when
+// this browser holds no credential at all (token auth is the only sign-in
+// path, so such a request could only ever answer 401).
+export { getStoredToken }
+
 function setStoredToken(token) {
   try {
     sessionStorage.setItem(TOKEN_KEY, token)
@@ -117,6 +122,11 @@ function buildUrl(path, params) {
 function messageFrom(body, fallback) {
   if (!body) return fallback
   if (typeof body === 'string') return body
+  // DRF answers some ValidationErrors with a bare list of messages — treat
+  // it as messages, not as an object whose keys are indexes ("0: …").
+  if (Array.isArray(body)) {
+    return body.filter(Boolean).map(String).join(' ') || fallback
+  }
   if (body.detail) return body.detail
   if (body.non_field_errors) {
     const list = Array.isArray(body.non_field_errors)

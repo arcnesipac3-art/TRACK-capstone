@@ -233,7 +233,7 @@ staff endpoints require admin + permission keys.
 | `GET /enrollment/periods/` | none | Open periods (closed history stays staff-only) |
 | `GET /enrollment/requirements/?period=` | none | The document checklist for a period |
 | `GET /grade-levels/` | none | Reference data for the wizard's grade dropdown (writes stay `structure.manage`) |
-| `POST /enrollment/applications/my/` | none | Start an **account-less** application → 201 detail including `guest_token` (store it — it is the credential for every later call) |
+| `POST /enrollment/applications/my/` | none, throttled | Start an **account-less** application → 201 detail including `guest_token` (store it — it is the credential for every later call); anonymous creates are rate-limited per IP under the shared `auth` scope (10/min) so the public branch cannot be used to flood the Registrar's queue |
 | `POST /enrollment/public/track/` | none, throttled | `{reference, contact}` → `{application_id, status, guest_token}`; `contact` must match the guardian email or a contact number on the application; every failure returns the same 404 (no reference probing) |
 | `POST /enrollment/claim-account/` | none, throttled | `{claim_token, username, password}` → `{token, user}` (identical shape to `/auth/token/`). Only works on an **enrolled** application whose student account was just minted; single-use; validates username uniqueness + Django password validators; consumes the guest token |
 
@@ -247,7 +247,7 @@ could apply).
 | Method & path | Purpose |
 |---|---|
 | `GET /enrollment/periods/` | Open/upcoming periods (staff see all; public for everyone) |
-| `POST /enrollment/applications/my/` | Create draft `{period, enrollment_type, grade_level, strand?, previous_school?, previous_school_address?, student?}` → 201 detail (prefilled + snapshot + document slots; `guest_token` in the response for public applicants) |
+| `POST /enrollment/applications/my/` | Create draft `{period, enrollment_type, grade_level, strand?, previous_school?, previous_school_address?, student?}` → 201 detail (prefilled + snapshot + document slots; `guest_token` in the response for public applicants). Anonymous calls throttled 10/min per IP (`auth` scope) |
 | `GET /enrollment/applications/my/` | Paginated own applications |
 | `GET/PATCH/DELETE /enrollment/applications/my/{id}/` | Detail / edit (draft & corrections only) / delete draft |
 | `POST /enrollment/applications/my/{id}/submit/` | Draft → Submitted (all required documents must be uploaded; period must still accept submissions) |
@@ -339,11 +339,11 @@ POST /api/enrollment/claim-account/                   # no credentials
 ### Backend — `python manage.py test core`
 
 ```
-Ran 312 tests — all passing (last full run; includes the 74
+Ran 313 tests — all passing (last full run; includes the 75
 core.tests_enrollment tests and every pre-existing TRACK test).
 ```
 
-New coverage (`backend/core/tests_enrollment.py`, 74 tests):
+New coverage (`backend/core/tests_enrollment.py`, 75 tests):
 period validation/close semantics/historical immutability · draft creation,
 prefill, snapshotting, duplicate-open-application guard · submit/resubmit/
 withdraw + double-submit · the full state machine (illegal moves by
@@ -363,6 +363,9 @@ applications** (guest create/edit/upload/submit/withdraw, guest-token
 scoping to exactly one application, staff endpoints ignoring guest tokens,
 public period/requirement/grade-level reads, lost-token recovery through
 reference + contact lookup, LRN duplicate guard for account-less filings) ·
+**anonymous-create rate limit** (10/min per IP under the `auth` scope; the
+throttled 11th request is refused before the view runs, and a signed-in
+applicant is keyed per user so a public flood cannot lock an account out) ·
 **post-enrollment account claim** (claim token minted only when confirmation
 creates a *new* student account; claim requires ENROLLED status; single-use;
 username uniqueness + password validators; guest credential consumed on
@@ -372,7 +375,7 @@ success; LRN match to an existing student never reissues an account).
 
 ```
 Test Files  31 passed (31)
-     Tests  342 passed (342)
+     Tests  347 passed (347)
 ```
 
 56 enrollment-related tests: landing/wizard/detail flows, draft + prefill +
@@ -381,7 +384,10 @@ single-submission guards, 404/permission/conflict states, period close &
 delete rules, registrar action payloads, confirm button gating, dashboard
 error-not-zeros, **public portal** (public landing + periods, track page
 success/failure, guest-token persistence, header precedence Token > Guest,
-claim form mismatch guard + successful claim storing the auth token).
+claim form mismatch guard + successful claim storing the auth token,
+returning-guest “Continue your application” on `/enroll`, guest duplicate
+banner linking straight to the open application, `/auth/me/` skipped when no
+token is stored).
 
 ### End-to-end browser walkthrough (live dev servers)
 
@@ -392,6 +398,36 @@ document, accept, assign section, confirm) → applicant page shows
 **ENROLLED** with the **Create your account** panel → claim (mismatch guard
 first, then success) → auto-login as the new student at
 `/student/enrollment` with the guest token cleared.
+
+### Error-hunt pass (browser console + network audit)
+
+Every public and Registrar screen was then audited for console errors and
+4xx/5xx responses across ~80 requests. Findings and fixes:
+
+1. **Spurious `401` on every anonymous page** — `AuthProvider` called
+   `/auth/me/` on boot even with no credential stored (token auth is the
+   SPA's only sign-in path, so the call could only ever fail). It now skips
+   the request when no token is stored.
+2. **`0:`-prefixed error text** — the duplicate-application guard answers
+   with a bare JSON array of messages; `messageFrom` iterated it as an
+   object and rendered `"0: This browser already…"`. Array payloads are now
+   joined as plain text.
+3. **Guest duplicate dead-end** — the wizard's duplicate detection only
+   matched the account-holder wording, so a public applicant who tried to
+   start a second application saw a generic error with no way back. Both
+   wordings now match, and the banner resolves the applicant's existing
+   application to offer **Open my application**.
+4. **Returning-guest dead-end** — `/enroll` always offered *Start an
+   Application*, which the one-open-application rule can only refuse. The
+   landing now looks up the stored guest application (when a guest token
+   exists) and offers **Continue your application** with its reference and
+   status; terminal statuses keep *Start* plus a *view it* link. A rejected
+   (401/403) guest token is cleared, but network failures never are.
+
+After the fixes: zero console errors on `/enroll`, `/enroll/apply`,
+`/enroll/track`, `/login`, the Registrar dashboard, application queue and
+review workspace; the only non-2xx left in the audit is the deliberate 404
+from a wrong track lookup.
 
 ### Other commands run
 
@@ -440,3 +476,9 @@ first, then success) → auto-login as the new student at
     claim token is recovered by the Registrar resetting the password through
     the existing admin flow (the account exists but has no known password
     until claimed or reset).
+ 12. **Anonymous endpoints share one per-IP rate budget** (the `auth` scope,
+    10/min): public application creation, track lookup, claim and login all
+    count against the caller's IP. Generous for individual applicants, but a
+    whole computer lab behind a single NAT address could exhaust it during a
+    rush — raise `TRACK_AUTH_THROTTLE_RATE` if the school's egress needs it.
+    Signed-in applicants are keyed by user id and are unaffected.

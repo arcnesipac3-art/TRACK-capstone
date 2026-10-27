@@ -258,6 +258,21 @@ class MyEnrollmentApplicationsView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticatedOrGuest]
     """List everything this account may manage; start a new draft application."""
 
+    #: Creation rate limit reuses the shared "auth" bucket (10/min — see
+    #: DEFAULT_THROTTLE_RATES), keyed per IP for public applicants and per
+    #: user id for signed-in accounts.
+    throttle_scope = "auth"
+
+    def get_throttles(self):
+        # Only creation is rate-limited: the public branch is AllowAny, so
+        # without a cap anyone could mint one guest application per request
+        # (and a guest whose application already ended could loop forever),
+        # flooding the Registrar's queue. Reads stay unthrottled — a
+        # returning applicant refreshes their own list freely.
+        if self.request.method == "POST":
+            return [ScopedRateThrottle()]
+        return []
+
     def get_permissions(self):
         if self.request.method == "POST":
             # The public entry point: with no credential at all this creates
