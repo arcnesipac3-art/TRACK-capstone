@@ -139,6 +139,9 @@ export default function RegistrarApplicationReviewPage() {
   const [modal, setModal] = useState(null)
   const [notes, setNotes] = useState({ note: '', internal_note: '', reason: '' })
   const [modalErrors, setModalErrors] = useState({})
+  // Server-side failure of the last modal submit — shown INSIDE the modal so
+  // the typed notes survive and the registrar can correct and retry.
+  const [modalError, setModalError] = useState(null)
 
   const loadDetail = useCallback(async () => {
     if (!id) return
@@ -181,6 +184,7 @@ export default function RegistrarApplicationReviewPage() {
   function openModal(config) {
     setNotes({ note: '', internal_note: '', reason: '' })
     setModalErrors({})
+    setModalError(null)
     setAlert(null)
     setModal(config)
   }
@@ -189,6 +193,7 @@ export default function RegistrarApplicationReviewPage() {
     if (busy) return
     setModal(null)
     setModalErrors({})
+    setModalError(null)
   }
 
   async function submitModal(event) {
@@ -213,6 +218,7 @@ export default function RegistrarApplicationReviewPage() {
       return
     }
     setModalErrors({})
+    setModalError(null)
     setBusy('modal')
 
     try {
@@ -258,9 +264,10 @@ export default function RegistrarApplicationReviewPage() {
           })
           await Promise.all([loadDetail(), loadRecs()])
         } catch (err) {
-          setModal(null)
-          setAlert({ kind: 'error', text: err.message })
-          // A 409 means the capacity moved under us — pull fresh numbers.
+          // Keep the modal open: a 409 means the capacity moved under us, so
+          // reload fresh numbers AND let the registrar pick another section
+          // without re-opening the dialog.
+          setModalError(err.message)
           loadRecs()
         }
         return
@@ -302,8 +309,9 @@ export default function RegistrarApplicationReviewPage() {
         await loadDetail()
       }
     } catch (err) {
-      setModal(null)
-      setAlert({ kind: 'error', text: err.message })
+      // Keep the modal open with everything typed intact so the registrar
+      // can read the server's objection and retry (or cancel deliberately).
+      setModalError(err.message)
     } finally {
       setBusy(null)
     }
@@ -378,6 +386,7 @@ export default function RegistrarApplicationReviewPage() {
       <div className="stack stack-md">
         <PageHeader title="Application review" />
         <EmptyState
+          as="h2"
           icon="shield"
           title="You don't have permission"
           message="This screen needs the enrollment.view permission. Ask an administrator to grant it to your account."
@@ -483,7 +492,7 @@ export default function RegistrarApplicationReviewPage() {
             </Link>
             <button
               type="button"
-              className="btn btn-ghost btn-sm no-print"
+              className="btn btn-secondary btn-sm no-print"
               onClick={() => {
                 loadDetail()
                 loadRecs()
@@ -496,7 +505,7 @@ export default function RegistrarApplicationReviewPage() {
           </>
         }
       >
-        <div className="row row-wrap" style={{ gap: 8 }}>
+        <div className="row row-wrap gap-xs">
           <StatusBadge label={detail.status_display || status.label} tone={status.tone} />
           <span className="badge badge-blue">
             {ENROLLMENT_TYPES[detail.enrollment_type] || detail.enrollment_type}
@@ -625,7 +634,7 @@ export default function RegistrarApplicationReviewPage() {
               <div className="kv-block">
                 <span className="eyebrow">Student record</span>
                 {detail.student ? (
-                  <div className="row row-wrap" style={{ gap: 8 }}>
+                  <div className="row row-wrap gap-xs">
                     <span className="badge badge-green">Already linked</span>
                     <span>
                       {linkedName || `Student record #${detail.student}`}
@@ -640,7 +649,7 @@ export default function RegistrarApplicationReviewPage() {
                   <div className="match-list">
                     {matches.map((match) => (
                       <div className="match-item" key={match.student_id}>
-                        <div className="row row-wrap" style={{ gap: 8 }}>
+                        <div className="row row-wrap gap-xs">
                           <strong>{match.name}</strong>
                           <span className="subtle">LRN {match.lrn || '—'}</span>
                         </div>
@@ -690,7 +699,7 @@ export default function RegistrarApplicationReviewPage() {
                       <article className="doc-item" key={doc.id}>
                         <div className="doc-head">
                           <span className="doc-name">{doc.name}</span>
-                          <span className="row row-wrap" style={{ gap: 6 }}>
+                          <span className="row row-wrap gap-xs">
                             <span
                               className={`badge ${doc.is_required ? 'badge-amber' : 'badge-neutral'}`}
                             >
@@ -950,7 +959,7 @@ export default function RegistrarApplicationReviewPage() {
                         return (
                           <tr key={row.section_id}>
                             <td data-label="Section" className="cell-main">
-                              <span className="row" style={{ gap: 6 }}>
+                              <span className="row gap-xs">
                                 {row.name}
                                 {row.currently_assigned && (
                                   <span className="badge badge-green">Approved</span>
@@ -1114,6 +1123,13 @@ export default function RegistrarApplicationReviewPage() {
           onSubmit={submitModal}
           noValidate
         >
+          {modalError && (
+            <div className="alert alert-error" role="alert">
+              <Icon name="info" size={16} />
+              <span className="grow">{modalError}</span>
+            </div>
+          )}
+
           {modal?.type === 'confirm' && <p>{confirmBody}</p>}
 
           {modal?.type === 'accept' && (

@@ -260,6 +260,7 @@ export default function RegistrarEnrollmentsPage() {
 
         {!list.loading && denied && (
           <EmptyState
+            as="h2"
             icon="shield"
             title="You don't have permission"
             message="This screen needs the enrollment.view permission. Ask an administrator to grant it to your account."
@@ -285,6 +286,7 @@ export default function RegistrarEnrollmentsPage() {
         {!list.loading && !list.error && rows.length === 0 && (
           <div className="card-body">
             <EmptyState
+              as="h2"
               icon="inbox"
               title={hasFilters ? 'No matching enrollments' : 'No confirmed enrollments yet'}
               message={

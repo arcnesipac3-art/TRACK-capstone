@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import PublicEnrollPage from './PublicEnrollPage'
@@ -73,15 +73,13 @@ describe('PublicEnrollPage', () => {
 
     expect(await screen.findByText('First Semester 2026')).toBeInTheDocument()
     expect(screen.getByText('Open', { selector: '.badge' })).toBeInTheDocument()
-    // The period card links straight into the wizard with the period preset.
-    expect(
-      screen.getByRole('link', { name: 'Start an application' })
-    ).toHaveAttribute('href', '/enroll/apply?period=3')
-
-    // Hero CTAs.
-    expect(
-      screen.getByRole('link', { name: 'Start an Application' })
-    ).toHaveAttribute('href', '/enroll/apply')
+    // The period card links straight into the wizard with the period preset;
+    // the hero Start link (same label) goes to the wizard without one.
+    const startHrefs = screen
+      .getAllByRole('link', { name: 'Start an application' })
+      .map((el) => el.getAttribute('href'))
+    expect(startHrefs).toContain('/enroll/apply?period=3')
+    expect(startHrefs).toContain('/enroll/apply')
     expect(
       screen.getAllByRole('link', { name: /track my application/i })[0]
     ).toHaveAttribute('href', '/enroll/track')
@@ -102,7 +100,10 @@ describe('PublicEnrollPage', () => {
     renderPublicEnroll()
 
     expect(
-      await screen.findByText(/could not load the enrollment periods right now/i)
+      await screen.findByText(/could not load enrollment periods/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/authentication credentials were not provided/i)
     ).toBeInTheDocument()
     // The track CTA still offers a way forward.
     expect(
@@ -133,9 +134,11 @@ describe('PublicEnrollPage', () => {
     ).toHaveAttribute('href', '/enroll/applications/7')
     expect(screen.getByText('APP-0007')).toBeInTheDocument()
     expect(screen.getByText('Under Review', { selector: '.badge' })).toBeInTheDocument()
-    // A second open application is impossible — no misleading Start button.
+    // A second open application is impossible — the hero offers no Start
+    // button (the open period card below still does; that's a different period).
+    const hero = screen.getByRole('region', { name: /enroll at kiwalan nhs/i })
     expect(
-      screen.queryByRole('link', { name: 'Start an Application' })
+      within(hero).queryByRole('link', { name: 'Start an application' })
     ).not.toBeInTheDocument()
     expect(apiGet).toHaveBeenCalledWith(
       '/enrollment/applications/my/',
@@ -151,9 +154,10 @@ describe('PublicEnrollPage', () => {
     })
     renderPublicEnroll()
 
-    expect(
-      await screen.findByRole('link', { name: 'Start an Application' })
-    ).toHaveAttribute('href', '/enroll/apply')
+    const startHrefs = (
+      await screen.findAllByRole('link', { name: 'Start an application' })
+    ).map((el) => el.getAttribute('href'))
+    expect(startHrefs).toContain('/enroll/apply')
     expect(screen.getByText('APP-0009')).toBeInTheDocument()
     expect(
       screen.getByRole('link', { name: /view it/i })
@@ -169,8 +173,8 @@ describe('PublicEnrollPage', () => {
     renderPublicEnroll()
 
     expect(
-      await screen.findByRole('link', { name: 'Start an Application' })
-    ).toBeInTheDocument()
+      await screen.findAllByRole('link', { name: 'Start an application' })
+    ).not.toHaveLength(0)
     expect(sessionStorage.getItem('track.enrollment.guest')).toBeNull()
     expect(screen.queryByText(/APP-/)).not.toBeInTheDocument()
   })

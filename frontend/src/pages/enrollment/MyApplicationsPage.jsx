@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import EmptyState from '../../components/EmptyState'
 import ErrorMessage from '../../components/ErrorMessage'
+import Icon from '../../components/Icon'
 import { TableSkeleton } from '../../components/loading'
 import PageHeader from '../../components/PageHeader'
 import StatusBadge from '../../components/StatusBadge'
@@ -28,6 +29,7 @@ export default function MyApplicationsPage() {
   const [status, setStatus] = useState('')
   const [schoolYear, setSchoolYear] = useState('')
   const [years, setYears] = useState([])
+  const [yearsError, setYearsError] = useState(null)
 
   useEffect(() => {
     let cancelled = false
@@ -36,8 +38,9 @@ export default function MyApplicationsPage() {
       .then((rows) => {
         if (!cancelled) setYears(rows)
       })
-      .catch(() => {
-        if (!cancelled) setYears([])
+      .catch((err) => {
+        // Keep the filter usable (All school years) but never fail silently.
+        if (!cancelled) setYearsError(err)
       })
     return () => {
       cancelled = true
@@ -71,7 +74,7 @@ export default function MyApplicationsPage() {
 
       <section className="card">
         <div className="card-body">
-          <div className="row row-wrap" style={{ gap: 12, alignItems: 'flex-end' }}>
+          <div className="row row-wrap gap-md" style={{ alignItems: 'flex-end' }}>
             <div className="field grow" style={{ minWidth: 200 }}>
               <label htmlFor="apps-status">Status</label>
               <select
@@ -94,6 +97,8 @@ export default function MyApplicationsPage() {
                 className="select"
                 value={schoolYear}
                 onChange={(e) => setSchoolYear(e.target.value)}
+                aria-invalid={yearsError ? 'true' : undefined}
+                aria-describedby={yearsError ? 'apps-year-err' : undefined}
               >
                 <option value="">All school years</option>
                 {years.map((year) => (
@@ -102,6 +107,13 @@ export default function MyApplicationsPage() {
                   </option>
                 ))}
               </select>
+              {yearsError && (
+                <span className="field-error" id="apps-year-err">
+                  <Icon name="info" size={13} />
+                  School years could not be loaded — only “All school years” is
+                  available right now.
+                </span>
+              )}
             </div>
             {hasFilters && (
               <button
@@ -120,6 +132,19 @@ export default function MyApplicationsPage() {
       </section>
 
       <section className="card">
+        <header className="card-header">
+          <h2>All applications</h2>
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs"
+            onClick={reload}
+            disabled={loading}
+          >
+            <Icon name="refresh" size={13} />
+            Refresh
+          </button>
+        </header>
+
         {loading && !data && (
           <TableSkeleton
             headers={['Reference', 'Grade', 'School year', 'Type', 'Status', 'Missing docs', 'Submitted', 'Actions']}
@@ -157,14 +182,14 @@ export default function MyApplicationsPage() {
             <table className="table responsive-table">
               <thead>
                 <tr>
-                  <th>Reference</th>
-                  <th>Grade</th>
-                  <th>School year</th>
-                  <th>Type</th>
-                  <th>Status</th>
-                  <th>Missing docs</th>
-                  <th>Submitted</th>
-                  <th>Actions</th>
+                  <th scope="col">Reference</th>
+                  <th scope="col">Grade</th>
+                  <th scope="col">School year</th>
+                  <th scope="col">Type</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Missing docs</th>
+                  <th scope="col">Submitted</th>
+                  <th scope="col">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -202,7 +227,7 @@ export default function MyApplicationsPage() {
                         )}
                       </td>
                       <td data-label="Actions">
-                        <div className="row row-wrap" style={{ gap: 8 }}>
+                        <div className="row row-wrap gap-xs">
                           <Link
                             className="btn btn-secondary btn-xs"
                             to={`applications/${app.id}`}

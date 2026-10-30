@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import EmptyState from '../../components/EmptyState'
+import ErrorMessage from '../../components/ErrorMessage'
 import Icon from '../../components/Icon'
 import { ListSkeleton } from '../../components/loading'
 import StatusBadge from '../../components/StatusBadge'
@@ -88,7 +89,7 @@ export default function PublicEnrollPage() {
           your reference number. You only create an account AFTER your enrollment
           is confirmed.
         </p>
-        <div className="row row-wrap" style={{ gap: 10 }}>
+        <div className="row row-wrap gap-sm">
           {canContinue ? (
             <Link
               className="btn btn-primary"
@@ -98,11 +99,11 @@ export default function PublicEnrollPage() {
             </Link>
           ) : (
             <Link className="btn btn-primary" to="/enroll/apply">
-              Start an Application
+              Start an application
             </Link>
           )}
           <Link className="btn btn-secondary" to="/enroll/track">
-            Track My Application
+            Track my application
           </Link>
         </div>
         {guestApp && (
@@ -131,20 +132,11 @@ export default function PublicEnrollPage() {
           )}
 
           {!loading && error && (
-            <div className="alert alert-info" role="alert">
-              <Icon name="info" size={16} />
-              <span className="grow">
-                We could not load the enrollment periods right now. You can still
-                start or track an application below.
-              </span>
-              <button
-                type="button"
-                className="btn btn-secondary btn-xs"
-                onClick={reload}
-              >
-                Try again
-              </button>
-            </div>
+            <ErrorMessage
+              error={error}
+              title="Could not load enrollment periods"
+              onRetry={reload}
+            />
           )}
 
           {!loading && !error && openPeriods.length === 0 && (
@@ -154,7 +146,7 @@ export default function PublicEnrollPage() {
               message="New application windows will appear here as soon as the Registrar opens them. You can still track an application you already submitted."
               action={
                 <Link className="btn btn-secondary btn-sm" to="/enroll/track">
-                  Track My Application
+                  Track my application
                 </Link>
               }
             />
@@ -166,7 +158,7 @@ export default function PublicEnrollPage() {
                 const status = periodStatus(period.status)
                 return (
                   <div className="enr-period-card" key={period.id}>
-                    <div className="row row-wrap" style={{ alignItems: 'center' }}>
+                    <div className="row row-wrap">
                       <h3 className="enr-period-title grow">{period.name}</h3>
                       <StatusBadge label={status.label} tone={status.tone} />
                     </div>
@@ -189,7 +181,7 @@ export default function PublicEnrollPage() {
         </div>
       </section>
 
-      <p className="subtle" style={{ textAlign: 'center' }}>
+      <p className="subtle text-center">
         Already have an account? <Link to="/login">Sign in</Link>
       </p>
     </div>

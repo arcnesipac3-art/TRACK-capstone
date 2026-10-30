@@ -209,6 +209,7 @@ export default function RegistrarDashboard() {
 
       {!loading && !error && !stats && (
         <EmptyState
+          as="h2"
           icon="chart"
           title="No dashboard data"
           message="The server returned no figures. Try again in a moment."

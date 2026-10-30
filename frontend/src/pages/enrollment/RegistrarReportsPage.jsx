@@ -96,36 +96,33 @@ export default function RegistrarReportsPage() {
 
       {!yearsFetch.loading && !yearsFetch.error && schoolYears.length === 0 && (
         <EmptyState
+          as="h2"
           icon="calendar"
           title="No school years yet"
           message="Create a school year first — reports are produced per school year."
         />
       )}
 
-      {schoolYears.length > 0 && !schoolYear && (
-        <EmptyState
-          icon="chart"
-          title="Choose a school year"
-          message="Pick a school year above to generate its enrollment report."
-        />
-      )}
-
-      {schoolYear && loading && !report && (
+      {/* Everything below keys off `selectedYear`, not the raw state: the
+          first render defaults to the active school year on purpose, so
+          gating on `schoolYear` would hide a report that is already loading. */}
+      {selectedYear && loading && !report && (
         <div className="report-grid">
           <TableSkeleton columns={2} rows={5} label="Loading report…" />
           <TableSkeleton columns={2} rows={5} />
         </div>
       )}
 
-      {schoolYear && !loading && denied && (
+      {selectedYear && !loading && denied && (
         <EmptyState
+          as="h2"
           icon="shield"
           title="You don't have permission"
           message="This screen needs the enrollment.view permission. Ask an administrator to grant it to your account."
         />
       )}
 
-      {schoolYear && !loading && !denied && error && (
+      {selectedYear && !loading && !denied && error && (
         <ErrorMessage
           error={error}
           title="Could not build the report"
@@ -133,7 +130,7 @@ export default function RegistrarReportsPage() {
         />
       )}
 
-      {schoolYear && !loading && !error && report && (
+      {selectedYear && !loading && !error && report && (
         <>
           <section className="enr-stat-grid">
             <StatCard
@@ -297,7 +294,7 @@ export default function RegistrarReportsPage() {
         </>
       )}
 
-      {schoolYear && !loading && !error && !report && (
+      {selectedYear && !loading && !error && !report && (
         <CardSkeleton lines={3} label="Loading report…" />
       )}
     </div>

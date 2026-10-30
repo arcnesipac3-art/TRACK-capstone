@@ -131,7 +131,9 @@ async function uploadDocumentFile(applicationId, docId, file) {
       }
     )
   } catch {
-    throw new Error('Cannot reach the TRACK server. Check that Django is running.')
+    throw new Error(
+      'Cannot reach the server. Check your connection and try again.'
+    )
   }
 
   if (!response.ok) {
@@ -191,7 +193,10 @@ export default function ApplicationWizardPage() {
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
-  const [saved, setSaved] = useState(false)
+  // Sections persisted to the server during this session — the "Saved" badge
+  // only appears on a step whose own section is saved-and-clean, so it can
+  // never confirm data the user hasn't actually saved yet.
+  const [savedSections, setSavedSections] = useState({})
   const [duplicate, setDuplicate] = useState(false)
   // Set when the duplicate is a public (guest) applicant's own application:
   // its id lets the banner link straight to it instead of dead-ending.
@@ -204,9 +209,12 @@ export default function ApplicationWizardPage() {
 
   const [uploads, setUploads] = useState({})
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
   const submitBusyRef = useRef(false)
+  const stepHeadingRef = useRef(null)
+  const prevStepRef = useRef(1)
 
   const {
     data: periodData,
@@ -237,6 +245,7 @@ export default function ApplicationWizardPage() {
     setStudent(detailToStudentForm(detail))
     setGuardian(detailToGuardianForm(detail))
     setDirty({ details: false, student: false, guardian: false })
+    setSavedSections({})
     setError(null)
   }
 
@@ -281,9 +290,27 @@ export default function ApplicationWizardPage() {
     return () => window.removeEventListener('beforeunload', warn)
   }, [anyDirty])
 
+  // After a step change, move focus to the new step's heading so keyboard
+  // and screen-reader users land on the content that changed.
+  useEffect(() => {
+    if (prevStepRef.current === step) return
+    prevStepRef.current = step
+    if (stepHeadingRef.current) stepHeadingRef.current.focus()
+  }, [step])
+
   function markDirty(section) {
     setDirty((prev) => ({ ...prev, [section]: true }))
-    setSaved(false)
+    setSavedSections((prev) => {
+      if (!prev[section]) return prev
+      const next = { ...prev }
+      delete next[section]
+      return next
+    })
+  }
+
+  function markSaved(section) {
+    setDirty((prev) => ({ ...prev, [section]: false }))
+    setSavedSections((prev) => ({ ...prev, [section]: true }))
   }
 
   function update(section, field, value) {
@@ -417,8 +444,7 @@ export default function ApplicationWizardPage() {
     setError(null)
     try {
       await patchApplication(detailsPayload())
-      setDirty((prev) => ({ ...prev, details: false }))
-      setSaved(true)
+      markSaved('details')
       setStep(2)
     } catch (err) {
       setFieldErrors(fieldErrorsFrom(err))
@@ -435,8 +461,7 @@ export default function ApplicationWizardPage() {
     setError(null)
     try {
       await patchApplication(studentPayload())
-      setDirty((prev) => ({ ...prev, student: false }))
-      setSaved(true)
+      markSaved('student')
       setStep(3)
     } catch (err) {
       setFieldErrors(fieldErrorsFrom(err))
@@ -453,8 +478,7 @@ export default function ApplicationWizardPage() {
     setError(null)
     try {
       await patchApplication(guardianPayload())
-      setDirty((prev) => ({ ...prev, guardian: false }))
-      setSaved(true)
+      markSaved('guardian')
       setStep(4)
     } catch (err) {
       setFieldErrors(fieldErrorsFrom(err))
@@ -472,12 +496,11 @@ export default function ApplicationWizardPage() {
     try {
       if (step === 2) {
         await patchApplication(studentPayload())
-        setDirty((prev) => ({ ...prev, student: false }))
+        markSaved('student')
       } else if (step === 3) {
         await patchApplication(guardianPayload())
-        setDirty((prev) => ({ ...prev, guardian: false }))
+        markSaved('guardian')
       }
-      setSaved(true)
       setStep((s) => s - 1)
     } catch (err) {
       setFieldErrors(fieldErrorsFrom(err))
@@ -655,7 +678,9 @@ export default function ApplicationWizardPage() {
       {/* ---------------------------------------------------- Step 1 ---- */}
       {step === 1 && (
         <form className="card card-pad stack stack-sm" onSubmit={handleDetailsSubmit} noValidate>
-          <h2 style={{ fontSize: '1rem', margin: 0 }}>Enrollment details</h2>
+          <h2 className="enr-form-title" tabIndex={-1} ref={stepHeadingRef}>
+            Enrollment details
+          </h2>
 
           {applicationId ? (
             <div className="field">
@@ -799,9 +824,18 @@ export default function ApplicationWizardPage() {
           </div>
 
           <div className="row row-between row-wrap">
-            <Link className="btn btn-ghost btn-sm" to="..">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                // A draft already on the server keeps its saved answers; only
+                // edits made on this step since the last save are lost.
+                if (anyDirty) setCancelOpen(true)
+                else navigate('..')
+              }}
+            >
               Cancel
-            </Link>
+            </button>
             <button
               type="submit"
               className="btn btn-primary"
@@ -821,7 +855,9 @@ export default function ApplicationWizardPage() {
       {/* ---------------------------------------------------- Step 2 ---- */}
       {step === 2 && (
         <form className="card card-pad stack stack-sm" onSubmit={handleStudentSubmit} noValidate>
-          <h2 style={{ fontSize: '1rem', margin: 0 }}>Student information</h2>
+          <h2 className="enr-form-title" tabIndex={-1} ref={stepHeadingRef}>
+            Student information
+          </h2>
           <p className="subtle" style={{ margin: 0 }}>
             Prefilled from your TRACK profile where possible — check every field before
             continuing.
@@ -933,8 +969,8 @@ export default function ApplicationWizardPage() {
             >
               Back
             </button>
-            <div className="row row-wrap" style={{ gap: 10 }}>
-              {saved && (
+            <div className="row row-wrap gap-sm">
+              {savedSections.student && (
                 <span className="enr-saved" role="status">
                   <Icon name="check" size={13} /> Saved
                 </span>
@@ -951,7 +987,9 @@ export default function ApplicationWizardPage() {
       {/* ---------------------------------------------------- Step 3 ---- */}
       {step === 3 && (
         <form className="card card-pad stack stack-sm" onSubmit={handleGuardianSubmit} noValidate>
-          <h2 style={{ fontSize: '1rem', margin: 0 }}>Parent / guardian</h2>
+          <h2 className="enr-form-title" tabIndex={-1} ref={stepHeadingRef}>
+            Parent / guardian
+          </h2>
           <p className="subtle" style={{ margin: 0 }}>
             The Registrar may contact this person about the application.
           </p>
@@ -1015,8 +1053,8 @@ export default function ApplicationWizardPage() {
             >
               Back
             </button>
-            <div className="row row-wrap" style={{ gap: 10 }}>
-              {saved && (
+            <div className="row row-wrap gap-sm">
+              {savedSections.guardian && (
                 <span className="enr-saved" role="status">
                   <Icon name="check" size={13} /> Saved
                 </span>
@@ -1033,7 +1071,9 @@ export default function ApplicationWizardPage() {
       {/* ---------------------------------------------------- Step 4 ---- */}
       {step === 4 && (
         <div className="card card-pad stack stack-sm">
-          <h2 style={{ fontSize: '1rem', margin: 0 }}>Documents</h2>
+          <h2 className="enr-form-title" tabIndex={-1} ref={stepHeadingRef}>
+            Documents
+          </h2>
           <p className="subtle" style={{ margin: 0 }}>
             Upload a clear scan or photo of each requirement. Accepted formats: PDF,
             JPG, PNG, WEBP or DOC.
@@ -1078,7 +1118,11 @@ export default function ApplicationWizardPage() {
                       aria-label={`Upload ${doc.name}`}
                       disabled={upload.busy || !applicationId}
                       onChange={(e) => {
-                        const file = e.target.files && e.target.files[0]
+                        const input = e.target
+                        const file = input.files && input.files[0]
+                        // Clear the value so picking the SAME file again after
+                        // a failed upload still fires change.
+                        input.value = ''
                         if (file) handleUpload(doc.id, file)
                       }}
                     />
@@ -1276,6 +1320,39 @@ export default function ApplicationWizardPage() {
           </div>
         </div>
       )}
+
+      <Modal
+        open={cancelOpen}
+        title="Discard unsaved changes?"
+        onClose={() => setCancelOpen(false)}
+        footer={
+          <>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setCancelOpen(false)}
+            >
+              Keep editing
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => {
+                setCancelOpen(false)
+                navigate('..')
+              }}
+            >
+              Discard & leave
+            </button>
+          </>
+        }
+      >
+        <p style={{ margin: 0 }}>
+          {applicationId
+            ? 'Answers you changed on this step have not been saved yet. Anything already saved stays in your draft.'
+            : 'Your answers on this step have not been saved yet. Leaving now discards them.'}
+        </p>
+      </Modal>
 
       <Modal
         open={confirmOpen}

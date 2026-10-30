@@ -71,8 +71,8 @@ describe('EnrollmentLandingPage', () => {
 
   it('shows open enrollment periods and my applications', async () => {
     mockUseFetch({
-      apps: { data: { count: 1, results: [APPLICATION] } },
-      periods: { data: { count: 1, results: [PERIOD] } },
+      apps: { data: [APPLICATION] },
+      periods: { data: [PERIOD] },
     })
     renderLanding()
 
@@ -97,8 +97,8 @@ describe('EnrollmentLandingPage', () => {
   it('starts an application from an open period', async () => {
     const user = userEvent.setup()
     mockUseFetch({
-      apps: { data: { count: 0, results: [] } },
-      periods: { data: { count: 1, results: [PERIOD] } },
+      apps: { data: [] },
+      periods: { data: [PERIOD] },
     })
     renderLanding()
 
@@ -112,7 +112,7 @@ describe('EnrollmentLandingPage', () => {
     const user = userEvent.setup()
     mockUseFetch({
       apps: { error: new Error('Cannot reach the server') },
-      periods: { data: { count: 0, results: [] } },
+      periods: { data: [] },
     })
     renderLanding()
 
@@ -132,7 +132,7 @@ describe('EnrollmentLandingPage', () => {
     )
     mockUseFetch({
       apps: { error: unauthorized },
-      periods: { data: { count: 0, results: [] } },
+      periods: { data: [] },
     })
     renderLanding()
 
@@ -149,8 +149,8 @@ describe('EnrollmentLandingPage', () => {
 
   it('shows empty states for periods and applications', async () => {
     mockUseFetch({
-      apps: { data: { count: 0, results: [] } },
-      periods: { data: { count: 0, results: [] } },
+      apps: { data: [] },
+      periods: { data: [] },
     })
     renderLanding()
 

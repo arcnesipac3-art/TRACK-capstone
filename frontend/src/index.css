@@ -34,7 +34,9 @@
   --green-700: #15803d;
   --green-600: #16a34a;
   --green-100: #e3f5e9;
+  --amber-800: #7c4706;
   --amber-700: #a35a06;
+  --amber-200: #f3ddb9;
   --amber-100: #fdf1de;
   --red-700: #b3261e;
   --red-600: #dc2626;
@@ -60,6 +62,10 @@
   --text-subtle: #5c687d;
   --on-navy: #ffffff;
   --on-navy-muted: #a9bddf;
+  /* Hero eyebrow/lede tints on the navy gradient — brighter steps than
+     --on-navy-muted so they stay legible over the radial highlight. */
+  --on-navy-accent: #7fb0ff;
+  --on-navy-soft: #b9c9e6;
 
   /* Shape & elevation */
   --radius-sm: 6px;
@@ -299,10 +305,12 @@ img, svg { display: block; }
 }
 
 .input[aria-invalid="true"],
+.select[aria-invalid="true"],
 .textarea[aria-invalid="true"] {
   border-color: var(--red-700);
 }
 .input[aria-invalid="true"]:focus,
+.select[aria-invalid="true"]:focus,
 .textarea[aria-invalid="true"]:focus {
   box-shadow: 0 0 0 3px var(--red-100);
 }
@@ -476,7 +484,7 @@ img, svg { display: block; }
 .badge-green { background: var(--green-100); color: var(--green-700); border-color: #c4e6d0; }
 .badge-green::before { content: "✓"; }
 
-.badge-amber { background: var(--amber-100); color: var(--amber-700); border-color: #f3ddb9; }
+.badge-amber { background: var(--amber-100); color: var(--amber-700); border-color: var(--amber-200); }
 .badge-amber::before { content: "◷"; }
 
 .badge-red { background: var(--red-100); color: var(--red-700); border-color: #f4cbc7; }
@@ -525,7 +533,7 @@ img, svg { display: block; }
 .alert-title { font-weight: 700; }
 .alert-error { background: var(--red-100); border-color: #f4cbc7; color: #8f1d17; }
 .alert-info { background: var(--blue-50); border-color: #c6dbfb; color: #1a3f8f; }
-.alert-warning { background: var(--amber-100); border-color: #f3ddb9; color: #7c4706; }
+.alert-warning { background: var(--amber-100); border-color: var(--amber-200); color: var(--amber-800); }
 .alert-success { background: var(--green-100); border-color: #c4e6d0; color: var(--green-700); }
 
 .empty-state {
@@ -545,6 +553,7 @@ img, svg { display: block; }
   background: var(--gray-100);
   color: var(--text-subtle);
 }
+.empty-state h2,
 .empty-state h3 { font-size: 0.98rem; }
 .empty-state p {
   font-size: 0.88rem;
@@ -609,7 +618,30 @@ img, svg { display: block; }
 .row-wrap { flex-wrap: wrap; }
 .row-between { justify-content: space-between; }
 .row-end { justify-content: flex-end; }
+.row-center { justify-content: center; }
+.gap-xs { gap: 6px; }
+.gap-sm { gap: 10px; }
+.gap-md { gap: 16px; }
 .grow { flex: 1 1 auto; min-width: 0; }
+.text-center { text-align: center; }
+.block { display: block; }
+.mt-xs { margin-top: 8px; }
+
+/* Group caption above a checkbox/radio list inside a .field; matches the
+   .field label weight so a grouped control reads like a labelled input. */
+.field-legend {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text);
+}
+/* Bounded scroll area for a long checkbox list (grade levels, types). */
+.check-scroll {
+  max-height: 170px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+}
 
 .grid { display: grid; gap: 16px; }
 .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }

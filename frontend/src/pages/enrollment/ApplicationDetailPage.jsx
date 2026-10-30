@@ -34,7 +34,7 @@ const ACTION_CONFIG = {
   resubmitted: {
     label: 'Resubmit corrections',
     title: 'Resubmit corrections?',
-    body: 'Submit now? You can no longer edit the application until the Registrar reviews it.',
+    body: 'Resubmit now? Your corrected application goes back into the Registrar review queue, and you can no longer edit it until they review it again.',
     confirmLabel: 'Resubmit now',
     endpoint: 'resubmit',
     buttonMod: 'btn-primary',
@@ -136,7 +136,7 @@ function ClaimAccountPanel({ claimToken }) {
 
   return (
     <section className="card card-pad stack stack-sm" aria-labelledby="claim-heading">
-      <h2 id="claim-heading" style={{ fontSize: '1rem', margin: 0 }}>
+      <h2 id="claim-heading" className="enr-form-title">
         Create your account
       </h2>
       <p className="subtle" style={{ margin: 0 }}>
@@ -235,7 +235,9 @@ async function uploadDocumentFile(applicationId, docId, file) {
       }
     )
   } catch {
-    throw new Error('Cannot reach the TRACK server. Check that Django is running.')
+    throw new Error(
+      'Cannot reach the server. Check your connection and try again.'
+    )
   }
 
   if (!response.ok) {
@@ -418,7 +420,7 @@ export default function ApplicationDetailPage() {
 
       {(available.length > 0 || deletable) && (
         <section className="card card-pad">
-          <div className="row row-wrap" style={{ gap: 10, alignItems: 'center' }}>
+          <div className="row row-wrap gap-sm">
             <span className="grow subtle">
               {busyAction
                 ? 'Working…'
@@ -572,7 +574,7 @@ export default function ApplicationDetailPage() {
               <div className="enr-doc" key={doc.id}>
                 <div className="enr-doc-main">
                   <span className="enr-doc-name">{doc.name}</span>
-                  <div className="row row-wrap" style={{ gap: 6 }}>
+                  <div className="row row-wrap gap-xs">
                     <StatusBadge
                       label={doc.is_required ? 'Required' : 'Optional'}
                       tone={doc.is_required ? 'blue' : 'neutral'}
@@ -591,7 +593,7 @@ export default function ApplicationDetailPage() {
                     </span>
                   )}
                 </div>
-                <div className="row row-wrap" style={{ gap: 8 }}>
+                <div className="row row-wrap gap-xs">
                   {doc.original_filename && (
                     <button
                       type="button"
@@ -608,7 +610,11 @@ export default function ApplicationDetailPage() {
                       aria-label={`Upload ${doc.name}`}
                       disabled={upload.busy}
                       onChange={(e) => {
-                        const file = e.target.files && e.target.files[0]
+                        const input = e.target
+                        const file = input.files && input.files[0]
+                        // Clear the value so picking the SAME file again after
+                        // a failed upload still fires change.
+                        input.value = ''
                         if (file) handleUpload(doc.id, file)
                       }}
                     />
@@ -636,7 +642,7 @@ export default function ApplicationDetailPage() {
                 const to = event.to_status ? applicationStatus(event.to_status) : null
                 return (
                   <li className="enr-timeline-item" key={event.id}>
-                    <div className="row row-wrap" style={{ gap: 8, alignItems: 'center' }}>
+                    <div className="row row-wrap gap-xs">
                       <strong style={{ textTransform: 'capitalize' }}>
                         {humanize(event.action)}
                       </strong>

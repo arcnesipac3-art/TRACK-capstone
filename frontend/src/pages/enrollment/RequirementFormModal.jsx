@@ -158,10 +158,10 @@ export default function RequirementFormModal({
     }
   }
 
-  function field(name) {
+  function field(name, type = 'input') {
     return {
       id: `rf-${name}`,
-      className: 'input',
+      className: type,
       'aria-invalid': fieldErrors[name] ? 'true' : undefined,
       'aria-describedby': fieldErrors[name] ? `rf-${name}-err` : undefined,
     }
@@ -219,7 +219,7 @@ export default function RequirementFormModal({
             Delete “{requirement.name}”? This cannot be undone. The server will
             refuse if any application already references this requirement.
           </p>
-          <div className="row row-end" style={{ gap: 8 }}>
+          <div className="row row-end gap-sm">
             <button
               type="button"
               className="btn btn-secondary btn-sm"
@@ -257,7 +257,7 @@ export default function RequirementFormModal({
             <div className="field grow">
               <label htmlFor="rf-period">Enrollment period</label>
               <select
-                {...field('period')}
+                {...field('period', 'select')}
                 value={form.period}
                 onChange={(e) => update('period', e.target.value)}
                 disabled={busy}

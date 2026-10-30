@@ -81,11 +81,35 @@
 .enr-pill.active {
   border-color: var(--navy-800);
   background: var(--navy-800);
-  color: #fff;
+  color: var(--on-navy);
 }
 
 .enr-pill.active .enr-pill-count {
-  color: #fff;
+  color: var(--on-navy);
+}
+
+/* --------------------------- View tabs --------------------------- */
+
+/* Queue / Trash switch above the list — pill buttons pinned to a
+   baseline so they read as tabs, not as quick filters. */
+.enr-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.enr-tabs .enr-pill {
+  border-radius: 8px 8px 0 0;
+  border-bottom: none;
+  padding-bottom: 9px;
+}
+
+/* -------------------------- Clickable rows ----------------------- */
+
+/* The whole row opens the detail view for mouse users; the reference cell
+   holds the real link that keyboard and screen-reader users operate. */
+.clickable-row {
+  cursor: pointer;
 }
 
 /* ------------------------ Utilisation bars ------------------------ */
@@ -383,9 +407,9 @@
 }
 
 .internal-note {
-  border: 1px solid #f3ddb9;
+  border: 1px solid var(--amber-200);
   background: var(--amber-100);
-  color: #7c4706;
+  color: var(--amber-800);
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   font-size: 0.85rem;
@@ -420,7 +444,7 @@
   }
 
   body {
-    background: #fff;
+    background: var(--surface);
   }
 }
 

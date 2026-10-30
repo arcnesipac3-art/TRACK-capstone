@@ -12,18 +12,16 @@ import RequirementFormModal from './RequirementFormModal'
 import './RegistrarEnrollment.css'
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
-const SEARCH_DEBOUNCE = 300
 
 /**
  * Server-side pagination with filters — the SectionsPage pattern, scoped
- * to the document-requirement endpoint.
+ * to the document-requirement endpoint. (The requirement list is filterable
+ * by period/grade/type/active only; the API has no text-search param.)
  */
 function usePaginatedList(path) {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
-  const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({})
-  const [debouncedSearch, setDebouncedSearch] = useState('')
 
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -32,12 +30,7 @@ function usePaginatedList(path) {
 
   const abortRef = useRef(null)
 
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), SEARCH_DEBOUNCE)
-    return () => clearTimeout(timer)
-  }, [search])
-
-  const resetKey = JSON.stringify([debouncedSearch, filters])
+  const resetKey = JSON.stringify(filters)
   const [prevResetKey, setPrevResetKey] = useState(resetKey)
   if (prevResetKey !== resetKey) {
     setPrevResetKey(resetKey)
@@ -55,7 +48,6 @@ function usePaginatedList(path) {
     const params = {
       page,
       page_size: pageSize,
-      ...(debouncedSearch && { search: debouncedSearch }),
       ...filters,
     }
 
@@ -68,7 +60,7 @@ function usePaginatedList(path) {
     } finally {
       setLoading(false)
     }
-  }, [path, page, pageSize, debouncedSearch, filters])
+  }, [path, page, pageSize, filters])
 
   useEffect(() => {
     queueMicrotask(fetchData)
@@ -92,9 +84,7 @@ function usePaginatedList(path) {
     startIndex,
     endIndex,
     pageSize,
-    search,
     filters,
-    setSearch,
     setFilters,
     setPage: (next) => setPage(Math.max(1, Math.min(next, totalPages))),
     setPageSize: (size) => {
@@ -300,6 +290,7 @@ export default function EnrollmentRequirementsPage() {
 
         {!list.loading && denied && (
           <EmptyState
+            as="h2"
             icon="shield"
             title="You don't have permission"
             message="This screen needs the enrollment.manage permission. Ask an administrator to grant it to your account."
@@ -325,6 +316,7 @@ export default function EnrollmentRequirementsPage() {
         {!list.loading && !list.error && rows.length === 0 && (
           <div className="card-body">
             <EmptyState
+              as="h2"
               icon="clipboard"
               title={hasFilters ? 'No matching requirements' : 'No requirements yet'}
               message={
@@ -371,7 +363,7 @@ export default function EnrollmentRequirementsPage() {
                       <td data-label="Requirement" className="cell-main">
                         {row.name}
                         {row.description && (
-                          <span className="subtle" style={{ display: 'block' }}>
+                          <span className="subtle block">
                             {row.description}
                           </span>
                         )}
@@ -405,7 +397,7 @@ export default function EnrollmentRequirementsPage() {
                         </span>
                       </td>
                       <td data-label="Active">
-                        <div className="row row-wrap" style={{ gap: 6 }}>
+                        <div className="row row-wrap gap-xs">
                           <StatusBadge
                             label={row.is_active ? 'Active' : 'Inactive'}
                             tone={row.is_active ? 'green' : 'neutral'}

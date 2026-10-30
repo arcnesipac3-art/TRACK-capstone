@@ -20,21 +20,37 @@ export default function Modal({
 }) {
   const panelRef = useRef(null)
   const previouslyFocused = useRef(null)
+  // Read through refs so the open/close effect runs only when `open` changes.
+  // Depending on the `onClose`/`dismissible` identities would re-run it on
+  // every parent render — re-focusing the dialog mid-typing and stealing the
+  // caret out of whatever the user is writing.
+  const onCloseRef = useRef(onClose)
+  const dismissibleRef = useRef(dismissible)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+    dismissibleRef.current = dismissible
+  })
 
   useEffect(() => {
     if (!open) return undefined
 
     previouslyFocused.current = document.activeElement
     const panel = panelRef.current
-    const firstField = panel?.querySelector(
-      'input:not([type="hidden"]), select, textarea, button'
-    )
+    // Land on the first control inside the body (the thing the dialog is
+    // about), not on the Close button: a screen reader should announce the
+    // content, and focus must not sit on a button that a stray Space press
+    // would activate.
+    const firstField =
+      panel?.querySelector(
+        '.modal-body input:not([type="hidden"]), .modal-body select, .modal-body textarea, .modal-body button, .modal-footer button'
+      ) || panel
     firstField?.focus()
 
     function onKeyDown(event) {
-      if (event.key === 'Escape' && dismissible) {
+      if (event.key === 'Escape' && dismissibleRef.current) {
         event.stopPropagation()
-        onClose?.()
+        onCloseRef.current?.()
         return
       }
       // Keep Tab inside the dialog while it is open.
@@ -64,7 +80,7 @@ export default function Modal({
       document.body.style.overflow = previousOverflow
       previouslyFocused.current?.focus?.()
     }
-  }, [open, onClose, dismissible])
+  }, [open])
 
   if (!open) return null
 

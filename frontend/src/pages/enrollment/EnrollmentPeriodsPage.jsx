@@ -174,6 +174,7 @@ export default function EnrollmentPeriodsPage() {
 
         {!loading && denied && (
           <EmptyState
+            as="h2"
             icon="shield"
             title="You don't have permission"
             message="Ask an administrator for the enrollment.view permission to manage application windows."
@@ -193,6 +194,7 @@ export default function EnrollmentPeriodsPage() {
         {!loading && !error && periods.length === 0 && (
           <div className="card-body">
             <EmptyState
+              as="h2"
               icon="calendar"
               title="No enrollment periods yet"
               message="Create the first application window so students can start applying."
@@ -238,7 +240,7 @@ export default function EnrollmentPeriodsPage() {
                     <tr key={period.id}>
                       <td data-label="Period" className="cell-main">
                         {period.name || `${period.school_year_label} enrollment`}
-                        <span className="subtle" style={{ display: 'block' }}>
+                        <span className="subtle block">
                           {period.school_year_label}
                         </span>
                       </td>
@@ -390,7 +392,7 @@ export default function EnrollmentPeriodsPage() {
       >
         <p>{confirmBody}</p>
         {confirm?.type === 'close' && (
-          <p className="subtle" style={{ marginTop: 8 }}>
+          <p className="subtle mt-xs">
             Students can no longer submit new applications while the period is
             closed; everything already submitted stays exactly as it is.
           </p>

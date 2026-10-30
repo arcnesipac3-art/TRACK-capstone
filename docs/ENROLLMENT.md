@@ -114,6 +114,18 @@ deletable. On the public portal the delete also consumes the row's guest
 token (the token dies with the application) and returns the visitor to
 `/enroll`.
 
+**The Registrar's trash bin** is the staff-side counterpart: `POST
+/enrollment/applications/{id}/trash/` moves a **cancelled / rejected /
+withdrawn** application to a recoverable soft delete (`deleted_at` /
+`deleted_by`); live states are refused ("decide or withdraw first") and
+enrolled is kept. A trashed row disappears from the applicant portal, the
+public track lookup, the staff queue, the dashboard and every report figure,
+and its workflow is frozen until `POST …/{id}/restore/` brings it back.
+Permanent deletion is two-step — `DELETE /enrollment/applications/{id}/`
+only ever succeeds on a row already in the trash, so every purge is
+reviewable first. Both moves write an `ApplicationReviewEvent`
+(`trash` / `restore`).
+
 ### Document statuses
 
 `not_submitted → submitted → verified | returned → submitted …`, plus
@@ -269,8 +281,12 @@ could apply).
 
 | Method & path | Permission | Purpose |
 |---|---|---|
-| `GET /enrollment/applications/` | `enrollment.view` | Queue: filters `school_year, grade_level, enrollment_type, status, period, submitted_from/to, search, ordering` + pagination |
-| `GET /enrollment/applications/{id}/` | `enrollment.view` | Full workspace detail (documents, events incl. internal notes, student matches, blockers, available actions) |
+| `GET /enrollment/applications/` | `enrollment.view` | Queue: filters `school_year, grade_level, enrollment_type, status, period, submitted_from/to, search, ordering` + pagination; trashed rows excluded |
+| `GET /enrollment/applications/trash/` | `enrollment.view` | Trash bin: soft-deleted applications only — same filters/search/pagination as the queue, newest trashed first, rows carry `deleted_at` |
+| `GET /enrollment/applications/{id}/` | `enrollment.view` | Full workspace detail (documents, events incl. internal notes, student matches, blockers, available actions); also opens trashed rows for the trash view |
+| `POST /enrollment/applications/{id}/trash/` | `enrollment.manage` | Move a cancelled/rejected/withdrawn application to the trash → 204; 400 for live states, enrolled, or an already-trashed row |
+| `POST /enrollment/applications/{id}/restore/` | `enrollment.manage` | Restore a trashed application to the active queue → 204 (400 when it is not in the trash) |
+| `DELETE /enrollment/applications/{id}/` | `enrollment.manage` | **Permanent delete — only from the trash** (400 otherwise): removes the row together with its documents and review history → 204 |
 | `POST /enrollment/applications/{id}/action/` | `enrollment.manage` | `{action: start_review\|request_corrections\|accept\|reject\|waitlist\|cancel, note, internal_note, reason}` — reason required for reject/cancel, note required for corrections; accept blocked while required documents are unverified; waitlist blocked unless `period.allow_waitlist` |
 | `POST /enrollment/applications/{id}/documents/{docId}/action/` | `enrollment.manage` | `{action: verify\|return\|waive, note}` — note required for return |
 | `GET /enrollment/applications/{id}/section-recommendations/` | `enrollment.view` | Live capacity rows |
@@ -347,11 +363,11 @@ POST /api/enrollment/claim-account/                   # no credentials
 ### Backend — `python manage.py test core`
 
 ```
-Ran 316 tests — all passing (last full run; includes the 78
+Ran 324 tests — all passing (last full run; includes the 86
 core.tests_enrollment tests and every pre-existing TRACK test).
 ```
 
-New coverage (`backend/core/tests_enrollment.py`, 78 tests):
+New coverage (`backend/core/tests_enrollment.py`, 86 tests):
 period validation/close semantics/historical immutability · draft creation,
 prefill, snapshotting, duplicate-open-application guard · submit/resubmit/
 withdraw + double-submit · the full state machine (illegal moves by
@@ -381,27 +397,42 @@ success; LRN match to an existing student never reissues an account) ·
 **finished-application delete** (owner may delete draft/cancelled/withdrawn/
 rejected — each driven through its real flow; every live status and enrolled
 refused with 400; guest deletes their own cancelled row and the token dies
-with it).
+with it) · **Registrar trash bin** (trash only for cancelled/rejected/
+withdrawn, each driven through its real flow — live and enrolled refused with
+400; trashed rows leave the queue, the applicant portal, the public track
+lookup and the dashboard/report figures; restore round trip returns them to
+every view; permanent delete only from the trash — outside it 400, inside it
+the row and its events are gone; a trashed row's workflow is frozen and every
+trash endpoint needs `enrollment.manage`, not even an enrollment-less admin
+gets in).
 
 ### Frontend — `npm test` (Vitest)
 
 ```
-Test Files  31 passed (31)
-     Tests  352 passed (352)
+Test Files  32 passed (32)
+     Tests  368 passed (368)
 ```
 
-56 enrollment-related tests: landing/wizard/detail flows, draft + prefill +
+64+ enrollment-related tests: landing/wizard/detail flows, draft + prefill +
 duplicate handling, missing-document submit block, confirmation dialogs with
 single-submission guards, 404/permission/conflict states, period close &
 delete rules, registrar action payloads, confirm button gating, dashboard
-error-not-zeros, **public portal** (public landing + periods, track page
+error-not-zeros, **registrar reports** (the report renders on first load off
+the defaulted active year, loading skeleton, error + retry, no-years empty
+state), **public portal** (public landing + periods, track page
 success/failure, guest-token persistence, header precedence Token > Guest,
 claim form mismatch guard + successful claim storing the auth token,
 returning-guest “Continue your application” on `/enroll`, guest duplicate
 banner linking straight to the open application, `/auth/me/` skipped when no
 token is stored, **delete affordance on finished applications** —
 confirmation dialog → `DELETE …/my/{id}/` → back to the list, hidden on
-live/enrolled states, guest token cleared after a public delete).
+live/enrolled states, guest token cleared after a public delete,
+**registrar trash bin** — Queue/Trash tabs with live counts, a trash button
+only on cancelled/rejected/withdrawn rows, confirmation dialog →
+`POST …/{id}/trash/` with the server's refusal kept inside the dialog,
+immediate restore without a dialog, confirmation → `DELETE …/{id}/`,
+cancelling without any API call, and Empty trash draining the bin a page at
+a time).
 
 ### End-to-end browser walkthrough (live dev servers)
 
@@ -443,6 +474,31 @@ After the fixes: zero console errors on `/enroll`, `/enroll/apply`,
 review workspace; the only non-2xx left in the audit is the deliberate 404
 from a wrong track lookup.
 
+### Registrar trash bin — live verification (API + browser)
+
+With migration `0010` applied to the dev database, the trash round trip was
+exercised against a restarted `runserver` (registrar token):
+
+- baseline queue `2:cancelled, 1:enrolled` → `POST …/2/trash/` **204** →
+  queue `1:enrolled`, trash list shows `2:cancelled` with `deleted_at`,
+  dashboard `total_applications` drops 2 → 1;
+- `POST …/2/action/` on the trashed row → **400** "This application is in the
+  trash. Restore it first if you need to act on it.";
+- `POST …/2/restore/` **204** → queue and dashboard back to baseline, trash
+  empty;
+- two-step rule: `DELETE …/2/` while still alive → **400** "Move the
+  application to the trash first …";
+- purge round trip on a throwaway public draft (guest create → registrar
+  cancel → trash → `DELETE …/{id}/` **204**) → detail **404**, trash count 0,
+  repeat DELETE **404**, zero leftover `ApplicationReviewEvent` rows — the
+  final dev-DB state is identical to the baseline.
+
+The same flow was then driven through the UI at `localhost:5173`: Queue and
+Trash tabs with live counts, the confirmation dialog, status banners
+("moved to the trash" / "restored to the queue"), and the empty-trash state
+— after which the cancelled application was restored, leaving dev data
+untouched.
+
 ### Other commands run
 
 - `python manage.py check` — no issues.
@@ -453,7 +509,57 @@ from a wrong track lookup.
 
 ---
 
-## 10. Known limitations & school-policy decisions
+## 10. UI/UX pass (all enrollment screens)
+
+A page-by-page accessibility, correctness and consistency sweep across the
+public portal, applicant portal and Registrar admin screens. Functional and
+visual fixes were made together, each verified in a real browser against the
+dev servers as well as by unit tests.
+
+**Shared components & utilities**
+
+- `Modal.jsx` — the focus effect now keys on `[open]` only, reading
+  `onClose`/`dismissible` through refs. Previously an unstable `onClose`
+  identity re-ran the effect on every keystroke, yanking focus to the Close
+  button mid-typing (and a real `click` on Space could close the dialog).
+  Focus now lands on the first control inside the body, and typed input is
+  never stolen.
+- `EmptyState.jsx` — gained an opt-in `as` prop (default `h3`, so the 76
+  existing call sites are unchanged). Registrar screens whose empty state
+  sits directly under the page `h1` pass `as="h2"` so heading levels don't
+  skip; nested empty states stay `h3`.
+- `index.css` — new utilities (`.block`, `.mt-xs`, `.field-legend`,
+  `.check-scroll`) replace inline styles; new tokens `--amber-800`,
+  `--amber-200`, `--on-navy-accent`, `--on-navy-soft` replace hardcoded hex
+  in `.badge-amber`, `.alert-warning` and the enrollment hero/pills/notes.
+- Registrar tabs follow the APG pattern (`aria-controls`, roving tabindex,
+  Arrow/Home/End keys, `role="tabpanel"`); quick-filter pills use
+  `aria-pressed`; tab counts show `…` while loading and `—` on error rather
+  than a misleading `0`.
+
+**Registrar pages**
+
+- Applications queue: ARIA tabs/panels, grade/year lookup errors surfaced
+  via `aria-invalid` + `field-error` + `aria-describedby`, clickable rows.
+- Reports: all render gates key off `selectedYear` (follows the active year)
+  so the report renders on first load; the unreachable "Choose a school
+  year" empty state is gone. Regression tests added.
+- Review page: when a review action fails (incl. an assign 409) the typed
+  note is kept and the server's message shows inside the still-open dialog.
+
+**Config pages & modals**
+
+- `PeriodFormModal`/`RequirementFormModal`: the `field()` helper returns the
+  correct `select` class for selects (was `input`) and wires
+  `aria-invalid`/`aria-describedby` onto them; inline-styled group labels
+  and the bounded checkbox scroll box now use `.field-legend`/`.check-scroll`.
+- `EnrollmentRequirementsPage`: removed the dead search plumbing (the
+  requirements API has no `search` param) — `hasFilters`/`clearFilters` now
+  correctly reflect the real filters only.
+
+---
+
+## 11. Known limitations & school-policy decisions
 
 1. **Public applications are bearer-token based.** A guest applicant's
    access is their `guest_token`, stored in browser storage. If the browser

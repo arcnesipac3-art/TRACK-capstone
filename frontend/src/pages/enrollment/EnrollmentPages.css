@@ -170,6 +170,18 @@
 
 /* --- Misc -------------------------------------------------------------- */
 
+/* Card/step heading inside enrollment cards — sized like a card header
+   title; focusable so a wizard step change can move focus onto it. */
+.enr-form-title {
+  font-size: 1rem;
+  margin: 0;
+}
+.enr-form-title:focus {
+  outline: 2px solid var(--blue-600);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
 .enr-saved {
   display: inline-flex;
   align-items: center;
@@ -229,7 +241,7 @@
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: #7fb0ff;
+  color: var(--on-navy-accent);
 }
 
 .enr-hero h1 {
@@ -246,7 +258,7 @@
   margin: 0;
   max-width: 62ch;
   line-height: 1.6;
-  color: #b9c9e6;
+  color: var(--on-navy-soft);
 }
 
 .enr-hero-note {

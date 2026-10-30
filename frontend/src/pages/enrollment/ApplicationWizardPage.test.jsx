@@ -355,6 +355,66 @@ describe('ApplicationWizardPage', () => {
     )
   })
 
+  it('confirms before canceling with unsaved edits, and leaves cleanly without', async () => {
+    mockUseFetch()
+    mockApi({ detail: draftDetail() })
+    const user = userEvent.setup()
+    renderWizard()
+
+    // Clean form on step 1: Cancel leaves immediately, no dialog.
+    await user.click(await screen.findByRole('button', { name: /^cancel$/i }))
+    expect(await screen.findByText('My applications page')).toBeInTheDocument()
+  })
+
+  it('asks for confirmation when Cancel would discard unsaved edits', async () => {
+    mockUseFetch()
+    mockApi({ detail: draftDetail() })
+    const user = userEvent.setup()
+    renderWizard()
+
+    // Edit step 1 (dirty) then try to leave.
+    const previousSchool = await screen.findByLabelText(/previous school \(optional\)/i)
+    await user.type(previousSchool, 'Old School')
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }))
+
+    const dialog = await screen.findByRole('dialog', { name: /discard unsaved changes/i })
+    expect(
+      within(dialog).getByText(/not been saved yet/i)
+    ).toBeInTheDocument()
+
+    // Keep editing closes the dialog and stays on the wizard.
+    await user.click(within(dialog).getByRole('button', { name: /keep editing/i }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/previous school \(optional\)/i)).toHaveValue('Old School')
+
+    // Discard & leave navigates away.
+    await user.click(screen.getByRole('button', { name: /^cancel$/i }))
+    const reopened = await screen.findByRole('dialog', { name: /discard unsaved changes/i })
+    await user.click(within(reopened).getByRole('button', { name: /discard & leave/i }))
+    expect(await screen.findByText('My applications page')).toBeInTheDocument()
+  })
+
+  it('shows the Saved badge only for the section that was actually saved', async () => {
+    mockUseFetch()
+    mockApi({ detail: draftDetail() })
+    const user = userEvent.setup()
+    renderWizard('/student/enrollment/new?application=11')
+
+    await screen.findByLabelText(/learner reference number/i)
+    // Nothing saved yet on this step — no badge.
+    expect(screen.queryByText('Saved')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /save & continue/i }))
+    // Student step was saved; the guardian step must not claim it.
+    await screen.findByRole('heading', { name: /parent \/ guardian/i })
+    expect(screen.queryByText('Saved')).not.toBeInTheDocument()
+
+    // Editing a field on the guardian step, then saving, shows it here only.
+    await user.type(screen.getByLabelText(/^full name$/i), 'Ana Cruz')
+    await user.click(screen.getByRole('button', { name: /save & continue/i }))
+    await screen.findByRole('heading', { name: /^documents$/i })
+  })
+
   it('redirects a resumed application that is no longer a draft', async () => {
     mockUseFetch()
     mockApi({ detail: draftDetail({ status: 'submitted' }) })

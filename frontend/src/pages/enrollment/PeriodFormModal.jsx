@@ -178,10 +178,10 @@ export default function PeriodFormModal({ open, period, onClose, onSaved }) {
     }
   }
 
-  function field(name) {
+  function field(name, type = 'input') {
     return {
       id: `pf-${name}`,
-      className: 'input',
+      className: type,
       'aria-invalid': fieldErrors[name] ? 'true' : undefined,
       'aria-describedby': fieldErrors[name] ? `pf-${name}-err` : undefined,
     }
@@ -232,7 +232,7 @@ export default function PeriodFormModal({ open, period, onClose, onSaved }) {
           <div className="field grow">
             <label htmlFor="pf-school_year">School year</label>
             <select
-              {...field('school_year')}
+              {...field('school_year', 'select')}
               value={form.school_year}
               onChange={(e) => update('school_year', e.target.value)}
               disabled={busy}
@@ -301,18 +301,8 @@ export default function PeriodFormModal({ open, period, onClose, onSaved }) {
         </div>
 
         <div className="field">
-          <span style={{ fontWeight: 600, fontSize: '0.86rem' }}>
-            Grade levels accepted
-          </span>
-          <div
-            style={{
-              maxHeight: 170,
-              overflowY: 'auto',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '8px 10px',
-            }}
-          >
+          <span className="field-legend">Grade levels accepted</span>
+          <div className="check-scroll">
             {gradeLevels.length === 0 ? (
               <span className="subtle">
                 {optionsError
@@ -341,9 +331,7 @@ export default function PeriodFormModal({ open, period, onClose, onSaved }) {
         </div>
 
         <div className="field">
-          <span style={{ fontWeight: 600, fontSize: '0.86rem' }}>
-            Enrollment types allowed
-          </span>
+          <span className="field-legend">Enrollment types allowed</span>
           <div>
             {ENROLLMENT_TYPE_OPTIONS.map((opt) => (
               <label className="checkbox-row" key={opt.value}>

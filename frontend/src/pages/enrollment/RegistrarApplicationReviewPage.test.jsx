@@ -300,6 +300,40 @@ describe('RegistrarApplicationReviewPage', () => {
     ).toBe(true)
   })
 
+  it('keeps the typed note and shows the error when the action fails', async () => {
+    mockApi()
+    api.post.mockRejectedValue(
+      Object.assign(new Error('The application moved to another status.'), {
+        status: 409,
+      })
+    )
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(
+      await screen.findByRole('button', { name: /request corrections/i })
+    )
+    const dialog = await screen.findByRole('dialog', {
+      name: /request corrections/i,
+    })
+
+    const note = within(dialog).getByLabelText(/required corrections/i)
+    await user.type(note, 'Upload a clearer scan of the PSA certificate.')
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }))
+
+    // The modal stays open with the typed note intact, and the server's
+    // objection is visible inside it.
+    const reopened = await screen.findByRole('dialog', {
+      name: /request corrections/i,
+    })
+    expect(
+      within(reopened).getByText(/moved to another status/i)
+    ).toBeInTheDocument()
+    expect(
+      within(reopened).getByLabelText(/required corrections/i)
+    ).toHaveValue('Upload a clearer scan of the PSA certificate.')
+  })
+
   it('shows a friendly permission state on 403', async () => {
     api.get.mockRejectedValue(
       Object.assign(new Error("You do not have the 'enrollment.view' permission."), {

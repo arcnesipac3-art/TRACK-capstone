@@ -10,13 +10,7 @@ import { applicationStatus, periodStatus } from '../../utils/enrollment'
 import { formatDateTime } from '../../utils/format'
 import './EnrollmentPages.css'
 
-function toResults(data) {
-  if (Array.isArray(data)) return data
-  return (data && data.results) || []
-}
-
-/** Applicant enrollment home: open periods + this account's applications. */
-export default function EnrollmentLandingPage() {
+/** Applicant enrollment home: open periods + this account's applications. */export default function EnrollmentLandingPage() {
   const navigate = useNavigate()
 
   const {
@@ -24,17 +18,17 @@ export default function EnrollmentLandingPage() {
     loading,
     error,
     reload,
-  } = useFetch('/enrollment/applications/my/', { params: { page_size: 50 } })
+  } = useFetch('/enrollment/applications/my/', { list: true })
 
   const {
     data: periodData,
     loading: periodsLoading,
     error: periodsError,
     reload: reloadPeriods,
-  } = useFetch('/enrollment/periods/')
+  } = useFetch('/enrollment/periods/', { list: true })
 
-  const applications = toResults(appData)
-  const openPeriods = toResults(periodData).filter((p) => p.is_accepting_applications)
+  const applications = appData || []
+  const openPeriods = (periodData || []).filter((p) => p.is_accepting_applications)
 
   function startApplication(period) {
     navigate(`new?period=${period.id}`, { state: { periodId: period.id } })
@@ -50,6 +44,15 @@ export default function EnrollmentLandingPage() {
       <section className="card">
         <header className="card-header">
           <h2>Open enrollment periods</h2>
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs"
+            onClick={reloadPeriods}
+            disabled={periodsLoading}
+          >
+            <Icon name="refresh" size={13} />
+            Refresh
+          </button>
         </header>
         <div className="card-body">
           {periodsLoading && !periodData && (
@@ -78,7 +81,7 @@ export default function EnrollmentLandingPage() {
                 const status = periodStatus(period.status)
                 return (
                   <div className="enr-period-card" key={period.id}>
-                    <div className="row row-wrap" style={{ alignItems: 'center' }}>
+                    <div className="row row-wrap">
                       <h3 className="enr-period-title grow">{period.name}</h3>
                       <StatusBadge label={status.label} tone={status.tone} />
                     </div>
@@ -105,11 +108,36 @@ export default function EnrollmentLandingPage() {
       <section className="card">
         <header className="card-header">
           <h2>My applications</h2>
+          <div className="row row-wrap gap-xs">
+            <Link className="btn btn-ghost btn-xs" to="applications">
+              View all applications
+            </Link>
+            <Link className="btn btn-ghost btn-xs" to="history">
+              My enrollments
+            </Link>
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              onClick={reload}
+              disabled={loading}
+            >
+              <Icon name="refresh" size={13} />
+              Refresh
+            </button>
+          </div>
         </header>
 
         {loading && !appData && (
           <TableSkeleton
-            headers={['Reference', 'Grade', 'School year', 'Status', 'Submitted', 'Actions']}
+            headers={[
+              'Reference',
+              'Grade',
+              'School year',
+              'Status',
+              'Missing documents',
+              'Submitted',
+              'Actions',
+            ]}
             rows={4}
             label="Loading your applications…"
           />
@@ -122,7 +150,7 @@ export default function EnrollmentLandingPage() {
               title="Apply or track without an account"
               message="You are not signed in here. You can still start an enrollment application or follow one you already submitted — no account needed."
               action={
-                <div className="row row-wrap" style={{ gap: 8, justifyContent: 'center' }}>
+                <div className="row row-wrap row-center gap-xs">
                   <Link className="btn btn-primary btn-sm" to="/enroll/apply">
                     Start an application
                   </Link>
@@ -160,13 +188,13 @@ export default function EnrollmentLandingPage() {
             <table className="table responsive-table">
               <thead>
                 <tr>
-                  <th>Reference</th>
-                  <th>Grade</th>
-                  <th>School year</th>
-                  <th>Status</th>
-                  <th>Missing documents</th>
-                  <th>Submitted</th>
-                  <th>Actions</th>
+                  <th scope="col">Reference</th>
+                  <th scope="col">Grade</th>
+                  <th scope="col">School year</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Missing documents</th>
+                  <th scope="col">Submitted</th>
+                  <th scope="col">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -198,7 +226,7 @@ export default function EnrollmentLandingPage() {
                         {app.submitted_at ? formatDateTime(app.submitted_at) : <span className="subtle">—</span>}
                       </td>
                       <td data-label="Actions">
-                        <div className="row row-wrap" style={{ gap: 8 }}>
+                        <div className="row row-wrap gap-xs">
                           <Link className="btn btn-secondary btn-xs" to={`applications/${app.id}`}>
                             View
                           </Link>

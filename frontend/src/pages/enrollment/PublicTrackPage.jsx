@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { ButtonLoader } from '../../components/loading'
 import Icon from '../../components/Icon'
+import PageHeader from '../../components/PageHeader'
 import api from '../../services/api'
 import './EnrollmentPages.css'
 
@@ -56,15 +57,12 @@ export default function PublicTrackPage() {
 
   return (
     <div className="stack stack-md">
-      <div className="stack stack-xs">
-        <p className="eyebrow">Public enrollment portal</p>
-        <h1 style={{ margin: 0, fontSize: '1.4rem' }}>Track my application</h1>
-        <p className="subtle" style={{ margin: 0 }}>
-          Enter the reference number from your application together with the
+      <PageHeader
+        title="Track my application"
+        subtitle="Enter the reference number from your application together with the
           guardian email or any contact number you wrote on it. No account is
-          needed.
-        </p>
-      </div>
+          needed."
+      />
 
       <form className="card card-pad stack stack-sm" onSubmit={handleSubmit} noValidate>
         {formError && (
@@ -119,7 +117,7 @@ export default function PublicTrackPage() {
         </div>
       </form>
 
-      <p className="subtle" style={{ textAlign: 'center' }}>
+      <p className="subtle text-center">
         Want to apply first? <Link to="/enroll/apply">Start an application</Link>
       </p>
     </div>

@@ -1,5 +1,6 @@
 import EmptyState from '../../components/EmptyState'
 import ErrorMessage from '../../components/ErrorMessage'
+import Icon from '../../components/Icon'
 import { TableSkeleton } from '../../components/loading'
 import PageHeader from '../../components/PageHeader'
 import StatusBadge from '../../components/StatusBadge'
@@ -7,11 +8,10 @@ import useFetch from '../../hooks/useFetch'
 import { formatDate } from '../../utils/format'
 import './EnrollmentPages.css'
 
-/** Confirmed enrollment rows → badge labels (kept local: applicant-side only). */
+/** Confirmed enrollment rows → badge labels (kept local: applicant-side only).
+ *  Mirrors Enrollment.Status: active | dropped | withdrawn. */
 const ENROLLMENT_STATUS = {
   active: { label: 'Active', tone: 'green' },
-  confirmed: { label: 'Confirmed', tone: 'green' },
-  pending: { label: 'Pending', tone: 'amber' },
   dropped: { label: 'Dropped', tone: 'red' },
   withdrawn: { label: 'Withdrawn', tone: 'neutral' },
 }
@@ -39,6 +39,19 @@ export default function MyEnrollmentsPage() {
       />
 
       <section className="card">
+        <header className="card-header">
+          <h2>Confirmed enrollments</h2>
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs"
+            onClick={reload}
+            disabled={loading}
+          >
+            <Icon name="refresh" size={13} />
+            Refresh
+          </button>
+        </header>
+
         {loading && !data && (
           <TableSkeleton
             headers={['School year', 'Grade level', 'Section', 'Status', 'Confirmed']}
@@ -72,11 +85,11 @@ export default function MyEnrollmentsPage() {
             <table className="table responsive-table">
               <thead>
                 <tr>
-                  <th>School year</th>
-                  <th>Grade level</th>
-                  <th>Section</th>
-                  <th>Status</th>
-                  <th>Confirmed</th>
+                  <th scope="col">School year</th>
+                  <th scope="col">Grade level</th>
+                  <th scope="col">Section</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Confirmed</th>
                 </tr>
               </thead>
               <tbody>
