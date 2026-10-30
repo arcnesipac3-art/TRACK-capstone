@@ -104,8 +104,11 @@ urlpatterns = [
     path("enrollment/applications/<int:pk>/documents/<int:document_pk>/download/", enrollment_views.ApplicationDocumentDownloadView.as_view(), name="application_document_download"),
     # Staff side (Registrar workspace)
     path("enrollment/applications/", enrollment_views.StaffApplicationListView.as_view(), name="enrollment_application_list"),
+    path("enrollment/applications/trash/", enrollment_views.StaffApplicationTrashListView.as_view(), name="enrollment_application_trash_list"),
     path("enrollment/applications/<int:pk>/", enrollment_views.StaffApplicationDetailView.as_view(), name="enrollment_application_detail"),
     path("enrollment/applications/<int:pk>/action/", enrollment_views.StaffApplicationActionView.as_view(), name="enrollment_application_action"),
+    path("enrollment/applications/<int:pk>/trash/", enrollment_views.StaffApplicationTrashView.as_view(), name="enrollment_application_trash"),
+    path("enrollment/applications/<int:pk>/restore/", enrollment_views.StaffApplicationRestoreView.as_view(), name="enrollment_application_restore"),
     path("enrollment/applications/<int:pk>/documents/<int:document_pk>/action/", enrollment_views.StaffDocumentActionView.as_view(), name="enrollment_document_action"),
     path("enrollment/applications/<int:pk>/section-recommendations/", enrollment_views.StaffSectionRecommendationsView.as_view(), name="enrollment_section_recommendations"),
     path("enrollment/applications/<int:pk>/assign-section/", enrollment_views.StaffAssignSectionView.as_view(), name="enrollment_assign_section"),

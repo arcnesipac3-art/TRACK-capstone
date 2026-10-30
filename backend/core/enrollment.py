@@ -711,8 +711,12 @@ def _audit(actor, action, application, description, ip_address=None):
 
 
 def dashboard_stats(school_year=None):
-    """Real registrar-dashboard figures (no fabricated zeros on failure)."""
-    applications = EnrollmentApplication.objects.all()
+    """Real registrar-dashboard figures (no fabricated zeros on failure).
+
+    Trashed applications are excluded — the Registrar removed them from
+    every figure when they went to the trash bin.
+    """
+    applications = EnrollmentApplication.objects.filter(deleted_at__isnull=True)
     if school_year is not None:
         applications = applications.filter(school_year=school_year)
     status_counts = {
@@ -754,8 +758,13 @@ def dashboard_stats(school_year=None):
 
 
 def school_year_report(school_year):
-    """Status/grade/type breakdown plus section occupancy for one school year."""
-    applications = EnrollmentApplication.objects.filter(school_year=school_year)
+    """Status/grade/type breakdown plus section occupancy for one school year.
+
+    Trashed applications are excluded from every figure.
+    """
+    applications = EnrollmentApplication.objects.filter(
+        school_year=school_year, deleted_at__isnull=True
+    )
     enrollments = Enrollment.objects.filter(
         school_year=school_year, status=Enrollment.Status.ACTIVE
     )

@@ -598,6 +598,7 @@ class EnrollmentApplicationStaffListSerializer(serializers.ModelSerializer):
             "grade_level", "grade_level_name", "school_year", "school_year_label",
             "strand", "assigned_section_name", "outstanding_documents",
             "student", "submitted_at", "created_at", "updated_at", "decided_at",
+            "deleted_at",
         ]
 
     def get_full_name(self, obj):
@@ -662,6 +663,7 @@ class EnrollmentApplicationStaffDetailSerializer(serializers.ModelSerializer):
             "section_approved_by_name", "section_assigned_at",
             "reviewer_name", "reviewed_at", "decided_at", "decision_reason",
             "submitted_at", "requirements_snapshot", "created_at", "updated_at",
+            "deleted_at",
         ]
 
     def get_full_name(self, obj):
@@ -690,6 +692,9 @@ class EnrollmentApplicationStaffDetailSerializer(serializers.ModelSerializer):
 
     def get_available_actions(self, obj):
         from .enrollment import ALLOWED_TRANSITIONS
+        if obj.deleted_at is not None:
+            # A trashed application has no workflow until it is restored.
+            return []
         actions = [
             target
             for target, actor in ALLOWED_TRANSITIONS.get(obj.status, {}).items()

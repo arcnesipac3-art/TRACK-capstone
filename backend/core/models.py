@@ -1360,6 +1360,21 @@ class EnrollmentApplication(models.Model):
     )
     account_claimed_at = models.DateTimeField(null=True, blank=True)
 
+    # -- Registrar's trash bin (soft delete)
+    # Cancelled / rejected / withdrawn applications can be moved to the trash
+    # by the Registrar: they disappear from every queue, list, report and the
+    # applicant's own portal, but stay fully recoverable (`restore`) until
+    # permanently deleted. `deleted_at IS NULL` = alive; the two columns are
+    # additive and default to NULL, so existing rows are untouched.
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
     # -- checklist frozen when the application record is created
     requirements_snapshot = models.JSONField(default=list, blank=True)
 

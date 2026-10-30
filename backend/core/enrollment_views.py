@@ -57,6 +57,7 @@ from .enrollment_serializers import (
 )
 from .models import (
     ApplicationDocument,
+    ApplicationReviewEvent,
     ApplicationStatus,
     AuditLog,
     Enrollment,
@@ -104,16 +105,21 @@ def _visible_applications(user):
     account, or a parent/guardian with a verified link to that student.
     A public (account-less) applicant is scoped to exactly the one
     application their guest token authenticates.
+
+    Trashed applications (moved to the Registrar's trash bin) are invisible
+    on this side — to every actor — until they are restored.
     """
     guest_application = getattr(user, "guest_application", None)
     if guest_application is not None:
-        return EnrollmentApplication.objects.filter(pk=guest_application.pk)
-    if not user or not user.is_authenticated:
+        qs = EnrollmentApplication.objects.filter(pk=guest_application.pk)
+    elif not user or not user.is_authenticated:
         return EnrollmentApplication.objects.none()
-    scope = Q(applicant=user) | Q(student__user=user)
-    if user.is_parent:
-        scope |= Q(student__parents__user=user)
-    return EnrollmentApplication.objects.filter(scope).distinct()
+    else:
+        scope = Q(applicant=user) | Q(student__user=user)
+        if user.is_parent:
+            scope |= Q(student__parents__user=user)
+        qs = EnrollmentApplication.objects.filter(scope).distinct()
+    return qs.filter(deleted_at__isnull=True)
 
 
 def _workflow_error(exc):
@@ -674,6 +680,8 @@ class PublicApplicationTrackView(APIView):
             reference=reference,
             applicant__isnull=True,
             guest_token__isnull=False,
+            # Trashed applications are gone from the public portal too.
+            deleted_at__isnull=True,
         ).first()
         if application is None:
             return failure
@@ -817,11 +825,19 @@ class StaffApplicationListView(generics.ListAPIView):
     pagination_class = StaffApplicationPagination
     permission_classes = [IsAuthenticated]
 
+    #: False = the active queue (soft-deleted rows hidden); True = the trash
+    #: bin (only soft-deleted rows). Flipped by StaffApplicationTrashListView.
+    only_trashed = False
+
     def get_queryset(self):
         if not _is_enrollment_staff(self.request.user):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("You do not have the 'enrollment.view' permission.")
-        qs = EnrollmentApplication.objects.select_related(
+        # The active queue never shows trashed applications — see
+        # StaffApplicationTrashListView for the trash bin itself.
+        qs = EnrollmentApplication.objects.filter(
+            deleted_at__isnull=not self.only_trashed
+        ).select_related(
             "school_year", "grade_level", "assigned_section", "applicant", "student", "period"
         ).annotate(
             outstanding_documents=Count(
@@ -862,7 +878,112 @@ class StaffApplicationListView(generics.ListAPIView):
         return qs
 
 
+class StaffApplicationTrashListView(StaffApplicationListView):
+    """The Registrar's trash bin — soft-deleted applications only.
+
+    Inherits the queue's permission gate, filters, search and pagination;
+    `deleted_at` in each row tells the UI when it was moved here and by
+    whom (`deleted_by` stays server-side).
+    """
+
+    only_trashed = True
+
+    def get_queryset(self):
+        return super().get_queryset().order_by("-deleted_at")
+
+
+#: The only statuses whose application may be moved to the trash — the
+#: terminal, decided-against states. Drafts and live applications have real
+#: history still in motion; enrolled is the enrollment record itself.
+TRASHABLE_STATUSES = (
+    ApplicationStatus.CANCELLED,
+    ApplicationStatus.REJECTED,
+    ApplicationStatus.WITHDRAWN,
+)
+
+
+class StaffApplicationTrashView(APIView):
+    """Move a finished application to the trash bin (soft delete).
+
+    The row survives with `deleted_at`/`deleted_by` set, disappears from
+    every queue, list, report and the applicant's portal, and can be
+    restored from the trash or permanently deleted there.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if not _is_enrollment_staff(request.user, "enrollment.manage"):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You do not have the 'enrollment.manage' permission.")
+        try:
+            with transaction.atomic():
+                application = EnrollmentApplication.objects.select_for_update().get(pk=pk)
+                if application.deleted_at is not None:
+                    raise ValidationError({"detail": (
+                        "This application is already in the trash."
+                    )})
+                if application.status not in TRASHABLE_STATUSES:
+                    raise ValidationError({"detail": (
+                        "Only cancelled, rejected or withdrawn applications can be "
+                        "moved to the trash. Live applications must be decided or "
+                        "withdrawn first, and enrolled applications are kept."
+                    )})
+                application.deleted_at = timezone.now()
+                application.deleted_by = request.user
+                application.save(
+                    update_fields=["deleted_at", "deleted_by", "updated_at"]
+                )
+                ApplicationReviewEvent.objects.create(
+                    application=application,
+                    actor=request.user,
+                    action="trash",
+                    from_status=application.status,
+                    to_status=application.status,
+                    internal_note="Moved to the Registrar's trash bin.",
+                )
+        except EnrollmentApplication.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class StaffApplicationRestoreView(APIView):
+    """Return a trashed application to the active queue."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if not _is_enrollment_staff(request.user, "enrollment.manage"):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You do not have the 'enrollment.manage' permission.")
+        try:
+            with transaction.atomic():
+                application = EnrollmentApplication.objects.select_for_update().get(pk=pk)
+                if application.deleted_at is None:
+                    raise ValidationError({"detail": (
+                        "This application is not in the trash."
+                    )})
+                application.deleted_at = None
+                application.deleted_by = None
+                application.save(
+                    update_fields=["deleted_at", "deleted_by", "updated_at"]
+                )
+                ApplicationReviewEvent.objects.create(
+                    application=application,
+                    actor=request.user,
+                    action="restore",
+                    from_status=application.status,
+                    to_status=application.status,
+                    internal_note="Restored from the Registrar's trash bin.",
+                )
+        except EnrollmentApplication.DoesNotExist:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
 class StaffApplicationDetailView(generics.RetrieveAPIView):
+    """Staff detail (works for trashed rows too, so the trash view can open
+    them) + permanent deletion, which only ever happens *from* the trash."""
     serializer_class = EnrollmentApplicationStaffDetailSerializer
     permission_classes = [IsAuthenticated]
     queryset = EnrollmentApplication.objects.select_related(
@@ -877,6 +998,38 @@ class StaffApplicationDetailView(generics.RetrieveAPIView):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("You do not have the 'enrollment.view' permission.")
         return super().get_object()
+
+    def delete(self, request, pk):
+        """Permanently delete — a two-step, always through the trash bin.
+
+        Nothing outside the trash can be destroyed from the API: the
+        registrar first moves the finished application to the trash
+        (recoverable), and only a trashed row may be purged here.
+        """
+        if not _is_enrollment_staff(request.user, "enrollment.manage"):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You do not have the 'enrollment.manage' permission.")
+        application = self.get_object()
+        if application.deleted_at is None:
+            raise ValidationError({"detail": (
+                "Move the application to the trash first — permanent deletion "
+                "always goes through the trash bin so it can be reviewed and "
+                "restored before it is gone for good."
+            )})
+        with transaction.atomic():
+            locked = (
+                EnrollmentApplication.objects.select_for_update()
+                .filter(pk=application.pk)
+                .first()
+            )
+            if locked is None:
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            if locked.deleted_at is None:
+                raise ValidationError({"detail": (
+                    "This application was restored and is no longer in the trash."
+                )})
+            locked.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class StaffApplicationActionView(APIView):
@@ -919,6 +1072,11 @@ class StaffApplicationActionView(APIView):
                     .select_related("period")
                     .get(pk=pk)
                 )
+                if application.deleted_at is not None:
+                    raise workflow.EnrollmentWorkflowError(
+                        "This application is in the trash. Restore it first if "
+                        "you need to act on it."
+                    )
                 if (
                     action == "waitlist"
                     and not application.period.allow_waitlist

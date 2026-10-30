@@ -2042,3 +2042,359 @@ class AccountClaimTests(EnrollmentTestCase):
         self.assertEqual(len(response.data), 1)
         expected = Enrollment.objects.get(application=application)
         self.assertEqual(response.data[0]["id"], expected.pk)
+
+
+# ---------------------------------------------------------------------------
+# Registrar trash bin (soft delete / restore / permanent purge)
+# ---------------------------------------------------------------------------
+
+class ApplicationTrashTests(EnrollmentTestCase):
+    """The Registrar's trash bin: finished applications can be moved there,
+    brought back, or purged for good — and they vanish from every queue,
+    figure and portal while they sit in it."""
+
+    def trash_url(self, application):
+        return f"/api/enrollment/applications/{application.pk}/trash/"
+
+    def restore_url(self, application):
+        return f"/api/enrollment/applications/{application.pk}/restore/"
+
+    def make_terminal(self, kind):
+        """Build an application really sitting in the terminal status `kind`."""
+        application = self.make_draft()
+        if kind == ApplicationStatus.CANCELLED:
+            self.login_as(self.registrar)
+            response = self.client.post(
+                f"/api/enrollment/applications/{application.pk}/action/",
+                {"action": "cancel", "reason": "Duplicate filing."},
+                format="json",
+            )
+            self.assertEqual(response.status_code, 200, response.content)
+        elif kind == ApplicationStatus.REJECTED:
+            self.fill_required_documents(application)
+            self.login_as(self.applicant1)
+            self.client.post(
+                f"/api/enrollment/applications/my/{application.pk}/submit/",
+                format="json",
+            )
+            self.login_as(self.registrar)
+            for payload in (
+                {"action": "start_review"},
+                {"action": "reject", "reason": "Grade level is full."},
+            ):
+                response = self.client.post(
+                    f"/api/enrollment/applications/{application.pk}/action/",
+                    payload, format="json",
+                )
+                self.assertEqual(response.status_code, 200, response.content)
+        else:  # withdrawn — the applicant's own decision
+            self.fill_required_documents(application)
+            self.login_as(self.applicant1)
+            self.client.post(
+                f"/api/enrollment/applications/my/{application.pk}/submit/",
+                format="json",
+            )
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(
+                    f"/api/enrollment/applications/my/{application.pk}/withdraw/",
+                    format="json",
+                )
+            self.assertEqual(response.status_code, 200, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.status, kind)
+        return application
+
+    def test_trash_hides_finished_applications_from_every_queue(self):
+        for kind in (
+            ApplicationStatus.CANCELLED,
+            ApplicationStatus.REJECTED,
+            ApplicationStatus.WITHDRAWN,
+        ):
+            application = self.make_terminal(kind)
+            self.login_as(self.registrar)
+
+            response = self.client.post(self.trash_url(application), format="json")
+            self.assertEqual(response.status_code, 204, response.content)
+            application.refresh_from_db()
+            self.assertIsNotNone(application.deleted_at)
+            self.assertEqual(application.deleted_by_id, self.registrar.pk)
+            self.assertTrue(application.events.filter(action="trash").exists())
+
+            # Out of the active queue, into the trash bin.
+            active = self.client.get("/api/enrollment/applications/")
+            self.assertNotIn(
+                application.pk, [row["id"] for row in active.data["results"]]
+            )
+            trash = self.client.get("/api/enrollment/applications/trash/")
+            self.assertIn(
+                application.pk, [row["id"] for row in trash.data["results"]]
+            )
+            self.assertIsNotNone(
+                next(
+                    row["deleted_at"]
+                    for row in trash.data["results"]
+                    if row["id"] == application.pk
+                )
+            )
+
+            # And out of the applicant's own portal.
+            self.login_as(self.applicant1)
+            detail = self.client.get(
+                f"/api/enrollment/applications/my/{application.pk}/"
+            )
+            self.assertEqual(detail.status_code, 404)
+            listing = self.client.get("/api/enrollment/applications/my/")
+            self.assertNotIn(
+                application.pk, [row["id"] for row in listing.data["results"]]
+            )
+
+    def test_only_finished_applications_can_be_trashed(self):
+        application = self.make_draft()
+        self.login_as(self.registrar)
+        response = self.client.post(self.trash_url(application), format="json")
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("cancelled, rejected or withdrawn", str(response.data))
+
+        # A submitted application is still live.
+        self.login_as(self.applicant1)
+        self.fill_required_documents(application)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            format="json",
+        )
+        self.login_as(self.registrar)
+        response = self.client.post(self.trash_url(application), format="json")
+        self.assertEqual(response.status_code, 400, response.content)
+        application.refresh_from_db()
+        self.assertIsNone(application.deleted_at)
+
+        # An enrolled application is the enrollment record itself — it stays.
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        application = self.accept_application(application)
+        application.lrn = "100000000999"
+        application.save()
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/assign-section/",
+            {"section": self.section_a.pk}, format="json",
+        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f"/api/enrollment/applications/{application.pk}/confirm/",
+                format="json",
+            )
+        self.assertEqual(response.status_code, 201, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.ENROLLED)
+
+        response = self.client.post(self.trash_url(application), format="json")
+        self.assertEqual(response.status_code, 400, response.content)
+        application.refresh_from_db()
+        self.assertIsNone(application.deleted_at)
+
+    def test_restore_returns_an_application_to_the_active_queue(self):
+        application = self.make_terminal(ApplicationStatus.CANCELLED)
+        self.login_as(self.registrar)
+        self.client.post(self.trash_url(application), format="json")
+
+        response = self.client.post(self.restore_url(application), format="json")
+        self.assertEqual(response.status_code, 204, response.content)
+        application.refresh_from_db()
+        self.assertIsNone(application.deleted_at)
+        self.assertIsNone(application.deleted_by_id)
+        self.assertTrue(application.events.filter(action="restore").exists())
+
+        active = self.client.get("/api/enrollment/applications/")
+        self.assertIn(application.pk, [row["id"] for row in active.data["results"]])
+        trash = self.client.get("/api/enrollment/applications/trash/")
+        self.assertNotIn(application.pk, [row["id"] for row in trash.data["results"]])
+
+        # The applicant owns it again…
+        self.login_as(self.applicant1)
+        detail = self.client.get(
+            f"/api/enrollment/applications/my/{application.pk}/"
+        )
+        self.assertEqual(detail.status_code, 200, detail.content)
+
+        # …and restoring a row that never went to the trash is refused.
+        self.login_as(self.registrar)
+        response = self.client.post(self.restore_url(application), format="json")
+        self.assertEqual(response.status_code, 400, response.content)
+
+    def test_permanent_delete_requires_the_trash_and_removes_everything(self):
+        application = self.make_terminal(ApplicationStatus.REJECTED)
+        self.login_as(self.registrar)
+
+        # Two-step rule: nothing outside the trash can be destroyed.
+        response = self.client.delete(
+            f"/api/enrollment/applications/{application.pk}/"
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("trash first", str(response.data))
+        self.assertTrue(
+            EnrollmentApplication.objects.filter(pk=application.pk).exists()
+        )
+
+        self.client.post(self.trash_url(application), format="json")
+        response = self.client.delete(
+            f"/api/enrollment/applications/{application.pk}/"
+        )
+        self.assertEqual(response.status_code, 204, response.content)
+        self.assertFalse(
+            EnrollmentApplication.objects.filter(pk=application.pk).exists()
+        )
+        # The audit trail goes with it — this is the permanent purge.
+        self.assertFalse(application.events.exists())
+        trash = self.client.get("/api/enrollment/applications/trash/")
+        self.assertEqual(trash.data["count"], 0)
+
+    def test_trash_endpoints_require_enrollment_manage(self):
+        application = self.make_terminal(ApplicationStatus.CANCELLED)
+        detail_url = f"/api/enrollment/applications/{application.pk}/"
+
+        # A student may not use any of it — not even to look at the bin.
+        self.login_as(self.applicant1)
+        response = self.client.post(self.trash_url(application), format="json")
+        self.assertEqual(response.status_code, 403)
+        response = self.client.get("/api/enrollment/applications/trash/")
+        self.assertEqual(response.status_code, 403)
+        response = self.client.delete(detail_url)
+        self.assertEqual(response.status_code, 403)
+
+        # Nor an administrator without the enrollment permission keys.
+        self.login_as(self.plain_admin)
+        response = self.client.post(self.trash_url(application), format="json")
+        self.assertEqual(response.status_code, 403)
+        response = self.client.post(self.restore_url(application), format="json")
+        self.assertEqual(response.status_code, 403)
+        response = self.client.delete(detail_url)
+        self.assertEqual(response.status_code, 403)
+
+        application.refresh_from_db()
+        self.assertIsNone(application.deleted_at)
+        self.assertTrue(
+            EnrollmentApplication.objects.filter(pk=application.pk).exists()
+        )
+
+    def test_trashed_application_is_frozen_until_restored(self):
+        application = self.make_terminal(ApplicationStatus.CANCELLED)
+        self.login_as(self.registrar)
+        self.client.post(self.trash_url(application), format="json")
+
+        # Staff actions demand a restore first, whatever the state machine says.
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("trash", str(response.data))
+
+        # The applicant side cannot even see it — every verb404s.
+        self.login_as(self.applicant1)
+        response = self.client.patch(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            {"first_name": "Renamed"}, format="json",
+        )
+        self.assertEqual(response.status_code, 404)
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            format="json",
+        )
+        self.assertEqual(response.status_code, 404)
+
+        # After the restore it is visible again (its status still guards
+        # every workflow move, exactly as before the trash round trip).
+        self.login_as(self.registrar)
+        self.client.post(self.restore_url(application), format="json")
+        self.login_as(self.applicant1)
+        response = self.client.get(
+            f"/api/enrollment/applications/my/{application.pk}/"
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+
+    def test_trashed_applications_leave_the_dashboard_and_report_figures(self):
+        application = self.make_terminal(ApplicationStatus.REJECTED)
+        self.login_as(self.registrar)
+        sy = str(self.school_year.pk)
+
+        before_dash = self.client.get("/api/enrollment/dashboard/").data
+        before_report = self.client.get(
+            f"/api/enrollment/reports/school-year/?school_year={sy}"
+        ).data
+
+        self.client.post(self.trash_url(application), format="json")
+
+        after_dash = self.client.get("/api/enrollment/dashboard/").data
+        after_report = self.client.get(
+            f"/api/enrollment/reports/school-year/?school_year={sy}"
+        ).data
+
+        self.assertEqual(
+            after_dash["rejected"], before_dash["rejected"] - 1
+        )
+        self.assertEqual(
+            after_dash["total_applications"], before_dash["total_applications"] - 1
+        )
+
+        def status_total(payload, code):
+            return next(
+                (row["total"] for row in payload["by_status"] if row["status"] == code),
+                0,
+            )
+
+        self.assertEqual(
+            status_total(after_report, ApplicationStatus.REJECTED),
+            status_total(before_report, ApplicationStatus.REJECTED) - 1,
+        )
+
+    def test_trashed_guest_application_cannot_be_tracked_or_reopened(self):
+        data = self.guest_create()
+        token = data["guest_token"]
+        application = EnrollmentApplication.objects.get(pk=data["id"])
+        response = self.client.patch(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            {"guardian_email": "guardian@example.com"},
+            format="json", **self.guest_headers(token),
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.guest_upload_required_documents(application, token)
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            format="json", **self.guest_headers(token),
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f"/api/enrollment/applications/my/{application.pk}/withdraw/",
+                format="json", **self.guest_headers(token),
+            )
+        self.assertEqual(response.status_code, 200, response.content)
+
+        # Control: the public track lookup still finds it while alive.
+        self.client.logout()
+        response = self.client.post(
+            "/api/enrollment/public/track/",
+            {"reference": application.reference, "contact": "guardian@example.com"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+
+        # Registrar trashes it — now the portal pretends it never existed.
+        self.login_as(self.registrar)
+        response = self.client.post(self.trash_url(application), format="json")
+        self.assertEqual(response.status_code, 204, response.content)
+
+        self.client.logout()
+        response = self.client.post(
+            "/api/enrollment/public/track/",
+            {"reference": application.reference, "contact": "guardian@example.com"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 404, response.content)
+        response = self.client.get(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            **self.guest_headers(token),
+        )
+        self.assertEqual(response.status_code, 404)
