@@ -11,7 +11,6 @@ import ActionToolbar from '../../components/dashboard/ActionToolbar'
 import AttendanceSummaryCard from '../../components/dashboard/AttendanceSummaryCard'
 import Card, { SummaryRows } from '../../components/dashboard/Card'
 import FinanceSummaryCard from '../../components/dashboard/FinanceSummaryCard'
-import NotificationsCard from '../../components/dashboard/NotificationsCard'
 import { useAuth } from '../../context/AuthContext'
 import useFetch from '../../hooks/useFetch'
 import {
@@ -562,7 +561,8 @@ export default function AdminDashboard() {
       </Card>
     )
   }
-  right.push(<NotificationsCard key="notifications" />)
+  /* The notifications feed lives in the shell's contextual column now
+     (AdminContextPanel), so the center grid does not show it a second time. */
 
   const nothingGranted = kpis.length === 0 && facts.length === 0 && left.length === 0
 
@@ -637,16 +637,18 @@ export default function AdminDashboard() {
         />
       )}
 
-      {left.length > 0 ? (
+      {left.length > 0 && right.length > 0 ? (
         <div className="two-col bento">
           <div className="stack stack-md">{left}</div>
           <div className="stack stack-md">{right}</div>
         </div>
-      ) : (
-        /* Nothing for the wide lane — let the narrow panels use the full
-           width instead of stranding them in a third of the grid. */
-        <div className="stack stack-md bento-single">{right}</div>
-      )}
+      ) : left.length > 0 || right.length > 0 ? (
+        /* One lane empty — let the other use the full width instead of
+           stranding it in a third of the grid. */
+        <div className="stack stack-md bento-single">
+          {[...left, ...right]}
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -9,7 +9,7 @@ import { useAuth } from '../../context/AuthContext'
 
 const SCHOOL_NAME = 'Kiwalan National High School'
 
-export default function Topbar({ onOpenMenu, notifications }) {
+export default function Topbar({ onOpenMenu, notifications, hasContext = false, contextOpen = false, onToggleContext }) {
   const location = useLocation()
   const { user } = useAuth()
   const trail = trailForPath(location.pathname, user?.role)
@@ -52,6 +52,21 @@ export default function Topbar({ onOpenMenu, notifications }) {
           </span>
         )}
       </div>
+
+      {hasContext && (
+        <button
+          type="button"
+          className={`topbar-context-btn${contextOpen ? ' active' : ''}`}
+          onClick={onToggleContext}
+          aria-expanded={contextOpen}
+          aria-label={
+            contextOpen ? 'Hide context panel' : 'Show context panel'
+          }
+          title={contextOpen ? 'Hide context panel' : 'Show context panel'}
+        >
+          <Icon name="panelRight" size={17} />
+        </button>
+      )}
 
       <NotificationBell
         items={items}

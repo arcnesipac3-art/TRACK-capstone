@@ -180,6 +180,12 @@
   --sidebar-w: 256px;
   --sidebar-rail-w: 76px;
   --topbar-h: 68px;
+  /* Contextual (right) column — mirrors the sidebar at every width so the
+     shell reads as two symmetrical rails around the workspace. It is a
+     var() alias, not a copy of the token itself: the wide-desktop steps
+     below only need to move --sidebar-w and the right column follows.
+     Below 1024 the column becomes a drawer with its own capped width. */
+  --context-w: var(--sidebar-w);
   /* Wide-desktop cap: 1200px left large empty margins on 1440px+ monitors
      (dashboard content sat in a narrow band). 1440px matches the ≥1440
      breakpoint in App.css while keeping text lines readable. Panels larger

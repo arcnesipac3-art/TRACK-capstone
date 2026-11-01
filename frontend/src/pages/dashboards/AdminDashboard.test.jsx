@@ -667,8 +667,9 @@ describe('AdminDashboard — loading, errors and empty states', () => {
     expect(screen.getByText('No modules granted yet')).toBeInTheDocument()
     expect(document.querySelector('.kpi-grid')).toBeNull()
     expect(document.querySelector('.fact-strip')).toBeNull()
-    // Notifications are role-neutral and still shown.
-    expect(screen.getByText('No notifications yet')).toBeInTheDocument()
+    // The notifications feed moved to the shell's contextual column
+    // (AdminContextPanel), so the center grid no longer renders it.
+    expect(screen.queryByText('No notifications yet')).not.toBeInTheDocument()
   })
 
   it('offers a create shortcut when no requirements exist yet', () => {
@@ -756,17 +757,5 @@ describe('AdminDashboard — loading, errors and empty states', () => {
 
     expect(screen.getByText('No published assessments yet')).toBeInTheDocument()
     expect(screen.queryByText('0% collected')).not.toBeInTheDocument()
-  })
-
-  it('surfaces notification request failures as an error, not an empty state', () => {
-    mockFetch({
-      dashboard: { ...IDLE, data: SUPER_PAYLOAD },
-      notifications: { ...IDLE, error: new Error('Notifications unavailable') },
-    })
-    renderDash()
-
-    expect(screen.getByText('Notifications unavailable')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
-    expect(screen.queryByText('No notifications yet')).not.toBeInTheDocument()
   })
 })
