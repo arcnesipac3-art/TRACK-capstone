@@ -4,10 +4,6 @@ import Icon from '../components/Icon'
 import Logo from '../components/Logo'
 import PublicNav from '../components/PublicNav'
 import dashboardShot from '../assets/dashboard.webp'
-import heroDashboardShot from '../assets/hero-student-dashboard.webp'
-import heroRequirementsShot from '../assets/hero-student-requirements.webp'
-import heroAttendanceShot from '../assets/hero-teacher-attendance.webp'
-import heroNotificationsShot from '../assets/hero-parent-notifications.webp'
 import { useAuth } from '../context/AuthContext'
 import { dashboardPath } from '../utils/format'
 
@@ -25,12 +21,6 @@ function StatCounter({ value, label, sublabel }) {
     if (!el || fired) return
 
     const animate = () => {
-      // Reduced motion: show the final number immediately — no tween.
-      if (typeof window.matchMedia === 'function'
-        && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        setCount(value)
-        return
-      }
       const duration = 900
       const start = performance.now()
       function tick(now) {
@@ -72,6 +62,13 @@ function StatCounter({ value, label, sublabel }) {
     </div>
   )
 }
+
+/* Campus backdrop for the hero. Kept here (not in the stylesheet) so the URL
+   can be handed to the browser *after* first paint — a CSS background would be
+   fetched the moment the stylesheet is parsed, competing with the app bundle
+   and delaying the hero's first paint. */
+const HERO_BG_URL =
+  'https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Wide%20architectural%20photograph%20of%20a%20Philippine%20public%20high%20school%20campus%2C%20Kiwalan%20National%20High%20School%2C%20two-storey%20concrete%20classroom%20building%20painted%20white%20and%20green%2C%20open%20walkway%20with%20no%20roof%20or%20canopy%2C%20flagpole%2C%20tropical%20palm%20trees%2C%20blue%20sky%2C%20bright%20daylight&image_size=landscape_16_9'
 
 /* ── Content data ─────────────────────────────────────────────────────────── */
 
@@ -312,9 +309,11 @@ function FaqAccordion({ items }) {
 export default function LandingPage() {
   const { isAuthenticated, user } = useAuth()
   const rootRef = useRef(null)
+  const heroVisualRef = useRef(null)
   const [activeSection, setActiveSection] = useState('')
   const [activeRole, setActiveRole] = useState(null)
   const [expandedFeature, setExpandedFeature] = useState(null)
+  const [hoveredCard, setHoveredCard] = useState(null)
   const [parallax, setParallax] = useState({ x: 0, y: 0 })
 
   const signedIn = isAuthenticated && Boolean(user)
@@ -353,6 +352,7 @@ export default function LandingPage() {
       if (!id) {
         e.preventDefault()
         container.scrollTo({ top: 0, behavior: 'smooth' })
+        setMobileMenuOpen(false)
         return
       }
       const target = document.getElementById(id)
@@ -429,6 +429,27 @@ export default function LandingPage() {
     }
   }, [])
 
+  // Lazy-load the hero's campus backdrop. The URL is only exposed to the
+  // browser after this effect runs (i.e. after the hero has painted its navy
+  // base), then `bg-ready` fades the photo in once it is decoded — so the image
+  // never sits on the critical path and never flashes in half-loaded.
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return undefined
+    root.style.setProperty('--landing-hero-bg', `url("${HERO_BG_URL}")`)
+    let cancelled = false
+    const img = new Image()
+    img.decoding = 'async'
+    img.onload = () => {
+      if (!cancelled) root.classList.add('bg-ready')
+    }
+    img.src = HERO_BG_URL
+    return () => {
+      cancelled = true
+      img.onload = null
+    }
+  }, [])
+
   return (
     <div className="landing" ref={rootRef}>
       <a className="landing-skip" href="#main-content">Skip to content</a>
@@ -486,91 +507,93 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* ── Right: floating browser windows showing real TRACK screens ── */}
+            {/* ── Right: student photo + floating role cards ── */}
             <div
               className="hero-visual"
               aria-hidden="true"
+              ref={heroVisualRef}
               onMouseMove={handleHeroMouseMove}
               onMouseLeave={handleHeroMouseLeave}
             >
-             <div className="hero-cluster">
-              {/* Student requirements — behind, upper left */}
-              <div className="hero-win hero-win--req">
-                <div className="hero-win-float">
-                  <div
-                    className="hero-win-par"
-                    style={{ transform: `translate(${parallax.x * -9}px, ${parallax.y * -6}px)` }}
-                  >
-                    <div className="hero-win-card">
-                      <div className="hero-win-chrome">
-                        <span className="hero-win-dots" aria-hidden="true"><i /><i /><i /></span>
-                        <span className="hero-win-label">TRACK · My requirements</span>
-                      </div>
-                      <img src={heroRequirementsShot} alt="" className="hero-win-shot" />
-                    </div>
+              {/* Dashboard preview window */}
+              <div
+                className="hero-preview-window"
+                style={{ transform: `translate(${parallax.x * -6}px, ${parallax.y * -4}px)` }}
+              >
+                <div className="hpw-chrome">
+                  <Logo size="sm" variant="light" />
+                  <span className="hpw-actions">
+                    <span className="hpw-action"><Icon name="search" size={13} /></span>
+                    <span className="hpw-action"><Icon name="bell" size={13} /></span>
+                  </span>
+                </div>
+                <img src={dashboardShot} alt="" className="hpw-shot" />
+              </div>
+
+              <img
+                src="/student.png"
+                alt="A KNHS student in school uniform holding a tablet"
+                className="hero-student-img"
+                style={{ transform: `translate(${parallax.x * 8}px, ${parallax.y * 5}px)` }}
+              />
+
+              {/* Floating role cards — parallax + hover glow */}
+              <div
+                className="hero-card-float hero-card-student-wrap"
+              >
+                <div
+                  className={`hero-card hero-card-student${hoveredCard === 'student' ? ' hero-card--active' : ''}`}
+                  style={{ transform: `translate(${parallax.x * -12}px, ${parallax.y * -8}px)` }}
+                  onMouseEnter={() => setHoveredCard('student')}
+                  onMouseLeave={() => setHoveredCard(null)}
+                >
+                  <div className="hero-card-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                  </div>
+                  <div className="hero-card-body">
+                    <div className="hero-card-title">Student</div>
+                    <div className="hero-card-desc">Grades · Attendance · Schedule · Notifications</div>
                   </div>
                 </div>
               </div>
 
-              {/* Teacher attendance — behind, upper right */}
-              <div className="hero-win hero-win--teacher">
-                <div className="hero-win-float">
-                  <div
-                    className="hero-win-par"
-                    style={{ transform: `translate(${parallax.x * 11}px, ${parallax.y * -8}px)` }}
-                  >
-                    <div className="hero-win-card">
-                      <div className="hero-win-chrome">
-                        <span className="hero-win-dots" aria-hidden="true"><i /><i /><i /></span>
-                        <span className="hero-win-label">TRACK · Attendance monitoring</span>
-                      </div>
-                      <img src={heroAttendanceShot} alt="" className="hero-win-shot" />
-                    </div>
+              <div
+                className="hero-card-float hero-card-teacher-wrap"
+              >
+                <div
+                  className={`hero-card hero-card-teacher${hoveredCard === 'teacher' ? ' hero-card--active' : ''}`}
+                  style={{ transform: `translate(${parallax.x * -16}px, ${parallax.y * -10}px)` }}
+                  onMouseEnter={() => setHoveredCard('teacher')}
+                  onMouseLeave={() => setHoveredCard(null)}
+                >
+                  <div className="hero-card-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                  </div>
+                  <div className="hero-card-body">
+                    <div className="hero-card-title">Teacher</div>
+                    <div className="hero-card-desc">Attendance · Grades · Materials · Messages</div>
                   </div>
                 </div>
               </div>
 
-              {/* Parent notifications — in front, lower left */}
-              <div className="hero-win hero-win--parent">
-                <div className="hero-win-float">
-                  <div
-                    className="hero-win-par"
-                    style={{ transform: `translate(${parallax.x * -15}px, ${parallax.y * 10}px)` }}
-                  >
-                    <div className="hero-win-card">
-                      <div className="hero-win-chrome">
-                        <span className="hero-win-dots" aria-hidden="true"><i /><i /><i /></span>
-                        <span className="hero-win-label">TRACK · Parent alerts</span>
-                      </div>
-                      <img src={heroNotificationsShot} alt="" className="hero-win-shot" />
-                    </div>
+              <div
+                className="hero-card-float hero-card-parent-wrap"
+              >
+                <div
+                  className={`hero-card hero-card-parent${hoveredCard === 'parent' ? ' hero-card--active' : ''}`}
+                  style={{ transform: `translate(${parallax.x * -20}px, ${parallax.y * -13}px)` }}
+                  onMouseEnter={() => setHoveredCard('parent')}
+                  onMouseLeave={() => setHoveredCard(null)}
+                >
+                  <div className="hero-card-icon">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  </div>
+                  <div className="hero-card-body">
+                    <div className="hero-card-title">Parent</div>
+                    <div className="hero-card-desc">Child Grades · Attendance · Schedule · Notifications</div>
                   </div>
                 </div>
               </div>
-
-              {/* Student dashboard — the main, largest window */}
-              <div className="hero-win hero-win--main">
-                <div className="hero-win-float">
-                  <div
-                    className="hero-win-par"
-                    style={{ transform: `translate(${parallax.x * 6}px, ${parallax.y * 4}px)` }}
-                  >
-                    <div className="hero-win-card">
-                      <div className="hero-win-chrome">
-                        <span className="hero-win-dots" aria-hidden="true"><i /><i /><i /></span>
-                        <span className="hero-win-label">TRACK · Student dashboard</span>
-                      </div>
-                      <img
-                        src={heroDashboardShot}
-                        alt=""
-                        className="hero-win-shot"
-                        fetchPriority="high"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-             </div>
             </div>
 
           </div>
