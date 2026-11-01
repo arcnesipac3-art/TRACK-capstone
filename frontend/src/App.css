@@ -1823,13 +1823,15 @@
    ================================================================ */
 .landing-hero {
   position: relative;
-  /* Flat navy base — sampled off the design (rgb(4,22,49)) and painted
-     instantly, before anything else loads. The campus photograph is a
-     separate layer applied lazily from JS (see ::before), and the two navy
-     washes sit above it (see ::after), so neither is on the first paint. */
-  background-color: #041631;
-  /* overflow:hidden clips the student. overflow:clip clips bg shapes
-     but doesn't affect abs-pos children outside the stacking context. */
+  /* Soft sky-blue gradient — painted instantly, no image on the critical path. */
+  background:
+    linear-gradient(180deg,
+      #eff7ff 0%,
+      #dceefc 34%,
+      #c9e3fa 64%,
+      #dbf0fb 100%);
+  /* overflow:clip clips the window cluster's bleed without creating a
+     scroll container; the hero ends exactly at the viewport edge. */
   overflow: clip;
   /* Fill the first screen beneath the navbar at every viewport size. Content
      taller than this (tablet / phone stacks) simply grows the section.
@@ -1843,28 +1845,25 @@
 }
 
 /* ── Hero backdrop, split into two layers ────────────────────────────
-   ::before — the campus photograph. Its URL is handed to the browser
-   only after the page has painted (via --landing-hero-bg, set from JS),
-   so the image is fetched off the critical path and never delays the
-   hero's navy first paint. It fades in once decoded (`.bg-ready`).
-   ::after  — the two navy washes (left-to-right and top-to-bottom) plus
-   the soft blue glows, layered above the photo but below the content,
-   which .hero-layout lifts to z-index 1. */
+   ::before — soft blurred cloud shapes drifting slowly across the sky.
+   ::after  — atmospheric lighting: a bright haze top-right, a cool wash
+   bottom-left, and a gentle fade to the page white at the very bottom so
+   the hero melts into the next section. */
 .landing-hero::before {
   content: '';
   position: absolute;
-  inset: 0;
+  inset: -8%;
   z-index: 0;
   pointer-events: none;
-  background-image: var(--landing-hero-bg, none);
-  background-position: center 38%;
-  background-size: cover;
-  background-repeat: no-repeat;
-  opacity: 0;
-  transition: opacity 900ms ease;
-}
-.landing.bg-ready .landing-hero::before {
-  opacity: 1;
+  background:
+    radial-gradient(34% 26% at 14% 20%, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 72%),
+    radial-gradient(30% 22% at 74% 10%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 74%),
+    radial-gradient(40% 30% at 92% 48%, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 72%),
+    radial-gradient(34% 24% at 34% 86%, rgba(255,255,255,0.66) 0%, rgba(255,255,255,0) 74%),
+    radial-gradient(26% 20% at 56% 34%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 76%);
+  filter: blur(34px);
+  animation: hero-cloud-drift 46s ease-in-out infinite alternate;
+  will-change: transform;
 }
 
 .landing-hero::after {
@@ -1874,27 +1873,27 @@
   z-index: 0;
   pointer-events: none;
   background:
-    linear-gradient(180deg,
-      rgba(4,22,49,0.38) 0%,
-      rgba(4,22,49,0.55) 46%,
-      rgba(4,22,49,0.94) 100%),
-    linear-gradient(90deg,
-      #041631 0%,
-      rgba(4,22,49,0.94) 36%,
-      rgba(4,22,49,0.62) 62%,
-      rgba(4,22,49,0.42) 100%),
-    radial-gradient(95% 85% at 91% -8%,
-      rgba(15,95,205,0.46) 0%,
-      rgba(15,95,205,0.22) 45%,
-      transparent 76%),
-    radial-gradient(70% 46% at 52% 86%,
-      rgba(15,100,210,0.34) 0%,
-      rgba(15,100,210,0.14) 48%,
-      transparent 74%);
+    radial-gradient(90% 68% at 86% -12%,
+      rgba(118,178,255,0.42) 0%,
+      rgba(118,178,255,0.16) 46%,
+      transparent 72%),
+    radial-gradient(72% 56% at 6% 102%,
+      rgba(140,196,250,0.4) 0%,
+      rgba(140,196,250,0.14) 50%,
+      transparent 74%),
+    linear-gradient(180deg, rgba(255,255,255,0) 72%, rgba(255,255,255,0.5) 100%);
+}
+
+@keyframes hero-cloud-drift {
+  from { transform: translate3d(-1.5%, 0, 0); }
+  to   { transform: translate3d(1.5%, -1%, 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .landing-hero::before { transition: none; }
+  .landing-hero::before {
+    animation: none;
+    transition: none;
+  }
 }
 
 /* ── Two-column grid ── */
@@ -1927,15 +1926,17 @@
   gap: 0;
 }
 
-/* School badge */
+/* School badge — glass pill on the light sky backdrop */
 .hero-kicker {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 8px 14px 8px 6px;
-  background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.88);
-  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--navy-700, #16305f);
+  border: 1px solid rgba(15,32,68,0.1);
   border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 700;
@@ -1963,7 +1964,8 @@
   font-weight: 900;
   line-height: 1.0;
   letter-spacing: -0.03em;
-  color: #ffffff;
+  /* Deep navy — strong contrast on the light sky background */
+  color: var(--navy-900, #0a1630);
   white-space: nowrap;
 }
 
@@ -1982,7 +1984,7 @@
      the same four line breaks (the em dash has to stay on line 2). */
   font-size: clamp(1rem, 1.21vw, 1.16rem);
   line-height: 1.45;
-  color: rgba(255,255,255,0.72);
+  color: #40506b;
   max-width: min(524px, 100%);
   margin: 0 0 clamp(16px,2.2vh,24px);
 }
@@ -2011,6 +2013,7 @@
   text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(37,99,235,0.28);
   transition: background 0.15s ease, box-shadow 0.15s ease;
 }
 .hero-btn-primary:hover {
@@ -2020,39 +2023,42 @@
   color: #fff;
 }
 
-/* Secondary: transparent with white border */
+/* Secondary: frosted glass on the light backdrop */
 .hero-btn-secondary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   height: 52px;
   padding: 0 30px;
-  background: transparent;
-  color: #fff;
-  border: 1.5px solid rgba(255,255,255,0.45);
+  background: rgba(255,255,255,0.66);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: var(--navy-800, #0f2044);
+  border: 1.5px solid rgba(37,99,235,0.35);
   border-radius: 8px;
   font-size: 1rem;
   font-weight: 700;
   text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .hero-btn-secondary:hover {
-  background: rgba(255,255,255,0.08);
-  border-color: rgba(255,255,255,0.72);
+  background: #ffffff;
+  border-color: rgba(37,99,235,0.6);
+  box-shadow: 0 4px 14px rgba(15,32,68,0.12);
   text-decoration: none;
-  color: #fff;
+  color: var(--navy-800, #0f2044);
 }
 
 /* Note below buttons */
 .hero-note {
   font-size: 0.86rem;
-  color: rgba(255,255,255,0.65);
+  color: var(--text-muted, #56627a);
   margin: 0 0 clamp(24px,3.5vh,40px);
 }
 .hero-note a {
-  color: #9cc0ff;
+  color: #1d4ed8;
   font-weight: 600;
   text-decoration: none;
 }
@@ -2065,8 +2071,8 @@
   display: flex;
   align-items: flex-start;
   gap: 0;
-  /* Hairline rule above the stats, as in the design */
-  border-top: 1px solid rgba(255,255,255,0.18);
+  /* Hairline rule above the stats */
+  border-top: 1px solid rgba(15,32,68,0.14);
   padding-top: clamp(24px,3.4vh,36px);
   width: 100%;
 }
@@ -2087,19 +2093,19 @@
 .hero-stat-value {
   font-size: clamp(1.4rem,1.6vw,1.55rem);
   font-weight: 900;
-  color: #fff;
+  color: var(--navy-900, #0a1630);
   letter-spacing: -0.02em;
   line-height: 1.1;
 }
 
-/* The design renders the whole value in white — no blue accent here */
+/* The accent word picks up the brand blue on the light background */
 .hero-stat-word {
-  color: #fff;
+  color: #1d4ed8;
 }
 
 .hero-stat-label {
   font-size: 0.75rem;
-  color: rgba(255,255,255,0.75);
+  color: var(--text-muted, #56627a);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -2117,125 +2123,182 @@
   }
 }
 
-/* ── RIGHT COLUMN ── */
+/* ── RIGHT COLUMN — floating window cluster ───────────────────────────
+   Four real TRACK interface screenshots composed as overlapping browser
+   windows. Each window nests four elements so nothing fights over
+   transform: .hero-win (slot + entrance), .hero-win-float (idle bob),
+   .hero-win-par (mouse parallax), .hero-win-card (static 3D tilt). */
 .hero-visual {
   position: relative;
   align-self: stretch;
   /* Fallback height floor */
   min-height: 420px;
   overflow: visible;
-}
-
-/* Student image — fills the full right column height, anchored to bottom.
-   object-fit: contain + object-position: center bottom guarantees the whole
-   portrait (head, shoulders, arms, tablet, torso) stays visible: the box can
-   be clamped narrower than the source ratio, but the picture itself is never
-   cropped and never sits below the bottom edge of the hero. */
-.hero-student-img {
-  position: absolute;
-  bottom: 0;
-  /* Slightly left of the column centre, matching the design — 36.5% puts the
-     shoulder line on the design's x≈716/766 at 1536px. */
-  left: 36.5%;
-  transform: translateX(-50%);
-  /* Taller than the column so the portrait reaches the hero's bottom edge
-     at the scale used in the design; the transparent top margin simply
-     overflows above the column. */
-  /* 119% puts the top of the head at y≈169 at 1536×1024 — the design's
-     portrait occupies the same span down to the hero's bottom edge. */
-  height: 119%;
-  width: auto;
-  max-height: none;
-  /* Never wider than the visual column, so it cannot reach the headline */
-  max-width: min(760px, 100%);
-  object-fit: contain;
-  object-position: center bottom;
-  pointer-events: none;
-  user-select: none;
-  display: block;
-  z-index: 1;
-}
-
-/* ── Floating role cards ── */
-/* Outer wrapper — handles position + float animation */
-.hero-card-float {
-  position: absolute;
-  z-index: 3;
-  animation: hero-float 4s ease-in-out infinite;
-}
-
-.hero-card {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 15px 14px;
-  background: rgba(8,22,58,0.82);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-  border: 1px solid rgba(37,99,235,0.5);
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.4), 0 0 0 1px rgba(37,99,235,0.12);
-}
-
-.hero-card-icon {
-  width: 50px;
-  height: 50px;
+  /* Centres the height-capped cluster so the windows stay grouped even on
+     very tall viewports (tablet portrait) instead of drifting apart. */
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(37,99,235,0.6);
+  /* Purely decorative — never intercept pointer or selection */
+  pointer-events: none;
+  user-select: none;
+}
+
+/* The floating-window group. Its own height cap keeps the composition
+   compact; perspective lives here so the window tilts (its direct children)
+   keep their 3D depth. */
+.hero-cluster {
+  position: relative;
+  width: 100%;
+  height: min(600px, 88%);
+  /* Perspective for the window tilts; origin biased toward the copy. */
+  perspective: 1400px;
+  perspective-origin: 45% 42%;
+}
+
+.hero-win {
+  position: absolute;
+  opacity: 0;
+  animation: hero-win-in 760ms cubic-bezier(.22,1,.36,1) both;
+}
+
+/* Slot geometry + depth order — the largest dashboard sits in the middle */
+.hero-win--main {
+  left: 10%;
+  top: 22%;
+  width: 78%;
+  z-index: 3;
+  animation-delay: 120ms;
+}
+.hero-win--req {
+  /* behind, upper left — bleeds slightly past the column edge */
+  left: -6%;
+  top: 0;
+  width: 50%;
+  z-index: 2;
+  animation-delay: 320ms;
+}
+.hero-win--teacher {
+  /* behind, upper right */
+  right: -6%;
+  top: 4%;
+  width: 48%;
+  z-index: 2;
+  animation-delay: 440ms;
+}
+.hero-win--parent {
+  /* in front, lower left — overlaps the main window's corner */
+  left: 0;
+  bottom: 2%;
+  width: 46%;
+  z-index: 4;
+  animation-delay: 560ms;
+}
+
+/* Idle float — each window on its own rhythm */
+.hero-win-float {
+  animation: hero-float 7.2s ease-in-out infinite;
+}
+.hero-win--main    .hero-win-float { animation-duration: 8.4s; }
+.hero-win--req     .hero-win-float { animation-duration: 6.6s; animation-delay: 0.8s; }
+.hero-win--teacher .hero-win-float { animation-duration: 7.6s; animation-delay: 1.6s; }
+.hero-win--parent  .hero-win-float { animation-duration: 6.9s; animation-delay: 2.2s; }
+
+/* Mouse parallax layer — inline transform, transition smooths the return */
+.hero-win-par {
+  transition: transform 0.35s cubic-bezier(.22,1,.36,1);
+  will-change: transform;
+}
+
+/* The window — translucent glass card, rounded, layered soft shadows */
+.hero-win-card {
+  --tilt-x: 0deg;
+  --tilt-y: 0deg;
+  background: rgba(255,255,255,0.78);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255,255,255,0.9);
+  border-radius: 14px;
+  overflow: hidden;
+  /* Contact shadow + mid-air shadow + wide ambient */
+  box-shadow:
+    0 2px 6px rgba(15,42,92,0.10),
+    0 18px 40px rgba(15,42,92,0.14),
+    0 40px 80px rgba(15,42,92,0.16);
+  transform: rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+  transform-style: preserve-3d;
+}
+
+.hero-win--main    .hero-win-card { --tilt-y: -7deg;  --tilt-x: 3deg; }
+.hero-win--req     .hero-win-card { --tilt-y:  9deg;  --tilt-x: 2deg; }
+.hero-win--teacher .hero-win-card { --tilt-y: -10deg; --tilt-x: 3deg; }
+.hero-win--parent  .hero-win-card { --tilt-y:  7deg;  --tilt-x: -2deg; }
+
+/* Browser chrome */
+.hero-win-chrome {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.85);
+  border-bottom: 1px solid rgba(15,32,68,0.08);
+}
+
+.hero-win-dots {
+  display: inline-flex;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+.hero-win-dots i {
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  color: #fff;
-  flex-shrink: 0;
+}
+.hero-win-dots i:nth-child(1) { background: #ff5f57; }
+.hero-win-dots i:nth-child(2) { background: #febc2e; }
+.hero-win-dots i:nth-child(3) { background: #28c840; }
+
+.hero-win-label {
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text-subtle, #5c687d);
+  background: rgba(230,240,252,0.9);
+  border: 1px solid rgba(15,32,68,0.06);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
-.hero-card-body { flex: 1; min-width: 0; }
-
-.hero-card-title {
-  font-size: 0.83rem;
-  font-weight: 700;
-  color: #fff;
-  line-height: 1.2;
+.hero-win-shot {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
-.hero-card-desc {
-  font-size: 0.62rem;
-  color: rgba(255,255,255,0.72);
-  line-height: 1.45;
-  margin-top: 3px;
-}
-
-/* Wrapper positions (float animation lives here) */
-.hero-card-student-wrap { top: -1%;      right: 128px;  width: 196px; animation-delay: 0s;   }
-.hero-card-teacher-wrap { top: 11.1%;    right: -41px;  width: 190px; animation-delay: 1.4s; }
-.hero-card-parent-wrap  { bottom: 34.3%; right: -67px;  width: 210px; animation-delay: 2.8s; }
-
+/* Idle bob for the floating windows (amplitude tuned for full windows,
+   not small cards) */
 @keyframes hero-float {
   0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-8px); }
+  50%      { transform: translateY(-12px); }
 }
 
 /* ── Hero intro animations ────────────────────────────────────────────
    One-shot entrance for the above-the-fold hero: the copy rises in first,
-   then the visual — preview window, portrait and floating role cards —
-   settles with a short stagger. `both` holds the start state through each
+   then the window cluster settles in with a short stagger (each window's
+   delay is set on its slot). `both` holds the start state through each
    delay so nothing flashes before it animates, and only opacity/transform
    are touched, so there is no layout shift. */
 @keyframes hero-rise {
   from { opacity: 0; transform: translateY(20px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-@keyframes hero-fade {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes hero-card-in {
-  from { opacity: 0; transform: translateY(18px) scale(0.95); }
+@keyframes hero-win-in {
+  from { opacity: 0; transform: translateY(36px) scale(0.96); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-@keyframes hero-student-in {
-  from { opacity: 0; transform: translateX(-50%) translateY(26px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 /* Left column — staggered rise */
@@ -2247,16 +2310,7 @@
 .hero-note          { animation: hero-rise 560ms cubic-bezier(.22,1,.36,1) 430ms both; }
 .hero-stats         { animation: hero-rise 640ms cubic-bezier(.22,1,.36,1) 500ms both; }
 
-/* Right column — window fades, portrait rises, cards pop in */
-.hero-preview-window { animation: hero-fade 700ms ease-out 260ms both; }
-.hero-student-img    { animation: hero-student-in 780ms cubic-bezier(.22,1,.36,1) 320ms both; }
-/* Inner card: entrance animation only (float lives on the wrapper) */
-.hero-card {
-  animation: hero-card-in 620ms cubic-bezier(.22,1,.36,1) both;
-}
-.hero-card-student-wrap .hero-card { animation-delay: 520ms; }
-.hero-card-teacher-wrap .hero-card { animation-delay: 660ms; }
-.hero-card-parent-wrap  .hero-card { animation-delay: 800ms; }
+/* Right column — the window cluster (delays live on the slot classes) */
 
 @media (prefers-reduced-motion: reduce) {
   .hero-kicker,
@@ -2265,52 +2319,19 @@
   .hero-sub,
   .hero-actions,
   .hero-note,
-  .hero-stats,
-  .hero-preview-window,
-  .hero-student-img { animation: none; }
-  /* Remove card entrance; keep float on the wrapper */
-  .hero-card { animation: none; }
-  .hero-card-float { animation: none; }
-  /* Disable parallax smooth transitions */
-  .hero-card,
-  .hero-student-img,
-  .hero-preview-window { transition: none !important; filter: none !important; }
+  .hero-stats { animation: none; }
+  /* Windows appear instantly, no float */
+  .hero-win { animation: none; opacity: 1; }
+  .hero-win-float { animation: none; }
+  .landing-hero::before { animation: none; }
+  /* Parallax transitions off */
+  .hero-win-par { transition: none !important; }
 }
 
 /* ── Hero interactivity ──────────────────────────────────────────────
    Parallax: transform is applied inline via React state (mousemove on
-   .hero-visual). Transition smooths the movement back to neutral.
-   Card hover: glow ring + slight scale lift.
+   .hero-visual) and smoothed by .hero-win-par's transition.
    CTA pulse: subtle attention animation that fires once after 3 s idle. */
-
-/* Smooth the parallax return-to-centre */
-.hero-preview-window,
-.hero-card {
-  transition: transform 0.12s ease-out, box-shadow 0.2s ease, border-color 0.2s ease;
-  will-change: transform;
-}
-.hero-student-img {
-  transition: transform 0.35s cubic-bezier(.22,1,.36,1), filter 0.35s ease;
-  will-change: transform, filter;
-}
-
-/* Student image hover — GPU-only: lift + scale + subtle brightness (no drop-shadow) */
-.hero-visual:hover .hero-student-img {
-  filter: brightness(1.08);
-  transform: translateX(-50%) translateY(-10px) scale(1.03);
-}
-
-/* Floating card — hover glow */
-.hero-card--active,
-.hero-card:hover {
-  border-color: rgba(99,163,255,0.9);
-  box-shadow: 0 4px 28px rgba(37,99,235,0.55), 0 0 0 2px rgba(99,163,255,0.35);
-  transform: scale(1.06) !important; /* override float translateY */
-}
-.hero-card--active .hero-card-icon,
-.hero-card:hover .hero-card-icon {
-  background: rgba(37,99,235,0.85);
-}
 
 /* CTA pulse — fires once, 3 s after the page loads */
 @keyframes hero-btn-pulse {
@@ -2330,73 +2351,6 @@
 .hero-stat:hover {
   transform: translateY(-3px);
 }
-
-/* ── In-hero dashboard preview window ───────────────────────────────
-   Sits behind the portrait (z-index 0) and between the Teacher and Parent
-   cards, mirroring the design: dark chrome bar with the TRACK lockup and two
-   round controls, then the dashboard screenshot filling the rest. */
-.hero-preview-window {
-  position: absolute;
-  top: 22%;
-  left: 52%;
-  width: 56%;
-  aspect-ratio: 406 / 278;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.16);
-  border-radius: 12px;
-  background: rgba(6,16,40,0.78);
-  box-shadow: 0 18px 48px rgba(0,0,0,0.45);
-  pointer-events: none;
-  user-select: none;
-  z-index: 0;
-}
-
-.hpw-chrome {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  height: 14.4%;
-  min-height: 32px;
-  padding: 0 10px 0 14px;
-  background: rgba(255,255,255,0.06);
-  border-bottom: 1px solid rgba(255,255,255,0.10);
-}
-
-.hpw-chrome .logo { display: flex; align-items: center; }
-.hpw-chrome .logo-img { height: 18px; width: auto; }
-
-.hpw-actions {
-  display: inline-flex;
-  gap: 6px;
-}
-
-.hpw-action {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: rgba(37,99,235,0.28);
-  border: 1px solid rgba(255,255,255,0.16);
-  color: rgba(255,255,255,0.8);
-}
-
-.hpw-shot {
-  flex: 1 1 auto;
-  min-height: 0;
-  /* Zoomed to 145% and anchored top-left so the window shows the same crop as
-     the design (sidebar + welcome + stat row + chart), not the whole page. */
-  width: 145%;
-  max-width: none;
-  display: block;
-  object-fit: cover;
-  object-position: left top;
-}
-
 
 /* ── Dashboard preview section ── */
 .hero-preview-section {
@@ -2421,18 +2375,11 @@
 }
 
 /* ── RESPONSIVE ── */
-/* Below ~1500px the two right-hand cards would reach past the viewport edge at
-   their design offsets, so they tuck in close to it instead (never overflowing). */
-@media (max-width: 1500px) {
-  .hero-card-teacher-wrap,
-  .hero-card-parent-wrap { right: -20px; }
-}
-
-/* Below ~1400px the window (left:52% + width:56% = 108% of its column) would
-   run past the right edge and slice its chrome controls off. Trim the width so
-   its right edge lands exactly on the column's right edge instead. */
+/* Below ~1400px the bleeding edge windows tuck in slightly so their
+   shadows never reach past the viewport. */
 @media (max-width: 1399px) {
-  .hero-preview-window { width: 48%; }
+  .hero-win--req     { left: -2%; }
+  .hero-win--teacher { right: -2%; }
 }
 
 /* 1200px–1279px */
@@ -2462,26 +2409,14 @@
     min-height: clamp(360px, 52vw, 520px);
     align-self: stretch;
   }
-  .hero-student-img {
-    max-width: 440px;
-    max-height: 500px;
-  }
-  /* The preview window is a desktop-only composition detail */
-  .hero-preview-window { display: none; }
-  .hero-card-float { min-width: 148px; max-width: 176px; }
-  .hero-card { padding: 9px 12px; }
-  .hero-card-icon { width: 30px; height: 30px; }
-  .hero-card-student-wrap { top: 0;      right: 0; }
-  .hero-card-teacher-wrap { top: 30%;    right: 0; }
-  .hero-card-parent-wrap  { bottom: 12%; right: 0; }
 }
 
-/* Mobile ≤767px: stack vertically */
+/* Mobile ≤767px: stack vertically, compact window composition below copy */
 @media (max-width: 767px) {
   .hero-layout {
     grid-template-columns: 1fr;
     padding: 40px 20px 0;
-    gap: 32px;
+    gap: 28px;
     flex: none;
     justify-items: center; /* centre both columns when stacked */
   }
@@ -2498,9 +2433,39 @@
   .hero-note    { text-align: center; }
   .hero-stats   { justify-content: center; }
   .hero-stat:first-child { padding-left: clamp(16px,2vw,24px); }
-  /* Hide student image on mobile — the visual column stacks below text
-     and the portrait crowds the small screen without adding value */
-  .hero-visual { display: none; }
+  /* Compact arrangement: the dashboard front and centre, one window peeking
+     behind top-left, one overlapping front bottom-right. Gentle tilts so the
+     screenshots stay readable at phone widths. */
+  .hero-visual {
+    width: 100%;
+    min-height: clamp(320px, 78vw, 440px);
+    margin-bottom: 8px;
+  }
+  .hero-cluster { height: 100%; perspective-origin: 50% 42%; }
+  .hero-win--main {
+    left: 4%;
+    top: 12%;
+    width: 92%;
+  }
+  .hero-win--main .hero-win-card    { --tilt-y: -4deg; --tilt-x: 2deg; }
+  .hero-win--req {
+    left: -4%;
+    top: 0;
+    width: 58%;
+  }
+  .hero-win--req .hero-win-card     { --tilt-y: 6deg; --tilt-x: 1deg; }
+  .hero-win--parent {
+    left: auto;
+    right: -4%;
+    bottom: 0;
+    width: 56%;
+  }
+  .hero-win--parent .hero-win-card  { --tilt-y: 4deg; --tilt-x: -1deg; }
+  /* The teacher window is a desktop composition detail */
+  .hero-win--teacher { display: none; }
+  .hero-win-label { font-size: 9px; }
+  .hero-win-chrome { padding: 6px 10px; }
+  .hero-win-dots i { width: 7px; height: 7px; }
 }
 
 /* Small mobile ≤479px */
@@ -2515,6 +2480,11 @@
   .hero-stat-sep { display: none; }
   .hero-stat { padding: 0 12px; }
   .hero-stat:first-child { padding-left: 12px; }
+  /* Two windows only — the smallest phones get the cleanest composition */
+  .hero-visual { min-height: clamp(250px, 68vw, 340px); }
+  .hero-win--req { display: none; }
+  .hero-win--main { left: 0; width: 100%; top: 8%; }
+  .hero-win--parent { width: 58%; }
 }
 
 /* --- Product preview (inside .hero-preview-section) --- */
