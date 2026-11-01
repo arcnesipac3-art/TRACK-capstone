@@ -1,4 +1,3 @@
-import ButtonLoader from '../components/loading/ButtonLoader'
 import { useState } from 'react'
 import Icon from '../components/Icon'
 import PageHeader from '../components/PageHeader'
@@ -115,9 +114,8 @@ function ChangePasswordForm() {
           />
           Show passwords
         </label>
-        <Button type="submit" variant="primary" size="sm" disabled={busy}>
-          {busy && <ButtonLoader />}
-          {busy ? 'Saving…' : 'Change password'}
+        <Button type="submit" variant="primary" size="sm" loading={busy} loadingLabel="Saving…">
+          Change password
         </Button>
       </div>
     </form>

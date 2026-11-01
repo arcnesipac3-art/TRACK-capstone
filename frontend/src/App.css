@@ -539,6 +539,14 @@
   box-shadow: var(--shadow-lg);
   z-index: 60;
   overflow: hidden;
+  /* The panel appears under the finger that opened it; a short settle keeps
+     that relationship readable instead of the list just being there. */
+  animation: popover-in var(--dur-1) var(--ease-out);
+}
+
+@keyframes popover-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: none; }
 }
 
 .popover-head {
@@ -701,7 +709,7 @@
   background: var(--surface);
   color: var(--text-muted);
   cursor: pointer;
-  transition: background 120ms ease, color 120ms ease;
+  transition: background var(--ease), color var(--ease);
 }
 .icon-btn:hover { background: var(--surface-alt); color: var(--text); }
 
@@ -4187,6 +4195,20 @@
   .popover { position: fixed; top: var(--topbar-h); right: 8px; left: 8px; width: auto; }
 
   .btn { min-height: 42px; }
+
+  /* The compact members of the control family — the 34px filter inputs, the
+     30–38px segmented/pill tabs, the status quick-filter chips and the 34px
+     icon button — are sized for a laptop toolbar where they sit next to each
+     other. On a phone they are the only way to reach that action, so they take
+     the same 42px target the buttons already get. Scoped to the shell because
+     these classes also appear on the public pages, which keep their own scale. */
+  .app-shell .input-sm,
+  .app-shell .select-sm,
+  .app-shell .tab,
+  .app-shell .enr-pill {
+    min-height: 42px;
+  }
+  .app-shell .icon-btn { width: 42px; height: 42px; }
   /* Phones: two comfortable columns instead of one long single-column list */
   .quick-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .quick-action { padding: 12px; min-height: 54px; gap: 10px; }
@@ -4657,7 +4679,7 @@
   cursor: pointer;
   text-decoration: none;
   white-space: nowrap;
-  transition: background var(--ease), border-color var(--ease), color var(--ease), box-shadow var(--ease), opacity var(--ease);
+  transition: background var(--ease), border-color var(--ease), color var(--ease), box-shadow var(--ease), opacity var(--ease), transform var(--ease);
   vertical-align: middle;
 }
 
@@ -4665,6 +4687,13 @@
 .btn.btn-disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* One press response for every variant: the button moves with the finger so a
+   tap is felt before the request it starts comes back. The variants differ in
+   colour only, so an `:active` rule per variant would drift. */
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .btn-primary {
@@ -4799,7 +4828,7 @@
   border-radius: var(--radius-sm);
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--ease), color var(--ease);
 }
 
 .tab:hover {

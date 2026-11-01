@@ -300,9 +300,8 @@ function SchoolYearModal({ open, year, onClose, onSaved }) {
           <Button variant="secondary" size="sm" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button type="submit" form="school-year-form" variant="primary" size="sm" disabled={busy}>
-            {busy && <ButtonLoader />}
-            {busy ? 'Saving…' : editing ? 'Save changes' : 'Create school year'}
+          <Button type="submit" form="school-year-form" variant="primary" size="sm" loading={busy} loadingLabel="Saving…">
+            {editing ? 'Save changes' : 'Create school year'}
           </Button>
         </>
       }

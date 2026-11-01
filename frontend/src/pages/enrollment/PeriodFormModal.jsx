@@ -1,4 +1,3 @@
-import ButtonLoader from '../../components/loading/ButtonLoader'
 import Icon from '../../components/Icon'
 import Modal from '../../components/Modal'
 import { useEffect, useState } from 'react'
@@ -204,10 +203,10 @@ export default function PeriodFormModal({ open, period, onClose, onSaved }) {
             form="period-form"
             variant="primary"
             size="sm"
-            disabled={busy}
+            loading={busy}
+            loadingLabel="Saving…"
           >
-            {busy && <ButtonLoader />}
-            {busy ? 'Saving…' : editing ? 'Save changes' : 'Create period'}
+            {editing ? 'Save changes' : 'Create period'}
           </Button>
         </>
       }

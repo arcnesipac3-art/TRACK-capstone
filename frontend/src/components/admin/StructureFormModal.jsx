@@ -1,4 +1,3 @@
-import ButtonLoader from '../../components/loading/ButtonLoader'
 import { useState } from 'react'
 import Icon from '../Icon'
 import Modal from '../Modal'
@@ -180,10 +179,10 @@ export default function StructureFormModal({ open, kind, item, options = {}, onC
             form="structure-form"
             variant="primary"
             size="sm"
-            disabled={busy}
+            loading={busy}
+            loadingLabel="Saving…"
           >
-            {busy && <ButtonLoader />}
-            {busy ? 'Saving…' : item ? 'Save changes' : `Add ${noun}`}
+            {item ? 'Save changes' : `Add ${noun}`}
           </Button>
         </>
       }

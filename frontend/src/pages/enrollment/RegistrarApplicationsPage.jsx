@@ -5,7 +5,6 @@ import PageHeader from '../../components/PageHeader'
 import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'
 import Tabs from '../../components/Tabs'
-import { ButtonLoader } from '../../components/loading'
 import TableSkeleton from '../../components/loading/TableSkeleton'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
@@ -970,19 +969,15 @@ export default function RegistrarApplicationsPage() {
               size="sm"
               variant={pending ? TRASH_CONFIRM[pending.kind].buttonVariant : 'primary'}
               onClick={() => runAction(pending.kind, pending.row)}
-              disabled={Boolean(busy)}
+              loading={Boolean(busy)}
+              loadingLabel="Working…"
             >
-              {busy && <ButtonLoader />}
-              {busy
-                ? 'Working…'
-                : pending
-                  ? TRASH_CONFIRM[pending.kind].confirmLabel
-                  : ''}
+              {pending ? TRASH_CONFIRM[pending.kind].confirmLabel : ''}
             </Button>
           </>
         }
       >
-        <p style={{ margin: 0 }}>
+        <p>
           {pending ? TRASH_CONFIRM[pending.kind].body : ''}
         </p>
         {actionError && (

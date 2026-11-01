@@ -367,10 +367,10 @@ function EditSessionModal({ session, onClose, onUpdated, onDeleted }) {
             variant="primary"
             size="sm"
             onClick={submit}
-            disabled={busy}
+            loading={busy}
+            loadingLabel="Saving…"
           >
-            {busy && <ButtonLoader />}
-            {busy ? 'Saving…' : 'Save changes'}
+            Save changes
           </Button>
         </>
       }

@@ -1,4 +1,3 @@
-import ButtonLoader from '../../components/loading/ButtonLoader'
 import { useState } from 'react'
 import Icon from '../Icon'
 import Modal from '../Modal'
@@ -151,10 +150,10 @@ export default function ResetPasswordModal({ open, user, onClose, onDone }) {
             form="reset-password-form"
             variant="primary"
             size="sm"
-            disabled={busy}
+            loading={busy}
+            loadingLabel="Resetting…"
           >
-            {busy && <ButtonLoader />}
-            {busy ? 'Resetting…' : 'Reset password'}
+            Reset password
           </Button>
         </>
       }

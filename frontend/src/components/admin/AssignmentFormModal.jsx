@@ -1,4 +1,3 @@
-import ButtonLoader from '../../components/loading/ButtonLoader'
 import { useMemo, useState } from 'react'
 import Icon from '../Icon'
 import Modal from '../Modal'
@@ -127,10 +126,10 @@ export default function AssignmentFormModal({
             form="assignment-form"
             variant="primary"
             size="sm"
-            disabled={busy}
+            loading={busy}
+            loadingLabel="Saving…"
           >
-            {busy && <ButtonLoader />}
-            {busy ? 'Saving…' : editing ? 'Save changes' : 'Assign class'}
+            {editing ? 'Save changes' : 'Assign class'}
           </Button>
         </>
       }

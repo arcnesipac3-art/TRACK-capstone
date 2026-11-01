@@ -1098,22 +1098,20 @@ export default function RegistrarApplicationReviewPage() {
               variant={
                 modal?.type === 'reject' || modal?.type === 'cancel' ? 'danger' : 'primary'
               }
-              disabled={Boolean(busy)}
+              loading={Boolean(busy)}
+              loadingLabel="Working…"
             >
-              {busy && <ButtonLoader />}
-              {busy
-                ? 'Working…'
-                : modal?.type === 'returnDoc'
-                  ? 'Return document'
-                  : modal?.type === 'waiveDoc'
-                    ? 'Waive document'
-                    : modal?.type === 'assign'
-                      ? 'Assign section'
-                      : modal?.type === 'confirm'
-                        ? 'Confirm enrollment'
-                        : modal?.type === 'link'
-                          ? 'Link student'
-                          : 'Confirm'}
+              {modal?.type === 'returnDoc'
+                ? 'Return document'
+                : modal?.type === 'waiveDoc'
+                  ? 'Waive document'
+                  : modal?.type === 'assign'
+                    ? 'Assign section'
+                    : modal?.type === 'confirm'
+                      ? 'Confirm enrollment'
+                      : modal?.type === 'link'
+                        ? 'Link student'
+                        : 'Confirm'}
             </Button>
           </>
         }

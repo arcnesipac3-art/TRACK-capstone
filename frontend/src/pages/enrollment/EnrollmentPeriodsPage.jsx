@@ -4,7 +4,6 @@ import Icon from '../../components/Icon'
 import Modal from '../../components/Modal'
 import PageHeader from '../../components/PageHeader'
 import StatusBadge from '../../components/StatusBadge'
-import ButtonLoader from '../../components/loading/ButtonLoader'
 import TableSkeleton from '../../components/loading/TableSkeleton'
 import { useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
@@ -378,16 +377,14 @@ export default function EnrollmentPeriodsPage() {
               size="sm"
               variant={confirm?.type === 'delete' ? 'danger' : 'primary'}
               onClick={runConfirmedRequest}
-              disabled={busy}
+              loading={busy}
+              loadingLabel="Working…"
             >
-              {busy && <ButtonLoader />}
-              {busy
-                ? 'Working…'
-                : confirm?.type === 'delete'
-                  ? 'Delete period'
-                  : confirm?.type === 'close'
-                    ? 'Close period'
-                    : 'Reopen period'}
+              {confirm?.type === 'delete'
+                ? 'Delete period'
+                : confirm?.type === 'close'
+                  ? 'Close period'
+                  : 'Reopen period'}
             </Button>
           </>
         }

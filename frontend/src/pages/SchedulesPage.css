@@ -481,6 +481,18 @@
   outline-offset: 1px;
 }
 
+/* A touch screen never raises the hover that reveals this trigger, so on those
+   devices the card menu would be unreachable — and 24px is under a thumb
+   anyway. It stays out of the way visually (no border, tint only on the icon)
+   but it is present and tappable. */
+@media (hover: none) {
+  .timetable-card-menu-trigger {
+    opacity: 1;
+    width: 34px;
+    height: 34px;
+  }
+}
+
 .timetable-card-dropdown {
   position: absolute;
   top: 100%;

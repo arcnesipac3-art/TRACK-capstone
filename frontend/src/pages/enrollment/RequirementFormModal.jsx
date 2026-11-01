@@ -1,4 +1,3 @@
-import ButtonLoader from '../../components/loading/ButtonLoader'
 import Icon from '../../components/Icon'
 import Modal from '../../components/Modal'
 import { useEffect, useState } from 'react'
@@ -196,10 +195,10 @@ export default function RequirementFormModal({
               form="requirement-form"
               variant="primary"
               size="sm"
-              disabled={busy}
+              loading={busy}
+              loadingLabel="Saving…"
             >
-              {busy && <ButtonLoader />}
-              {busy ? 'Saving…' : editing ? 'Save changes' : 'Create requirement'}
+              {editing ? 'Save changes' : 'Create requirement'}
             </Button>
           )}
         </>
@@ -224,10 +223,10 @@ export default function RequirementFormModal({
               variant="danger"
               size="sm"
               onClick={remove}
-              disabled={busy}
+              loading={busy}
+              loadingLabel="Deleting…"
             >
-              {busy && <ButtonLoader />}
-              {busy ? 'Deleting…' : 'Delete requirement'}
+              Delete requirement
             </Button>
           </div>
         </div>

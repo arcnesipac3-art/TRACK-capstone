@@ -1,4 +1,3 @@
-import ButtonLoader from '../../components/loading/ButtonLoader'
 import { useState } from 'react'
 import Icon from '../Icon'
 import Modal from '../Modal'
@@ -112,10 +111,10 @@ export default function DepartmentFormModal({ open, department, onClose, onSaved
             form="department-form"
             variant="primary"
             size="sm"
-            disabled={busy}
+            loading={busy}
+            loadingLabel="Saving…"
           >
-            {busy && <ButtonLoader />}
-            {busy ? 'Saving…' : editing ? 'Save changes' : 'Create department'}
+            {editing ? 'Save changes' : 'Create department'}
           </Button>
         </>
       }

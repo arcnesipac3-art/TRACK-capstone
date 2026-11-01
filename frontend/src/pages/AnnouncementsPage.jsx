@@ -1,4 +1,3 @@
-import ButtonLoader from '../components/loading/ButtonLoader'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
@@ -158,10 +157,10 @@ function AnnouncementFormModal({
             variant="primary"
             size="sm"
             onClick={handleSubmit}
-            disabled={busy}
+            loading={busy}
+            loadingLabel="Saving…"
           >
-            {busy && <ButtonLoader />}
-            {busy ? 'Saving…' : isEdit ? 'Save changes' : 'Publish'}
+            {isEdit ? 'Save changes' : 'Publish'}
           </Button>
         </>
       }

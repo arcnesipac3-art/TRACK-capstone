@@ -249,6 +249,36 @@ img, svg { display: block; }
   color: var(--red-700);
 }
 
+/* Locked controls. Saving disables the fields of an open dialog, and a handful
+   of screens show a value the reader may copy but not change. The browser's
+   own grey is inconsistent between input, select and textarea, so the disabled
+   and read-only states get one surface, one text colour and a caret that
+   matches — and no focus ring, since there is nothing to type into. */
+.input:disabled,
+.select:disabled,
+.textarea:disabled,
+.input[readonly],
+.select[readonly],
+.textarea[readonly] {
+  background: var(--surface-alt);
+  border-color: var(--border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+.input:disabled:focus,
+.select:disabled:focus,
+.textarea:disabled:focus {
+  box-shadow: none;
+}
+
+/* A read-only value is still meant to be read, so it keeps full text contrast;
+   only a disabled control — one that will re-enable — dims. */
+.input[readonly],
+.textarea[readonly] {
+  color: var(--text);
+  cursor: text;
+}
+
 .checkbox-row {
   display: flex;
   align-items: center;
@@ -458,8 +488,15 @@ img, svg { display: block; }
   to { transform: rotate(360deg); }
 }
 
+/* Zeroing the duration alone would leave an `infinite` spinner running ~100
+   turns a second — the opposite of what reduced motion asks for. Stopping the
+   repeat as well parks each indicator on its final keyframe instead. */
 @media (prefers-reduced-motion: reduce) {
-  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* Page- and block-level loading markup now lives with the loading system

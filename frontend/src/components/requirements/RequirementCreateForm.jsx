@@ -1,4 +1,3 @@
-import ButtonLoader from '../../components/loading/ButtonLoader'
 import { useState } from 'react'
 import Icon from '../Icon'
 import api from '../../services/api'
@@ -211,9 +210,8 @@ export default function RequirementCreateForm({ onCreated }) {
         >
           Cancel
         </Button>
-        <Button type="submit" variant="primary" size="sm" disabled={busy}>
-          {busy && <ButtonLoader />}
-          {busy ? 'Creating…' : 'Create requirement'}
+        <Button type="submit" variant="primary" size="sm" loading={busy} loadingLabel="Creating…">
+          Create requirement
         </Button>
       </div>
     </form>

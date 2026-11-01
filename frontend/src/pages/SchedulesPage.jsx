@@ -1,4 +1,3 @@
-import ButtonLoader from '../components/loading/ButtonLoader'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import StatusBadge from '../components/StatusBadge'
@@ -577,9 +576,8 @@ function ScheduleFormModal({ schedule, onClose, onSaved, existingSchedules = [] 
       footer={
         <>
           <Button variant="secondary" size="sm" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button variant="primary" size="sm" onClick={handleSubmit} disabled={busy || hasErrors} title={hasErrors ? 'Resolve conflicts before saving' : ''}>
-            {busy && <ButtonLoader />}
-            {busy ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Schedule'}
+          <Button variant="primary" size="sm" onClick={handleSubmit} disabled={hasErrors} loading={busy} loadingLabel="Saving…" title={hasErrors ? 'Resolve conflicts before saving' : ''}>
+            {isEdit ? 'Save Changes' : 'Add Schedule'}
           </Button>
         </>
       }
@@ -677,9 +675,8 @@ function ConfirmDeleteModal({ schedule, onClose, onDeleted, busy }) {
       footer={
         <>
           <Button variant="secondary" size="sm" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button variant="danger" size="sm" onClick={onDeleted} disabled={busy}>
-            {busy && <ButtonLoader />}
-            {busy ? 'Deleting…' : 'Delete Schedule'}
+          <Button variant="danger" size="sm" onClick={onDeleted} loading={busy} loadingLabel="Deleting…">
+            Delete Schedule
           </Button>
         </>
       }
@@ -689,7 +686,7 @@ function ConfirmDeleteModal({ schedule, onClose, onDeleted, busy }) {
       </p>
       <div className="card" style={{ background: 'var(--surface-2)' }}>
         <div className="card-body" style={{ fontSize: '0.9rem' }}>
-          <p style={{ margin: 0 }}>
+          <p>
             <strong>{schedule?.teacher_assignment_detail?.subject_name}</strong>
             <br />
             {schedule?.teacher_assignment_detail?.section_name}
