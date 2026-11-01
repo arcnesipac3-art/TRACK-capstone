@@ -108,6 +108,25 @@ const SUPER_PAYLOAD = {
   },
 }
 
+// GET /enrollment/dashboard/ — the registrar's figures, requested only when
+// the administrator holds enrollment.view.
+const ENROLLMENT_PAYLOAD = {
+  total_applications: 40,
+  submitted: 6,
+  under_review: 4,
+  resubmitted: 1,
+  awaiting_corrections: 2,
+  accepted: 20,
+  waitlisted: 0,
+  rejected: 3,
+  enrolled: 15,
+  drafts: 5,
+  pending_documents: 7,
+  confirmed_enrollments: 15,
+  by_grade: [],
+  open_periods: 1,
+}
+
 const FINANCE_PAYLOAD = {
   role: 'admin',
   is_super_admin: false,
@@ -123,18 +142,22 @@ const FINANCE_PAYLOAD = {
   },
 }
 
+const IDLE = { data: null, loading: false, error: null }
+
 /**
- * Wire the mocked useFetch: `/dashboard/` gets the given state, every other
- * consumer (the notifications card) gets an idle list. Returns the dashboard
- * reload spy so error tests can assert the retry path.
+ * Wire the mocked useFetch: `/dashboard/` and `/enrollment/dashboard/` get
+ * their own state, every other consumer (the notifications card) gets an idle
+ * list. Returns the dashboard reload spy so error tests can assert the retry.
  */
 function mockFetch({
-  dashboard = { data: null, loading: false, error: null },
-  notifications = { data: [], loading: false, error: null },
+  dashboard = IDLE,
+  enrollment = IDLE,
+  notifications = { data: [], ...IDLE },
 } = {}) {
   const reload = vi.fn()
   useFetch.mockImplementation((path) => {
     if (path === '/notifications/') return { ...notifications, reload: vi.fn() }
+    if (path === '/enrollment/dashboard/') return { ...enrollment, reload: vi.fn() }
     return { ...dashboard, reload }
   })
   return reload
@@ -148,11 +171,16 @@ function renderDash() {
   )
 }
 
-/** Stat card element by its label (row labels elsewhere can repeat words). */
-function statCard(label) {
-  return [...document.querySelectorAll('.stat-grid .stat-card')].find(
+/** KPI tile element by its label. */
+function kpiCard(label) {
+  return [...document.querySelectorAll('.kpi-grid .stat-card')].find(
     (el) => el.querySelector('.stat-label')?.textContent === label
   )
+}
+
+/** Card element by its <h2> heading. */
+function panel(title) {
+  return screen.getByText(title).closest('section')
 }
 
 beforeEach(() => {
@@ -163,7 +191,7 @@ beforeEach(() => {
 
 describe('AdminDashboard — header', () => {
   it('shows a real greeting, subtle role chip, date and school year', () => {
-    mockFetch({ dashboard: { data: SUPER_PAYLOAD, loading: false, error: null } })
+    mockFetch({ dashboard: { ...IDLE, data: SUPER_PAYLOAD } })
     renderDash()
 
     expect(screen.getByRole('heading', { name: 'Welcome back, Ada' })).toBeInTheDocument()
@@ -181,7 +209,7 @@ describe('AdminDashboard — header', () => {
   })
 
   it('links the notification shortcut to /notifications with the unread count', () => {
-    mockFetch({ dashboard: { data: SUPER_PAYLOAD, loading: false, error: null } })
+    mockFetch({ dashboard: { ...IDLE, data: SUPER_PAYLOAD } })
     renderDash()
 
     const link = screen.getByRole('link', { name: /notifications/i })
@@ -191,33 +219,187 @@ describe('AdminDashboard — header', () => {
   })
 })
 
-describe('AdminDashboard — statistics', () => {
-  it('renders permission-scoped cards from server-computed totals', () => {
-    mockFetch({ dashboard: { data: SUPER_PAYLOAD, loading: false, error: null } })
+describe('AdminDashboard — key metrics', () => {
+  it('prioritizes students, teachers, attendance and requirements completion', () => {
+    mockFetch({
+      dashboard: { ...IDLE, data: SUPER_PAYLOAD },
+      enrollment: { ...IDLE, data: ENROLLMENT_PAYLOAD },
+    })
     renderDash()
 
-    const studentsCard = statCard('Students')
-    expect(studentsCard).toBeTruthy()
-    expect(within(studentsCard).getByText('1,234')).toBeInTheDocument()
+    const students = kpiCard('Students')
+    expect(within(students).getByText('1,234')).toBeInTheDocument()
+    expect(within(students).getByText('of 1,369 accounts in the directory')).toBeInTheDocument()
 
-    // Financial figures are the backend's, formatted in Philippine pesos.
-    const assessedCard = statCard('Fees assessed')
-    expect(within(assessedCard).getByText('₱125,000.00')).toBeInTheDocument()
-    const collectedCard = statCard('Fees collected')
-    expect(within(collectedCard).getByText('₱75,000.00')).toBeInTheDocument()
-    expect(within(collectedCard).getByText('60% of assessed')).toBeInTheDocument()
+    expect(within(kpiCard('Teachers')).getByText('42')).toBeInTheDocument()
 
-    const outstandingCard = statCard('Outstanding balance')
-    expect(within(outstandingCard).getByText('₱50,000.00')).toBeInTheDocument()
-    expect(outstandingCard.className).toContain('tone-amber')
+    // Attendance keeps the server-computed rate; the tile is never a guess.
+    const attendance = kpiCard('Attendance present')
+    expect(within(attendance).getByText('80%')).toBeInTheDocument()
+    expect(within(attendance).getByText('10 records · 8 today')).toBeInTheDocument()
 
-    expect(screen.getByText('10 subjects · 4 grade levels')).toBeInTheDocument()
-    expect(screen.getByText('5 active · 2 super administrators')).toBeInTheDocument()
-    expect(screen.getByText('1 pinned')).toBeInTheDocument()
-    expect(document.querySelectorAll('.stat-grid .stat-card')).toHaveLength(10)
-    expect(document.querySelectorAll('.quick-action')).toHaveLength(10)
+    // 5 verified of 12 recorded submissions.
+    const requirements = kpiCard('Requirements verified')
+    expect(within(requirements).getByText('42%')).toBeInTheDocument()
+    expect(within(requirements).getByText('5 of 12 submissions')).toBeInTheDocument()
+
+    expect(document.querySelectorAll('.kpi-grid .stat-card')).toHaveLength(5)
   })
 
+  it('links each metric to the screen that owns it', () => {
+    mockFetch({
+      dashboard: { ...IDLE, data: SUPER_PAYLOAD },
+      enrollment: { ...IDLE, data: ENROLLMENT_PAYLOAD },
+    })
+    renderDash()
+
+    expect(kpiCard('Students')).toHaveAttribute('href', '/admin/users')
+    expect(kpiCard('Attendance present')).toHaveAttribute('href', '/admin/attendance')
+    expect(kpiCard('Requirements verified')).toHaveAttribute('href', '/admin/requirements')
+    expect(kpiCard('Applications in review')).toHaveAttribute('href', '/admin/enrollment')
+  })
+
+  it('adds the registrar queue only for enrollment staff, using real statuses', () => {
+    mockFetch({
+      dashboard: { ...IDLE, data: SUPER_PAYLOAD },
+      enrollment: { ...IDLE, data: ENROLLMENT_PAYLOAD },
+    })
+    renderDash()
+
+    const tile = kpiCard('Applications in review')
+    expect(within(tile).getByText('4')).toBeInTheDocument()
+    expect(within(tile).getByText('6 submitted · 2 awaiting corrections')).toBeInTheDocument()
+  })
+
+  it('reports an enrollment failure instead of showing zero applications', () => {
+    mockFetch({
+      dashboard: { ...IDLE, data: SUPER_PAYLOAD },
+      enrollment: { ...IDLE, error: new Error('Enrollment unavailable') },
+    })
+    renderDash()
+
+    const tile = kpiCard('Applications in review')
+    expect(within(tile).getByText('Unavailable')).toBeInTheDocument()
+    expect(within(tile).getByText('Enrollment figures could not be loaded.')).toBeInTheDocument()
+    expect(within(tile).queryByText('0')).not.toBeInTheDocument()
+  })
+
+  it('shows organisation figures as a compact strip, not as cards', () => {
+    mockFetch({ dashboard: { ...IDLE, data: SUPER_PAYLOAD } })
+    renderDash()
+
+    const facts = document.querySelector('.fact-strip')
+    expect(facts).not.toBeNull()
+    expect(within(facts).getByText('6 sections · 10 subjects · 4 grade levels')).toBeInTheDocument()
+    expect(
+      within(facts).getByText('5 departments · 5 active · 2 super administrators')
+    ).toBeInTheDocument()
+  })
+
+  it('never shows a fabricated completion rate without submissions', () => {
+    mockFetch({
+      dashboard: {
+        ...IDLE,
+        data: {
+          role: 'admin',
+          is_super_admin: false,
+          unread_notifications: 0,
+          blocks: {
+            requirements: {
+              total_requirements: 5,
+              active_requirements: 3,
+              total_submissions: 0,
+              submission_status: { none: 0, submitted: 0, verified: 0, returned: 0, overdue: 0 },
+            },
+          },
+        },
+      },
+    })
+    renderDash()
+
+    const tile = kpiCard('Requirements verified')
+    expect(within(tile).getByText('—')).toBeInTheDocument()
+    expect(within(tile).getByText('No submissions yet')).toBeInTheDocument()
+    expect(screen.queryByText('0%')).not.toBeInTheDocument()
+  })
+
+  it('keeps every figure the previous ten stat cards carried', () => {
+    mockFetch({
+      dashboard: { ...IDLE, data: SUPER_PAYLOAD },
+      enrollment: { ...IDLE, data: ENROLLMENT_PAYLOAD },
+    })
+    renderDash()
+
+    // Students / teachers / parents · sections, subjects, grade levels ·
+    // active requirements · the three fee totals · departments · announcements.
+    expect(screen.getByText('1,234')).toBeInTheDocument()
+    expect(screen.getByText('42')).toBeInTheDocument()
+    expect(screen.getByText('89 · 7%')).toBeInTheDocument()
+    expect(screen.getByText('6 sections · 10 subjects · 4 grade levels')).toBeInTheDocument()
+    expect(screen.getByText('3 of 5 active')).toBeInTheDocument()
+    expect(screen.getByText('₱125,000.00')).toBeInTheDocument()
+    expect(screen.getByText('₱75,000.00')).toBeInTheDocument()
+    expect(screen.getByText('₱50,000.00')).toBeInTheDocument()
+    expect(screen.getByText('5 departments · 5 active · 2 super administrators')).toBeInTheDocument()
+    expect(screen.getByText('4 published')).toBeInTheDocument()
+    expect(
+      screen.getByText(/12 submissions recorded in total\. · 2 with nothing submitted yet\./)
+    ).toBeInTheDocument()
+    expect(screen.getByText('1,369 user accounts in total.')).toBeInTheDocument()
+  })
+})
+
+describe('AdminDashboard — shortcuts', () => {
+  it('keeps five actions in the bar and folds the rest into a menu', async () => {
+    const user = userEvent.setup()
+    mockFetch({ dashboard: { ...IDLE, data: SUPER_PAYLOAD } })
+    renderDash()
+
+    const bar = screen.getByRole('navigation', { name: 'Quick actions' })
+    // Five visible shortcuts; the overflow sits behind a button, not a link.
+    expect(within(bar).getAllByRole('link')).toHaveLength(5)
+
+    expect(within(bar).getByRole('link', { name: 'Manage users' })).toBeInTheDocument()
+    expect(within(bar).getByRole('link', { name: 'Manage enrollment' })).toBeInTheDocument()
+    expect(within(bar).getByRole('link', { name: 'View attendance' })).toBeInTheDocument()
+    expect(within(bar).getByRole('link', { name: 'Manage requirements' })).toBeInTheDocument()
+    expect(within(bar).getByRole('link', { name: 'View reports' })).toBeInTheDocument()
+
+    // The overflow stays out of the way until asked for.
+    expect(within(bar).queryByRole('link', { name: 'Audit logs' })).not.toBeInTheDocument()
+    await user.click(within(bar).getByRole('button', { name: 'More actions' }))
+
+    const menu = await screen.findByRole('menu', { name: 'More dashboard actions' })
+    expect(within(menu).getByRole('menuitem', { name: 'Fee management' })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: 'Audit logs' })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: 'System settings' })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: 'Audit logs' })).toHaveAttribute(
+      'href',
+      '/admin/audit-logs'
+    )
+  })
+
+  it('offers only the shortcuts the administrator is allowed to use', () => {
+    mockAuth.can = (key) => key === 'fees.view'
+    mockFetch({ dashboard: { ...IDLE, data: FINANCE_PAYLOAD } })
+    renderDash()
+
+    const bar = screen.getByRole('navigation', { name: 'Quick actions' })
+    expect(within(bar).getByRole('link', { name: 'Fee management' })).toBeInTheDocument()
+    expect(within(bar).queryByRole('link', { name: 'Manage users' })).not.toBeInTheDocument()
+    expect(within(bar).queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument()
+  })
+
+  it('renders no shortcut bar when the account carries no permissions', () => {
+    mockAuth.can = () => false
+    mockFetch({ dashboard: { ...IDLE, data: { ...SUPER_PAYLOAD, blocks: {} } } })
+    renderDash()
+
+    expect(screen.queryByRole('navigation', { name: 'Quick actions' })).toBeNull()
+  })
+})
+
+describe('AdminDashboard — permission scope', () => {
   it('shows only authorized modules for a finance administrator', () => {
     mockAuth.user = {
       ...SUPER_USER,
@@ -225,7 +407,7 @@ describe('AdminDashboard — statistics', () => {
       departments: [{ id: 4, name: 'Finance / Fee Management', code: 'FINANCE' }],
     }
     mockAuth.can = (key) => key === 'fees.view'
-    mockFetch({ dashboard: { data: FINANCE_PAYLOAD, loading: false, error: null } })
+    mockFetch({ dashboard: { ...IDLE, data: FINANCE_PAYLOAD } })
     renderDash()
 
     expect(screen.getByText('Administrator')).toBeInTheDocument()
@@ -233,21 +415,17 @@ describe('AdminDashboard — statistics', () => {
     expect(screen.getByText('₱125,000.00')).toBeInTheDocument()
 
     // No school-wide figures leak outside the finance blocks.
-    expect(screen.queryByText('Students')).not.toBeInTheDocument()
+    expect(document.querySelector('.kpi-grid')).toBeNull()
     expect(screen.queryByText('Account distribution')).not.toBeInTheDocument()
     expect(screen.queryByText('Departments')).not.toBeInTheDocument()
-
-    // Only the fee shortcut is offered.
-    expect(screen.getByRole('link', { name: 'Fee management' })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Manage users' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Audit logs' })).not.toBeInTheDocument()
     expect(screen.queryByText('Requirements overview')).not.toBeInTheDocument()
+    expect(screen.queryByText('School attendance summary')).not.toBeInTheDocument()
   })
 })
 
 describe('AdminDashboard — content panels', () => {
   it('summarizes submissions with a labelled stack and percentages', () => {
-    mockFetch({ dashboard: { data: SUPER_PAYLOAD, loading: false, error: null } })
+    mockFetch({ dashboard: { ...IDLE, data: SUPER_PAYLOAD } })
     renderDash()
 
     const stack = screen.getByRole('img', {
@@ -256,11 +434,13 @@ describe('AdminDashboard — content panels', () => {
     expect(stack.className).toContain('status-stack')
     expect(screen.getByText('5 · 42%')).toBeInTheDocument()
     expect(screen.getByText(/12 submissions recorded in total\./)).toBeInTheDocument()
+    // The deadline status the old "Active requirements" card carried.
+    expect(screen.getByText('3 of 5 active')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open requirements' })).toBeInTheDocument()
   })
 
   it('groups recent activity with actor and relative time', () => {
-    mockFetch({ dashboard: { data: SUPER_PAYLOAD, loading: false, error: null } })
+    mockFetch({ dashboard: { ...IDLE, data: SUPER_PAYLOAD } })
     renderDash()
 
     expect(screen.getByText('Created account for Juan Cruz')).toBeInTheDocument()
@@ -270,25 +450,74 @@ describe('AdminDashboard — content panels', () => {
     expect(screen.getByRole('link', { name: 'View audit log' })).toBeInTheDocument()
   })
 
-  it('lists the latest announcement with audience and publication date', () => {
-    mockFetch({ dashboard: { data: SUPER_PAYLOAD, loading: false, error: null } })
+  it('lists announcements with audience, date and the pinned flag', () => {
+    mockFetch({ dashboard: { ...IDLE, data: SUPER_PAYLOAD } })
     renderDash()
 
-    expect(screen.getByText('Enrollment week')).toBeInTheDocument()
+    const card = panel('Latest announcements')
+    expect(within(card).getByText('Enrollment week')).toBeInTheDocument()
     expect(
-      screen.getByText(`Everyone · ${formatDate('2026-10-01T08:00:00+08:00')}`)
+      within(card).getByText(`Everyone · ${formatDate('2026-10-01T08:00:00+08:00')}`)
     ).toBeInTheDocument()
-    const card = screen.getByText('Latest announcements').closest('section')
+    // The payload orders pinned items first, so the single pinned row is marked.
+    expect(within(card).getByText('Pinned')).toBeInTheDocument()
+    expect(within(card).getByText('4 published')).toBeInTheDocument()
     expect(within(card).getByRole('link', { name: 'View all' })).toBeInTheDocument()
   })
 
-  it('breaks down account distribution from the real counts', () => {
-    mockFetch({ dashboard: { data: SUPER_PAYLOAD, loading: false, error: null } })
+  it('marks no announcement as pinned when none are pinned', () => {
+    mockFetch({
+      dashboard: {
+        ...IDLE,
+        data: {
+          ...SUPER_PAYLOAD,
+          blocks: {
+            ...SUPER_PAYLOAD.blocks,
+            announcements: {
+              total: 2,
+              pinned: 0,
+              latest: [
+                { id: 5, title: 'Class picture day', audience: 'students', published_at: null },
+              ],
+            },
+          },
+        },
+      },
+    })
     renderDash()
 
-    const card = screen.getByText('Account distribution').closest('section')
-    expect(within(card).getByText('Students')).toBeInTheDocument()
+    const card = panel('Latest announcements')
+    expect(within(card).queryByText('Pinned')).not.toBeInTheDocument()
+    expect(within(card).getByText('2 published')).toBeInTheDocument()
+  })
+
+  it('groups every fee figure in one finance card with its collection rate', () => {
+    mockFetch({ dashboard: { ...IDLE, data: SUPER_PAYLOAD } })
+    renderDash()
+
+    const card = panel('Finance summary')
+    expect(within(card).getByText('Fees assessed')).toBeInTheDocument()
+    expect(within(card).getByText('₱125,000.00')).toBeInTheDocument()
+    expect(within(card).getByText('₱75,000.00')).toBeInTheDocument()
+    expect(within(card).getByText('₱50,000.00')).toBeInTheDocument()
+    expect(within(card).getByText('60% collected')).toBeInTheDocument()
+    expect(
+      within(card).getByRole('img', { name: 'Collected 75000 of 125000 assessed' })
+    ).toBeInTheDocument()
+    expect(within(card).getByText('School year 2026-2027 · 60% of assessed fees collected.'))
+    expect(within(card).getByRole('link', { name: 'Manage' })).toHaveAttribute(
+      'href',
+      '/admin/fees'
+    )
+  })
+
+  it('breaks down account distribution from the real counts', () => {
+    mockFetch({ dashboard: { ...IDLE, data: SUPER_PAYLOAD } })
+    renderDash()
+
+    const card = panel('Account distribution')
     expect(within(card).getByText('1,234 · 90%')).toBeInTheDocument()
+    expect(within(card).getByText('89 · 7%')).toBeInTheDocument()
     // 1369 − 1234 − 42 − 89 = 4 administrators (User has exactly four roles).
     expect(within(card).getByText('4 · 0%')).toBeInTheDocument()
     expect(within(card).getByText('1,369 user accounts in total.')).toBeInTheDocument()
@@ -297,7 +526,7 @@ describe('AdminDashboard — content panels', () => {
 
 describe('AdminDashboard — today at school', () => {
   it("shows today's figures as a strip in the attendance card", () => {
-    mockFetch({ dashboard: { data: SUPER_PAYLOAD, loading: false, error: null } })
+    mockFetch({ dashboard: { ...IDLE, data: SUPER_PAYLOAD } })
     renderDash()
 
     const strip = document.querySelector('.att-today')
@@ -308,11 +537,24 @@ describe('AdminDashboard — today at school', () => {
     expect(strip).toHaveTextContent('1 late')
     // Only non-zero statuses are shown — no "0 excused" noise.
     expect(strip.textContent).not.toContain('excused')
+
+    // The rows underneath are all-time, and the card says so.
+    expect(screen.getByText('All recorded sessions')).toBeInTheDocument()
+  })
+
+  it('links the attendance card to the attendance screen', () => {
+    mockFetch({ dashboard: { ...IDLE, data: SUPER_PAYLOAD } })
+    renderDash()
+
+    expect(within(panel('School attendance summary')).getByRole('link', {
+      name: 'Manage',
+    })).toHaveAttribute('href', '/admin/attendance')
   })
 
   it('says so honestly when the school day has no records yet', () => {
     mockFetch({
       dashboard: {
+        ...IDLE,
         data: {
           role: 'admin',
           is_super_admin: false,
@@ -330,44 +572,43 @@ describe('AdminDashboard — today at school', () => {
             },
           },
         },
-        loading: false,
-        error: null,
       },
     })
     renderDash()
 
-    expect(
-      screen.getByText('No attendance recorded today yet.')
-    ).toBeInTheDocument()
+    expect(screen.getByText('No attendance recorded today yet.')).toBeInTheDocument()
     expect(document.querySelector('.att-today')).toBeNull()
+    // The metric tile stays on the all-time figures it actually has.
+    expect(within(kpiCard('Attendance present')).getByText('80%')).toBeInTheDocument()
+    expect(within(kpiCard('Attendance present')).getByText('10 records')).toBeInTheDocument()
   })
 
   it('never shows a today strip without the attendance permission', () => {
     mockAuth.can = (key) => key === 'fees.view'
-    mockFetch({ dashboard: { data: FINANCE_PAYLOAD, loading: false, error: null } })
+    mockFetch({ dashboard: { ...IDLE, data: FINANCE_PAYLOAD } })
     renderDash()
 
     expect(document.querySelector('.att-today')).toBeNull()
-    expect(
-      screen.queryByText('No attendance recorded today yet.')
-    ).not.toBeInTheDocument()
+    expect(screen.queryByText('No attendance recorded today yet.')).not.toBeInTheDocument()
   })
 })
 
 describe('AdminDashboard — loading, errors and empty states', () => {
   it('announces a loading state with a skeleton layout', () => {
-    mockFetch({ dashboard: { data: null, loading: true, error: null } })
+    mockFetch({ dashboard: { ...IDLE, loading: true } })
     renderDash()
 
     expect(screen.getByRole('status')).toHaveTextContent('Loading dashboard…')
     expect(document.querySelector('.skeleton-hero')).not.toBeNull()
-    expect(document.querySelectorAll('.stat-grid .skeleton')).toHaveLength(6)
+    expect(document.querySelector('.skeleton-toolbar')).not.toBeNull()
+    expect(document.querySelectorAll('.kpi-grid .skeleton')).toHaveLength(5)
+    expect(document.querySelectorAll('.two-col .card')).toHaveLength(4)
   })
 
   it('shows a retryable error when the summary request fails', async () => {
     const user = userEvent.setup()
     const reload = mockFetch({
-      dashboard: { data: null, loading: false, error: new Error('Network down') },
+      dashboard: { ...IDLE, error: new Error('Network down') },
     })
     renderDash()
 
@@ -381,24 +622,24 @@ describe('AdminDashboard — loading, errors and empty states', () => {
     mockAuth.can = () => false
     mockFetch({
       dashboard: {
+        ...IDLE,
         data: { role: 'admin', is_super_admin: false, unread_notifications: 0, blocks: {} },
-        loading: false,
-        error: null,
       },
     })
     renderDash()
 
     expect(screen.getByText('No modules granted yet')).toBeInTheDocument()
-    expect(document.querySelector('.quick-actions')).toBeNull()
+    expect(document.querySelector('.kpi-grid')).toBeNull()
+    expect(document.querySelector('.fact-strip')).toBeNull()
     // Notifications are role-neutral and still shown.
     expect(screen.getByText('No notifications yet')).toBeInTheDocument()
   })
 
   it('offers a create shortcut when no requirements exist yet', () => {
-    mockAuth.can = (key) =>
-      ['requirements.view', 'requirements.manage'].includes(key)
+    mockAuth.can = (key) => ['requirements.view', 'requirements.manage'].includes(key)
     mockFetch({
       dashboard: {
+        ...IDLE,
         data: {
           role: 'admin',
           is_super_admin: false,
@@ -408,12 +649,16 @@ describe('AdminDashboard — loading, errors and empty states', () => {
               total_requirements: 0,
               active_requirements: 0,
               total_submissions: 0,
-              submission_status: { none: 0, submitted: 0, verified: 0, returned: 0, overdue: 0 },
+              submission_status: {
+                none: 0,
+                submitted: 0,
+                verified: 0,
+                returned: 0,
+                overdue: 0,
+              },
             },
           },
         },
-        loading: false,
-        error: null,
       },
     })
     renderDash()
@@ -426,6 +671,7 @@ describe('AdminDashboard — loading, errors and empty states', () => {
   it('shows an honest empty attendance state, never a fabricated rate', () => {
     mockFetch({
       dashboard: {
+        ...IDLE,
         data: {
           role: 'admin',
           is_super_admin: false,
@@ -438,8 +684,6 @@ describe('AdminDashboard — loading, errors and empty states', () => {
             },
           },
         },
-        loading: false,
-        error: null,
       },
     })
     renderDash()
@@ -447,12 +691,41 @@ describe('AdminDashboard — loading, errors and empty states', () => {
     expect(screen.getByText('No attendance recorded yet')).toBeInTheDocument()
     expect(screen.queryByText(/% present/)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open attendance' })).toBeInTheDocument()
+
+    const tile = kpiCard('Attendance')
+    expect(within(tile).getByText('—')).toBeInTheDocument()
+    expect(within(tile).getByText('Nothing recorded yet')).toBeInTheDocument()
+  })
+
+  it('shows an empty finance card instead of a zeroed collection rate', () => {
+    mockFetch({
+      dashboard: {
+        ...IDLE,
+        data: {
+          role: 'admin',
+          is_super_admin: false,
+          unread_notifications: 0,
+          blocks: {
+            fees: {
+              total_assessed: 0,
+              total_collected: 0,
+              total_outstanding: 0,
+              active_school_year: '2026-2027',
+            },
+          },
+        },
+      },
+    })
+    renderDash()
+
+    expect(screen.getByText('No published assessments yet')).toBeInTheDocument()
+    expect(screen.queryByText('0% collected')).not.toBeInTheDocument()
   })
 
   it('surfaces notification request failures as an error, not an empty state', () => {
     mockFetch({
-      dashboard: { data: SUPER_PAYLOAD, loading: false, error: null },
-      notifications: { data: null, loading: false, error: new Error('Notifications unavailable') },
+      dashboard: { ...IDLE, data: SUPER_PAYLOAD },
+      notifications: { ...IDLE, error: new Error('Notifications unavailable') },
     })
     renderDash()
 

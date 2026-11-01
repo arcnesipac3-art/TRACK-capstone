@@ -10,7 +10,7 @@ import Sidebar from './Sidebar'
  * permission key, starting at `path`. `useAuth` reads the context value
  * directly, so stubbing the provider value is enough — no network involved.
  */
-function renderSidebar(path = '/admin/dashboard') {
+function renderSidebar(path = '/admin/dashboard', { rail = false, onToggleRail = vi.fn() } = {}) {
   const authValue = {
     user: {
       id: 9,
@@ -42,7 +42,7 @@ function renderSidebar(path = '/admin/dashboard') {
   return render(
     <AuthContext.Provider value={authValue}>
       <MemoryRouter initialEntries={[path]}>
-        <Sidebar />
+        <Sidebar rail={rail} onToggleRail={onToggleRail} />
       </MemoryRouter>
     </AuthContext.Provider>
   )
@@ -134,5 +134,72 @@ describe('Sidebar — Users collapsible group', () => {
     )
     expect(screen.queryByRole('button', { name: /users/i })).toBeNull()
     expect(screen.queryByRole('link', { name: 'Students' })).toBeNull()
+  })
+})
+
+describe('Sidebar — collapsed rail', () => {
+  it('keeps every destination named and highlighted when labels are hidden', () => {
+    renderSidebar('/admin/fees', { rail: true })
+
+    const fees = screen.getByRole('link', { name: 'Fees' })
+    expect(fees).toHaveClass('active')
+    // The label stays in the accessible name; the tooltip covers the mouse.
+    expect(fees).toHaveAttribute('title', 'Fees')
+    expect(screen.getByRole('link', { name: 'Audit Logs' })).toBeInTheDocument()
+  })
+
+  it('trades the wide lockup for the square mark and an expand control', () => {
+    renderSidebar('/admin/dashboard', { rail: true })
+    expect(document.querySelector('.sidebar')).toHaveClass('rail')
+    expect(document.querySelector('.sidebar-rail-mark')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Expand navigation' })).
+      toBeInTheDocument()
+  })
+
+  it('widens the sidebar through the shell instead of opening a rail submenu', async () => {
+    const user = userEvent.setup()
+    const onToggleRail = vi.fn()
+    renderSidebar('/admin/dashboard', { rail: true, onToggleRail })
+
+    await user.click(usersToggle())
+    expect(onToggleRail).toHaveBeenCalledWith(false)
+    expect(usersToggle()).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('collapses through the same shell callback when open', async () => {
+    const user = userEvent.setup()
+    const onToggleRail = vi.fn()
+    renderSidebar('/admin/dashboard', { onToggleRail })
+
+    await user.click(screen.getByRole('button', { name: 'Collapse navigation' }))
+    expect(onToggleRail).toHaveBeenCalledWith(true)
+    expect(screen.getByRole('button', { name: 'Collapse navigation' })).
+      toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('never rails the mobile drawer, which has no rail to collapse to', () => {
+    const authValue = {
+      user: { id: 1, username: 'ada', role: 'admin', fullName: 'Ada', permissions: ['users.view'] },
+      status: 'authenticated',
+      isAuthenticated: true,
+      isLoading: false,
+      bootstrapError: null,
+      login: vi.fn(),
+      logout: vi.fn(),
+      refreshUser: vi.fn(),
+    }
+    render(
+      <AuthContext.Provider value={authValue}>
+        <MemoryRouter initialEntries={['/admin/dashboard']}>
+          <Sidebar variant="drawer" rail onToggleRail={vi.fn()} />
+        </MemoryRouter>
+      </AuthContext.Provider>
+    )
+
+    const drawer = document.querySelector('.drawer')
+    expect(drawer).not.toHaveClass('rail')
+    // The drawer keeps its labels and gains no desktop collapse control.
+    expect(screen.getByText('Dashboard')).toHaveClass('nav-label')
+    expect(screen.getByRole('button', { name: 'Close menu' })).toBeInTheDocument()
   })
 })

@@ -6,6 +6,7 @@ import {
   navForRole,
   navForUser,
   titleForPath,
+  trailForPath,
 } from './navigation'
 
 const ROLES = ['admin', 'teacher', 'student', 'parent']
@@ -184,11 +185,64 @@ describe('titleForPath', () => {
     expect(titleForPath('/dashboard', 'admin')).toBe('Dashboard')
   })
 
+  it('names an avatar-menu page the administrator’s sidebar does not list', () => {
+    expect(NAVIGATION.admin.some((i) => i.to === '/profile')).toBe(false)
+    expect(titleForPath('/profile', 'admin')).toBe('Profile')
+    expect(titleForPath('/notifications', 'admin')).toBe('Notifications')
+  })
+
   it('falls back to a sensible label rather than blank', () => {
     // Unmatched path under a role route → Dashboard
     expect(titleForPath('/teacher/anything', 'teacher')).toBe('Dashboard')
     // Completely unknown path → the app name, never blank
     expect(titleForPath('/nowhere', 'teacher')).toBe('TRACK')
     expect(titleForPath('/nowhere', 'unknown')).toBe('TRACK')
+  })
+})
+
+describe('trailForPath', () => {
+  const home = (role) => ({ label: 'Dashboard', to: `/${role}/dashboard` })
+
+  it('puts the group between the dashboard and its child page', () => {
+    expect(trailForPath('/admin/students', 'admin')).toEqual([
+      home('admin'),
+      { label: 'Users', to: '/admin/users' },
+      { label: 'Students', to: '/admin/students' },
+    ])
+  })
+
+  it('is dashboard → page for a top-level page', () => {
+    expect(trailForPath('/teacher/classes', 'teacher')).toEqual([
+      home('teacher'),
+      { label: 'My Classes', to: '/teacher/classes' },
+    ])
+    expect(trailForPath('/profile', 'student')).toEqual([
+      home('student'),
+      { label: 'Profile', to: '/profile' },
+    ])
+  })
+
+  it('gives the dashboard itself a single crumb, never Dashboard → Dashboard', () => {
+    expect(trailForPath('/admin/dashboard', 'admin')).toEqual([home('admin')])
+  })
+
+  it('carries a deep route under the navigation entry it belongs to', () => {
+    expect(trailForPath('/admin/enrollment/applications/123', 'admin')).toEqual([
+      home('admin'),
+      { label: 'Enrollment', to: '/admin/enrollment' },
+      { label: 'Applications', to: '/admin/enrollment/applications' },
+    ])
+    expect(trailForPath('/admin/users/42/edit', 'admin')).toEqual([
+      home('admin'),
+      { label: 'Users', to: '/admin/users' },
+    ])
+  })
+
+  it('invents nothing for a path outside the role’s navigation', () => {
+    expect(trailForPath('/nowhere', 'teacher')).toEqual([home('teacher')])
+    expect(trailForPath('/nowhere', 'robot')).toEqual([])
+    // /profile is reachable by every role but is not an administrator sidebar
+    // item, so the trail stops at the dashboard rather than claiming otherwise.
+    expect(trailForPath('/profile', 'admin')).toEqual([home('admin')])
   })
 })

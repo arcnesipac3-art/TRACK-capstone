@@ -2,6 +2,7 @@ import EmptyState from '../../components/EmptyState'
 import Icon from '../../components/Icon'
 import Modal from '../../components/Modal'
 import PageHeader from '../../components/PageHeader'
+import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'
 import { ButtonLoader } from '../../components/loading'
 import TableSkeleton from '../../components/loading/TableSkeleton'
@@ -199,70 +200,17 @@ function usePaginatedList(path, initialFilters = {}, initialOrdering = '') {
 function ListPagination({ list, idPrefix }) {
   if (list.totalPages <= 1) return null
   return (
-    <div className="pagination">
-      <div className="pagination-info">
-        {list.totalCount} records — showing {list.startIndex}–{list.endIndex}
-      </div>
-      <div className="pagination-controls">
-        <button
-          type="button"
-          className="btn btn-sm btn-secondary"
-          onClick={() => list.setPage(list.page - 1)}
-          disabled={list.page <= 1 || list.loading}
-          aria-label="Previous page"
-        >
-          <Icon name="arrowLeft" size={14} />
-        </button>
-        <span className="pagination-pages" aria-live="polite">
-          {Array.from({ length: Math.min(list.totalPages, 5) }, (_, i) => {
-            let pageNum
-            if (list.totalPages <= 5) pageNum = i + 1
-            else if (list.page <= 3) pageNum = i + 1
-            else if (list.page >= list.totalPages - 2)
-              pageNum = list.totalPages - 4 + i
-            else pageNum = list.page - 2 + i
-            return (
-              <button
-                key={pageNum}
-                type="button"
-                className={`btn btn-sm ${list.page === pageNum ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => list.setPage(pageNum)}
-                disabled={list.loading}
-              >
-                {pageNum}
-              </button>
-            )
-          })}
-        </span>
-        <button
-          type="button"
-          className="btn btn-sm btn-secondary"
-          onClick={() => list.setPage(list.page + 1)}
-          disabled={list.page >= list.totalPages || list.loading}
-          aria-label="Next page"
-        >
-          <Icon name="arrowRight" size={14} />
-        </button>
-        <div className="pagination-size">
-          <label htmlFor={`${idPrefix}-page-size`} className="sr-only">
-            Rows per page
-          </label>
-          <select
-            id={`${idPrefix}-page-size`}
-            className="select select-sm"
-            value={list.pageSize}
-            onChange={(e) => list.setPageSize(Number(e.target.value))}
-            disabled={list.loading}
-          >
-            {PAGE_SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>
-                {size} per page
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-    </div>
+    <Pagination
+      page={list.page}
+      totalPages={list.totalPages}
+      onPage={list.setPage}
+      loading={list.loading}
+      idPrefix={idPrefix}
+      pageSize={list.pageSize}
+      onPageSize={list.setPageSize}
+      pageSizeOptions={PAGE_SIZE_OPTIONS}
+      info={`${list.totalCount} records — showing ${list.startIndex}–${list.endIndex}`}
+    />
   )
 }
 

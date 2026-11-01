@@ -3,6 +3,7 @@ import { useState } from 'react'
 import Icon from '../Icon'
 import Modal from '../Modal'
 import api from '../../services/api'
+import FieldError from '../FieldError'
 
 /** Matches Django's MinimumLengthValidator so the common case fails fast. */
 const MIN_LENGTH = 8
@@ -13,17 +14,6 @@ const MIN_LENGTH = 8
  * fields never read, and the message is silently dropped on the floor.
  */
 const SERVER_FIELD_ALIASES = { new_password: 'password' }
-
-/** Inline field error; hoisted so it is not remounted on every render. */
-function FieldError({ id, message }) {
-  if (!message) return null
-  return (
-    <span className="field-error" id={id}>
-      <Icon name="info" size={13} />
-      {message}
-    </span>
-  )
-}
 
 /**
  * Admin: set a new password on another account.

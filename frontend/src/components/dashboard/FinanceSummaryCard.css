@@ -1,0 +1,43 @@
+/* Fee figures inside FinanceSummaryCard. */
+
+.fin-figures {
+  margin: 0;
+}
+
+.fin-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.fin-row dt {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.fin-row dd {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--navy-800);
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-row.tone-green dd { color: var(--green-700); }
+.fin-row.tone-amber dd { color: var(--amber-700); }
+
+/* The collection bar sits under the figures, so the rate reads as the
+   relationship between the two rows above it. */
+.fin-track {
+  margin-top: 10px;
+}
+
+.fin-note {
+  margin: 8px 0 0;
+  font-size: var(--text-sm);
+}

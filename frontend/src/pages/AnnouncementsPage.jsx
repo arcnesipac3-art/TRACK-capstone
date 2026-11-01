@@ -6,6 +6,7 @@ import Icon from '../components/Icon'
 import ListSkeleton from '../components/loading/ListSkeleton'
 import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
+import Pagination from '../components/Pagination'
 import StatusBadge from '../components/StatusBadge'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
@@ -87,14 +88,6 @@ function AnnouncementFormModal({
   const [pinned, setPinned] = useState(false)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
-  const formRef = useRef(null)
-  const previouslyFocused = useRef(null)
-  // Latest-ref so the Escape listener above never acts on a stale closure
-  // (the documented pattern for listeners that read render values).
-  const handleCancelRef = useRef(handleCancel)
-  useEffect(() => {
-    handleCancelRef.current = handleCancel
-  })
 
   const isEdit = Boolean(initialData)
 
@@ -110,51 +103,6 @@ function AnnouncementFormModal({
     setPinned(initialData?.is_pinned || false)
     setError(null)
   }
-
-  // Focus management and keyboard handling
-  useEffect(() => {
-    if (!open) return undefined
-
-    previouslyFocused.current = document.activeElement
-    const panel = formRef.current
-    const firstField = panel?.querySelector(
-      'input:not([type="hidden"]), select, textarea, button'
-    )
-    firstField?.focus()
-
-    function onKeyDown(event) {
-      if (event.key === 'Escape' && !busy) {
-        event.stopPropagation()
-        handleCancelRef.current()
-        return
-      }
-      if (event.key !== 'Tab' || !panel) return
-      const focusable = [
-        ...panel.querySelectorAll(
-          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-        ),
-      ].filter((el) => el.offsetParent !== null)
-      if (focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-
-    document.addEventListener('keydown', onKeyDown)
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', onKeyDown)
-      document.body.style.overflow = previousOverflow
-      previouslyFocused.current?.focus?.()
-    }
-  }, [open, busy])
 
   function handleCancel() {
     if (busy) return
@@ -190,7 +138,6 @@ function AnnouncementFormModal({
 
   return (
     <Modal
-      ref={formRef}
       open={open}
       title={isEdit ? 'Edit announcement' : 'New announcement'}
       onClose={busy ? undefined : handleCancel}
@@ -829,74 +776,22 @@ export default function AnnouncementsPage() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="pagination">
-                <div className="pagination-info">
-                  {totalCount === 0
+              <Pagination
+                page={page}
+                totalPages={totalPages}
+                onPage={setPage}
+                loading={loading}
+                idPrefix="ann"
+                pageSize={pageSize}
+                onPageSize={setPageSize}
+                pageSizeOptions={PAGE_SIZE_OPTIONS}
+                pageSizeLabel="Announcements per page"
+                info={
+                  totalCount === 0
                     ? 'No announcements'
-                    : `${startIndex}–${endIndex} of ${totalCount} announcement${totalCount !== 1 ? 's' : ''}`}
-                </div>
-                <div className="pagination-controls">
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-secondary"
-                    onClick={() => setPage(page - 1)}
-                    disabled={page <= 1 || loading}
-                    aria-label="Previous page"
-                  >
-                    <Icon name="chevronLeft" size={14} />
-                  </button>
-                  <span className="pagination-pages" aria-live="polite">
-                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                      let pageNum
-                      if (totalPages <= 5) {
-                        pageNum = i + 1
-                      } else if (page <= 3) {
-                        pageNum = i + 1
-                      } else if (page >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i
-                      } else {
-                        pageNum = page - 2 + i
-                      }
-                      return (
-                        <button
-                          key={pageNum}
-                          type="button"
-                          className={`btn btn-sm ${page === pageNum ? 'btn-primary' : 'btn-secondary'}`}
-                          onClick={() => setPage(pageNum)}
-                          disabled={loading}
-                        >
-                          {pageNum}
-                        </button>
-                      )
-                    })}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-secondary"
-                    onClick={() => setPage(page + 1)}
-                    disabled={page >= totalPages || loading}
-                    aria-label="Next page"
-                  >
-                    <Icon name="chevronRight" size={14} />
-                  </button>
-                  <div className="pagination-size">
-                    <label htmlFor="ann-page-size" className="visually-hidden">Announcements per page</label>
-                    <select
-                      id="ann-page-size"
-                      className="select select-sm"
-                      value={pageSize}
-                      onChange={(e) => setPageSize(Number(e.target.value))}
-                      disabled={loading}
-                    >
-                      {PAGE_SIZE_OPTIONS.map((size) => (
-                        <option key={size} value={size}>
-                          {size} per page
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
+                    : `${startIndex}–${endIndex} of ${totalCount} announcement${totalCount !== 1 ? 's' : ''}`
+                }
+              />
             )}
           </>
         )}

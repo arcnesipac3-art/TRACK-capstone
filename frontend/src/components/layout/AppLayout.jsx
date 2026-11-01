@@ -8,15 +8,24 @@ import RouteTransition from '../loading/RouteTransition'
 import useFetch from '../../hooks/useFetch'
 import { NotificationsContext } from '../../context/NotificationsContext'
 
+/** Where the desktop rail preference lives, so a reload keeps it. */
+const RAIL_KEY = 'track.sidebar.rail'
+
+function readRailPreference() {
+  return window.localStorage.getItem(RAIL_KEY) === '1'
+}
+
 /**
  * Authenticated application shell:
- *  - fixed sidebar on desktop,
+ *  - fixed sidebar on desktop, collapsible to an icon rail,
  *  - drawer sidebar on tablet/mobile,
  *  - bottom navigation on phones,
- *  - sticky topbar with title, notifications and profile menu.
+ *  - sticky topbar with page title, breadcrumb, school year, notifications
+ *    and profile menu.
  */
 export default function AppLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [rail, setRail] = useState(readRailPreference)
   const location = useLocation()
   const notifications = useFetch('/notifications/', {
     list: true,
@@ -42,10 +51,15 @@ export default function AppLayout() {
 
   const unreadCount = (notifications.data || []).filter((n) => !n.is_read).length
 
+  function toggleRail(next) {
+    setRail(next)
+    window.localStorage.setItem(RAIL_KEY, next ? '1' : '0')
+  }
+
   return (
     <NotificationsContext.Provider value={notifications}>
-      <div className="app-shell">
-        <Sidebar />
+      <div className={rail ? 'app-shell nav-rail' : 'app-shell'}>
+        <Sidebar rail={rail} onToggleRail={toggleRail} />
 
         {drawerOpen && (
           <>

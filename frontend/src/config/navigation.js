@@ -132,23 +132,59 @@ export function mobileItemsForRole(role) {
   return items
 }
 
-/** Topbar title for a pathname, falling back per role. */
-export function titleForPath(pathname, role) {
-  for (const items of Object.values(NAVIGATION)) {
-    for (const item of items) {
-      // Collapsible groups (Users, Enrollment) title by the matching child
-      // page first — a group's own prefix also covers every child path.
-      for (const child of item.children || []) {
-        if (child.to && pathname.startsWith(child.to)) return child.label
-      }
-      if (item.to && pathname.startsWith(item.to)) return item.label
+/**
+ * Breadcrumb trail for a pathname: Dashboard → group → page.
+ *
+ * Route matching follows the same rule as `titleForPath`: a group's children
+ * are tested before the group itself, because the group's own prefix
+ * (`/admin/users`) also covers every child path (`/admin/students`). Deeper
+ * routes inherit the trail of the navigation entry they sit under, so
+ * `/admin/enrollment/applications/123` reads Enrollment → Applications.
+ *
+ * The last entry is the current page; earlier ones are links. A path outside
+ * the role's navigation yields just the dashboard (or an empty trail), which
+ * keeps the breadcrumb honest instead of inventing a page name.
+ */
+export function trailForPath(pathname, role) {
+  const items = navForRole(role)
+  const home = items.find((item) => item.to === `/${role}/dashboard`)
+  const trail = home ? [{ label: home.label, to: home.to }] : []
+
+  for (const item of items) {
+    // The dashboard is already the root of the trail; matching it again would
+    // put "Dashboard" in the breadcrumb twice.
+    if (item === home) continue
+    const child = (item.children || []).find((c) => c.to && pathname.startsWith(c.to))
+    if (child) {
+      if (item.to) trail.push({ label: item.label, to: item.to })
+      trail.push({ label: child.label, to: child.to })
+      return trail
+    }
+    if (item.to && pathname.startsWith(item.to)) {
+      trail.push({ label: item.label, to: item.to })
+      return trail
     }
   }
-  if (pathname === '/dashboard') return 'Dashboard'
-  if (pathname === '/announcements') return 'Announcements'
-  if (pathname === '/notifications') return 'Notifications'
-  if (pathname === '/profile') return 'Profile'
+  return trail
+}
+
+/**
+ * Screens every role can reach from the avatar menu, even where the sidebar
+ * does not list them (administrators have no Profile item). Kept separate so
+ * the topbar can still name the page without inventing a sidebar entry.
+ */
+const SHARED_TITLES = {
+  '/announcements': 'Announcements',
+  '/notifications': 'Notifications',
+  '/profile': 'Profile',
+}
+
+/** Topbar title for a pathname, falling back per role. */
+export function titleForPath(pathname, role) {
+  const trail = trailForPath(pathname, role)
+  if (trail.length > 1) return trail[trail.length - 1].label
+  if (SHARED_TITLES[pathname]) return SHARED_TITLES[pathname]
   if (pathname === '/login') return 'Sign in'
-  if (pathname.startsWith(`/${role}`)) return 'Dashboard'
+  if (pathname === '/dashboard' || pathname.startsWith(`/${role}`)) return 'Dashboard'
   return 'TRACK'
 }

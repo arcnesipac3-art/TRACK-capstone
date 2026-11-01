@@ -3,9 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import EmptyState from '../components/EmptyState'
 import Icon from '../components/Icon'
 import PageHeader from '../components/PageHeader'
+import Pagination from '../components/Pagination'
 import StatusBadge from '../components/StatusBadge'
 import Card from '../components/dashboard/Card'
 import StructureFormModal from '../components/admin/StructureFormModal'
+import Tabs from '../components/Tabs'
 import { endpointFor, nounFor, KINDS } from '../config/structure'
 import api from '../services/api'
 import useFetch from '../hooks/useFetch'
@@ -533,22 +535,22 @@ export default function SectionsPage() {
       </div>
 
       {/* Category tabs */}
-      <div className="tabs" role="tablist" aria-label="School structure categories">
-        {Object.entries(KINDS).map(([key, config]) => (
-          <button
-            key={key}
-            role="tab"
-            aria-selected={activeTab === key}
-            className={`tab${activeTab === key ? ' active' : ''}`}
-            onClick={() => setActiveTab(key)}
-          >
-            {config.noun.charAt(0).toUpperCase() + config.noun.slice(1)}s
-          </button>
-        ))}
-      </div>
+      <Tabs
+        tabs={Object.entries(KINDS).map(([key, config]) => ({
+          id: key,
+          label: `${config.noun.charAt(0).toUpperCase()}${config.noun.slice(1)}s`,
+        }))}
+        value={activeTab}
+        onChange={setActiveTab}
+        label="School structure categories"
+        idPrefix="structure"
+      />
 
       {/* Active tab content */}
       <Card
+        id={`structure-panel-${activeTab}`}
+        role="tabpanel"
+        aria-labelledby={`structure-tab-${activeTab}`}
         loading={currentList.loading && !currentList.data}
         error={currentList.error}
         onRetry={currentList.reload}
@@ -652,72 +654,17 @@ export default function SectionsPage() {
 
         {/* Pagination */}
         {currentList.totalPages > 1 && (
-          <div className="pagination">
-            <div className="pagination-info">
-              {currentList.totalCount} records
-            </div>
-            <div className="pagination-controls">
-              <button
-                type="button"
-                className="btn btn-sm btn-secondary"
-                onClick={() => currentList.setPage(currentList.page - 1)}
-                disabled={currentList.page <= 1 || currentList.loading}
-                aria-label="Previous page"
-              >
-                <Icon name="chevronLeft" size={14} />
-              </button>
-              <span className="pagination-pages" aria-live="polite">
-                {Array.from({ length: Math.min(currentList.totalPages, 5) }, (_, i) => {
-                  let pageNum
-                  if (currentList.totalPages <= 5) {
-                    pageNum = i + 1
-                  } else if (currentList.page <= 3) {
-                    pageNum = i + 1
-                  } else if (currentList.page >= currentList.totalPages - 2) {
-                    pageNum = currentList.totalPages - 4 + i
-                  } else {
-                    pageNum = currentList.page - 2 + i
-                  }
-                  return (
-                    <button
-                      key={pageNum}
-                      type="button"
-                      className={`btn btn-sm ${currentList.page === pageNum ? 'btn-primary' : 'btn-secondary'}`}
-                      onClick={() => currentList.setPage(pageNum)}
-                      disabled={currentList.loading}
-                    >
-                      {pageNum}
-                    </button>
-                  )
-                })}
-              </span>
-              <button
-                type="button"
-                className="btn btn-sm btn-secondary"
-                onClick={() => currentList.setPage(currentList.page + 1)}
-                disabled={currentList.page >= currentList.totalPages || currentList.loading}
-                aria-label="Next page"
-              >
-                <Icon name="chevronRight" size={14} />
-              </button>
-              <div className="pagination-size">
-                <label htmlFor="page-size" className="sr-only">Rows per page</label>
-                <select
-                  id="page-size"
-                  className="select select-sm"
-                  value={currentList.pageSize}
-                  onChange={(e) => currentList.setPageSize(Number(e.target.value))}
-                  disabled={currentList.loading}
-                >
-                  {PAGE_SIZE_OPTIONS.map((size) => (
-                    <option key={size} value={size}>
-                      {size} per page
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
+          <Pagination
+            page={currentList.page}
+            totalPages={currentList.totalPages}
+            onPage={currentList.setPage}
+            loading={currentList.loading}
+            idPrefix="sections"
+            pageSize={currentList.pageSize}
+            onPageSize={currentList.setPageSize}
+            pageSizeOptions={PAGE_SIZE_OPTIONS}
+            info={`${currentList.totalCount} records`}
+          />
         )}
       </Card>
 

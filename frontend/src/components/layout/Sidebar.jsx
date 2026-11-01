@@ -6,17 +6,21 @@ import { navForUser } from '../../config/navigation'
 import { useAuth } from '../../context/AuthContext'
 import { roleLabel } from '../../utils/format'
 
-function NavItem({ item, onNavigate }) {
+function NavItem({ item, rail, onNavigate }) {
   const enabled = item.enabled !== false && Boolean(item.to)
 
   if (!enabled) {
     return (
       <li>
-        <span className="nav-link disabled" aria-disabled="true" title="Not available yet">
+        <span
+          className="nav-link disabled"
+          aria-disabled="true"
+          title={rail ? item.label : 'Not available yet'}
+        >
           <span className="nav-icon">
             <Icon name={item.icon} size={17} />
           </span>
-          {item.label}
+          <span className="nav-label">{item.label}</span>
           <span className="nav-soon">Soon</span>
         </span>
       </li>
@@ -28,12 +32,13 @@ function NavItem({ item, onNavigate }) {
       <NavLink
         to={item.to}
         className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+        title={rail ? item.label : undefined}
         onClick={onNavigate}
       >
         <span className="nav-icon">
           <Icon name={item.icon} size={17} />
         </span>
-        {item.label}
+        <span className="nav-label">{item.label}</span>
       </NavLink>
     </li>
   )
@@ -46,8 +51,11 @@ function NavItem({ item, onNavigate }) {
  * submenu instead of navigating. It auto-expands whenever the current route
  * belongs to one of its children and stays expanded while moving between
  * them; collapsing is always an explicit user action.
+ *
+ * In the collapsed rail there is no room for a submenu, so toggling a group
+ * widens the sidebar back open and reveals it there.
  */
-function NavGroup({ item, onNavigate }) {
+function NavGroup({ item, rail, onOpenRail, onNavigate }) {
   const { pathname } = useLocation()
   const children = item.children || []
   const childActive = children.some((child) => child.to && pathname.startsWith(child.to))
@@ -68,6 +76,15 @@ function NavGroup({ item, onNavigate }) {
     if (childActive) setOpen(true)
   }
 
+  function toggle() {
+    if (rail) {
+      onOpenRail?.()
+      setOpen(true)
+      return
+    }
+    setOpen((wasOpen) => !wasOpen)
+  }
+
   return (
     <li>
       <button
@@ -83,12 +100,13 @@ function NavGroup({ item, onNavigate }) {
           .join(' ')}
         aria-expanded={open}
         aria-controls={panelId}
-        onClick={() => setOpen((wasOpen) => !wasOpen)}
+        title={rail ? item.label : undefined}
+        onClick={toggle}
       >
         <span className="nav-icon">
           <Icon name={item.icon} size={17} />
         </span>
-        {item.label}
+        <span className="nav-label">{item.label}</span>
         <Icon name="chevronDown" size={15} className={`nav-chevron${open ? ' open' : ''}`} />
       </button>
 
@@ -104,7 +122,7 @@ function NavGroup({ item, onNavigate }) {
                 <span className="nav-icon">
                   <Icon name={child.icon} size={14} />
                 </span>
-                {child.label}
+                <span className="nav-label">{child.label}</span>
               </NavLink>
             </li>
           ))}
@@ -117,19 +135,40 @@ function NavGroup({ item, onNavigate }) {
 /**
  * Primary navigation. Rendered fixed on desktop and inside the drawer on
  * smaller screens; the active item always mirrors the current route.
+ *
+ * On desktop it also collapses to an icon rail (`rail`), which keeps the
+ * current page highlighted but drops every label.
  */
-export default function Sidebar({ onNavigate, variant = 'fixed' }) {
+export default function Sidebar({
+  onNavigate,
+  variant = 'fixed',
+  rail = false,
+  onToggleRail,
+}) {
   const { user } = useAuth()
   const items = navForUser(user)
+  const collapsed = rail && variant === 'fixed'
 
   return (
     <nav
-      className={variant === 'drawer' ? 'drawer' : 'sidebar'}
+      className={
+        variant === 'drawer' ? 'drawer' : `sidebar${collapsed ? ' rail' : ''}`
+      }
       aria-label="Main navigation"
     >
       <div className="sidebar-brand">
-        <Logo variant="light" />
-        {variant === 'drawer' && (
+        {collapsed ? (
+          <img
+            className="sidebar-rail-mark"
+            src="/favicon.png"
+            alt="TRACK"
+            width="32"
+            height="32"
+          />
+        ) : (
+          <Logo variant="light" />
+        )}
+        {variant === 'drawer' ? (
           <button
             type="button"
             className="drawer-close"
@@ -137,6 +176,16 @@ export default function Sidebar({ onNavigate, variant = 'fixed' }) {
             aria-label="Close menu"
           >
             <Icon name="close" size={17} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="sidebar-collapse"
+            onClick={() => onToggleRail?.(!collapsed)}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? 'Expand navigation' : 'Collapse navigation'}
+          >
+            <Icon name={collapsed ? 'arrowRight' : 'arrowLeft'} size={16} />
           </button>
         )}
       </div>
@@ -146,9 +195,15 @@ export default function Sidebar({ onNavigate, variant = 'fixed' }) {
       <ul className="sidebar-nav">
         {items.map((item) =>
           item.children?.length ? (
-            <NavGroup key={item.label} item={item} onNavigate={onNavigate} />
+            <NavGroup
+              key={item.label}
+              item={item}
+              rail={collapsed}
+              onOpenRail={() => onToggleRail?.(false)}
+              onNavigate={onNavigate}
+            />
           ) : (
-            <NavItem key={item.label} item={item} onNavigate={onNavigate} />
+            <NavItem key={item.label} item={item} rail={collapsed} onNavigate={onNavigate} />
           )
         )}
       </ul>

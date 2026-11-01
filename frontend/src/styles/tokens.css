@@ -1,0 +1,197 @@
+/* ==========================================================================
+   TRACK — design tokens
+   Single declaration site for the palette, spacing, type, shape, elevation,
+   layering and motion scales. `index.css` builds component classes from these;
+   page stylesheets must reference tokens instead of literals.
+
+   Canonical breakpoints (CSS cannot read these as variables — use these exact
+   values in `@media` queries so the app stops drifting between 767/768 etc.):
+     phone   max-width: 479px
+     mobile  max-width: 767px      (bottom nav + drawer shell)
+     tablet  max-width: 1023px     (sidebar collapses to drawer)
+     laptop  max-width: 1279px
+     wide    min-width: 1440px     (content uses its full width)
+   ========================================================================== */
+
+:root {
+  /* --- Brand identity ---------------------------------------------------
+     KNHS navy and blue. Contrast is the reason these are split from the
+     interactive scale below. */
+  --brand-navy: #123b70;          /* 11.14:1 with white — primary fills + ink */
+  --brand-blue: #2196f3;          /* 3.12:1 with white — graphics, focus,
+                                     active indicators, large text only. Never
+                                     body text and never a white-text button. */
+  --brand-cyan: #019bfd;          /* logo lockup; 2.6:1 — decorative accents */
+  --page-bg: #f7f9fc;
+  --surface-tint: #f0f4f8;
+  --ink: #172b4d;                 /* 14.1:1 on white, 12.8:1 on --surface-tint */
+  --ink-muted: #64748b;           /* 4.76:1 on white but 4.31:1 on
+                                     --surface-tint, under the AA floor for
+                                     small text. Labels ≥18px and icons only;
+                                     body-size secondary text uses --text-muted. */
+  --line: #e5eaf1;
+
+  /* --- Navy & blue working scales (legacy names, kept for page CSS) ------ */
+  --navy-900: #0a1630;
+  --navy-800: #0f2044;
+  --navy-700: #16305f;
+  --navy-600: #1e4180;
+  --navy-500: #2a55a0;
+  --navy-400: #3a68b8;
+  --navy-100: #dce6f7;
+  --blue-900: #1e3a8a;
+  --blue-700: #1d4ed8;            /* 6.7:1 — link and emphasized action text */
+  --blue-600: #2563eb;            /* 5.17:1 — interactive blue, AA-safe */
+  --blue-200: #bfdbfe;
+  --blue-100: #dbeafe;
+  --blue-50: #eff5ff;
+  --cyan-700: #0e7490;
+  --cyan-400: #22d3ee;
+  --cyan-100: #cffafe;
+
+  /* --- Status (semantic) ------------------------------------------------- */
+  --green-700: #15803d;
+  --green-600: #16a34a;
+  --green-100: #e3f5e9;
+  --amber-800: #7c4706;
+  --amber-700: #a35a06;
+  --amber-200: #f3ddb9;
+  --amber-100: #fdf1de;
+  --red-700: #b3261e;
+  --red-600: #dc2626;
+  --red-100: #fce9e7;
+
+  /* --- Surfaces, borders, text ------------------------------------------ */
+  --bg: var(--page-bg);
+  --surface: #ffffff;
+  --surface-alt: #f8fafc;
+  --surface-1: var(--surface-alt);
+  --surface-2: #eef1f6;
+  --gray-100: #eef1f6;
+  --gray-200: var(--line);
+  --border: var(--line);
+  --border-strong: #cdd6e4;
+  --border-light: #f1f5f9;
+  --text: var(--ink);
+  --text-muted: #56627a;          /* 6.13:1 on white — the AA-safe secondary */
+  /* #7c8aa1 was only 3.49:1 on white, below the 4.5:1 WCAG AA floor for normal
+     text. This is the lightest value that still clears 4.5:1 on every surface in
+     the palette; the worst case is 4.61:1 on --blue-100. */
+  --text-subtle: #5c687d;
+  --on-navy: #ffffff;
+  --on-navy-muted: #a9bddf;
+  /* Hero eyebrow/lede tints on the navy gradient — brighter steps than
+     --on-navy-muted so they stay legible over the radial highlight. */
+  --on-navy-accent: #7fb0ff;
+  --on-navy-soft: #b9c9e6;
+  /* Sidebar-specific tints: nav labels, the role eyebrow above them, the
+     address footer, and the hairlines/hover wash that sit on navy. */
+  --on-navy-item: #cddcf1;
+  --on-navy-dim: #7f9ac4;
+  --on-navy-faint: #8ba5cd;
+  --navy-line: rgba(255, 255, 255, 0.1);
+  --navy-hover: rgba(255, 255, 255, 0.08);
+
+  /* --- Semantic roles ---------------------------------------------------- */
+  --success: var(--green-700);
+  --success-bg: var(--green-100);
+  --warning: var(--amber-700);
+  --warning-bg: var(--amber-100);
+  --danger: var(--red-700);
+  --danger-bg: var(--red-100);
+  --info: var(--blue-700);
+  --info-bg: var(--blue-100);
+  --action: var(--blue-600);
+  --action-hover: var(--navy-600);
+  --action-primary: var(--brand-navy);
+  --action-primary-hover: var(--navy-800);
+
+  /* --- Spacing (4px grid) ------------------------------------------------ */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-9: 36px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* --- Type scale --------------------------------------------------------
+     rem is relative to the 16px root; body text is 15px (--text-base).
+
+     Transitional: these steps were read off the sizes the app already used,
+     so adopting them changes no rendered text by more than 0.5px. Phases 3-5
+     should prune the redundant rungs (14/15/16, 19/22) once each surface is
+     redesigned and checked visually. */
+  --text-2xs: 0.6875rem;   /* 11px — table micro-labels, chips */
+  --text-xs: 0.75rem;      /* 12px — captions, helper text */
+  --text-sm: 0.8125rem;    /* 13px — dense table cells */
+  --text-md: 0.875rem;     /* 14px — secondary body, form controls */
+  --text-base: 0.9375rem;  /* 15px — default body text */
+  --text-lg: 1rem;         /* 16px — card and section headings */
+  --text-xl: 1.0625rem;    /* 17px — sub-page headings */
+  --text-2xl: 1.1875rem;   /* 19px — group headings */
+  --text-3xl: 1.375rem;    /* 22px — page titles */
+  --text-4xl: 1.5625rem;   /* 25px — h1 default */
+  --text-5xl: 1.75rem;     /* 28px — display headings, hero stats */
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.7;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 650;
+  --weight-bold: 700;
+
+  /* --- Shape ------------------------------------------------------------- */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-pill: 999px;
+
+  /* --- Elevation --------------------------------------------------------- */
+  --shadow-xs: 0 1px 1px rgba(15, 32, 68, 0.05);
+  --shadow-sm: 0 1px 2px rgba(15, 32, 68, 0.06);
+  --shadow: 0 4px 14px rgba(15, 32, 68, 0.08);
+  --shadow-lg: 0 16px 40px rgba(10, 22, 48, 0.16);
+  --shadow-pop: 0 10px 28px rgba(10, 22, 48, 0.14);
+
+  /* --- Layering ---------------------------------------------------------- */
+  --z-sticky: 10;
+  --z-topbar: 30;
+  --z-sidebar: 40;
+  --z-drawer-overlay: 40;
+  --z-drawer: 45;
+  --z-dropdown: 60;
+  --z-modal: 80;
+  --z-toast: 90;
+
+  /* --- Layout ------------------------------------------------------------ */
+  --sidebar-w: 256px;
+  --sidebar-rail-w: 76px;
+  --topbar-h: 68px;
+  /* Wide-desktop cap: 1200px left large empty margins on 1440px+ monitors
+     (dashboard content sat in a narrow band). 1440px matches the ≥1440
+     breakpoint in App.css while keeping text lines readable. */
+  --content-max: 1440px;
+
+  /* --- Motion (150–250ms is the design target) --------------------------- */
+  --dur-1: 150ms;
+  --dur-2: 200ms;
+  --dur-3: 250ms;
+  --ease: 160ms ease;
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* --- Typography -------------------------------------------------------- */
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+
+  color-scheme: light;
+}

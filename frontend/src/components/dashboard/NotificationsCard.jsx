@@ -74,6 +74,7 @@ function NotificationsFeed({ data, loading, error, reload, limit }) {
             />
             <div className="grow">
               <div className="ai-title">{item.title}</div>
+              {item.body && <div className="ai-body">{item.body}</div>}
               <div className="ai-meta">
                 {formatRelative(item.created_at)}
                 {item.is_read ? '' : ' · unread'}

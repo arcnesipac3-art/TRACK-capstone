@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Icon from '../Icon'
 import EmptyState from '../EmptyState'
+import Popover from '../Popover'
 import ListSkeleton from '../loading/ListSkeleton'
 import api from '../../services/api'
 import { formatRelative } from '../../utils/format'
@@ -16,28 +17,8 @@ export default function NotificationBell({
   unreadCount,
   onChanged,
 }) {
-  const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
-  const wrapRef = useRef(null)
   const navigate = useNavigate()
-
-  useEffect(() => {
-    if (!open) return undefined
-    const onDocClick = (event) => {
-      if (wrapRef.current && !wrapRef.current.contains(event.target)) {
-        setOpen(false)
-      }
-    }
-    const onKey = (event) => {
-      if (event.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', onDocClick)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDocClick)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
 
   const latest = (items || []).slice(0, 6)
 
@@ -50,7 +31,6 @@ export default function NotificationBell({
         /* navigation still proceeds */
       }
     }
-    setOpen(false)
     navigate('/notifications')
   }
 
@@ -67,28 +47,28 @@ export default function NotificationBell({
   }
 
   return (
-    <div className="bell-wrap" ref={wrapRef}>
-      <button
-        type="button"
-        className="bell-btn"
-        aria-label={
-          unreadCount > 0
-            ? `Notifications, ${unreadCount} unread`
-            : 'Notifications'
-        }
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-      >
-        <Icon name="bell" size={18} />
-        {unreadCount > 0 && (
-          <span className="bell-count" aria-hidden="true">
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
-        )}
-      </button>
-
-      {open && (
-        <div className="popover" role="dialog" aria-label="Notifications">
+    <Popover
+      wrapClassName="bell-wrap"
+      triggerClassName="bell-btn"
+      triggerLabel={
+        unreadCount > 0
+          ? `Notifications, ${unreadCount} unread`
+          : 'Notifications'
+      }
+      trigger={
+        <>
+          <Icon name="bell" size={18} />
+          {unreadCount > 0 && (
+            <span className="bell-count" aria-hidden="true">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </>
+      }
+      panelLabel="Notifications"
+    >
+      {({ close }) => (
+        <>
           <div className="popover-head">
             <h3>Notifications</h3>
             <button
@@ -120,7 +100,10 @@ export default function NotificationBell({
                   key={item.id}
                   type="button"
                   className={`notif-item${item.is_read ? '' : ' unread'}`}
-                  onClick={() => openItem(item)}
+                  onClick={() => {
+                    close()
+                    openItem(item)
+                  }}
                 >
                   <span className="notif-title">
                     {item.is_read ? '' : '● '}
@@ -137,15 +120,15 @@ export default function NotificationBell({
               type="button"
               className="btn btn-sm btn-ghost"
               onClick={() => {
-                setOpen(false)
+                close()
                 navigate('/notifications')
               }}
             >
               View all notifications
             </button>
           </div>
-        </div>
+        </>
       )}
-    </div>
+    </Popover>
   )
 }

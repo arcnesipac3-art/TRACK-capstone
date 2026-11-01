@@ -4,6 +4,7 @@ import Modal from '../../components/Modal'
 import { useEffect, useState } from 'react'
 import api from '../../services/api'
 import { ENROLLMENT_TYPE_OPTIONS } from '../../utils/enrollment'
+import FieldError from '../../components/FieldError'
 
 const EMPTY = {
   period: '',
@@ -15,17 +16,6 @@ const EMPTY = {
   requires_verification: true,
   is_active: true,
   position: 0,
-}
-
-/** Inline field error rendered as a plain call (never remounted). */
-function FieldError({ id, message }) {
-  if (!message) return null
-  return (
-    <span className="field-error" id={id}>
-      <Icon name="info" size={13} />
-      {message}
-    </span>
-  )
 }
 
 /**

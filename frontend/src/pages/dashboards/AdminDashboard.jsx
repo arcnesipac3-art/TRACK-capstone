@@ -6,15 +6,15 @@ import CardSkeleton from '../../components/loading/CardSkeleton'
 import StatCardSkeleton from '../../components/loading/StatCardSkeleton'
 import PageHeader from '../../components/PageHeader'
 import StatCard from '../../components/StatCard'
+import ActionToolbar from '../../components/dashboard/ActionToolbar'
 import AttendanceSummaryCard from '../../components/dashboard/AttendanceSummaryCard'
 import Card, { SummaryRows } from '../../components/dashboard/Card'
+import FinanceSummaryCard from '../../components/dashboard/FinanceSummaryCard'
 import NotificationsCard from '../../components/dashboard/NotificationsCard'
-import QuickActions from '../../components/dashboard/QuickActions'
 import { useAuth } from '../../context/AuthContext'
 import useFetch from '../../hooks/useFetch'
 import {
   AUDIENCE_LABELS,
-  formatCurrency,
   formatDate,
   formatNumber,
   formatRelative,
@@ -30,6 +30,25 @@ const SUBMISSION_ROWS = [
   ['verified', 'Verified', 'green'],
   ['returned', 'Returned for revision', 'red'],
   ['overdue', 'Overdue', 'red'],
+]
+
+/**
+ * Dashboard shortcuts, most useful first. The first five permitted by this
+ * administrator stay in the toolbar; the rest fold into "More actions", so
+ * navigation never outgrows a single row.
+ */
+const DASH_ACTIONS = [
+  { label: 'Manage users', to: '/admin/users', icon: 'users', perm: 'users.view' },
+  { label: 'Manage enrollment', to: '/admin/enrollment', icon: 'userPlus', perm: 'enrollment.view' },
+  { label: 'View attendance', to: '/admin/attendance', icon: 'calendar', perm: 'attendance.view' },
+  { label: 'Manage requirements', to: '/admin/requirements', icon: 'clipboard', perm: 'requirements.view' },
+  { label: 'View reports', to: '/admin/reports', icon: 'chart', perm: 'reports.view' },
+  { label: 'Fee management', to: '/admin/fees', icon: 'creditCard', perm: 'fees.view' },
+  { label: 'Sections & subjects', to: '/admin/sections', icon: 'layers', perm: 'structure.manage' },
+  { label: 'Announcements', to: '/announcements', icon: 'megaphone', perm: 'announcements.view' },
+  { label: 'Departments & roles', to: '/admin/departments', icon: 'shield', perm: 'departments.view' },
+  { label: 'Audit logs', to: '/admin/audit-logs', icon: 'clock', perm: 'audit.view' },
+  { label: 'System settings', to: '/admin/settings', icon: 'settings', perm: 'settings.manage' },
 ]
 
 /**
@@ -77,12 +96,20 @@ function auditMeta(action = '') {
  * (`data.blocks` — see `_admin_dashboard_payload`); a missing block means
  * "not authorized", never "no data", so every card, statistic and shortcut
  * here is gated on the same permission keys the sidebar uses. Every figure
- * comes straight from the payload — counts, school-year labels, fee totals
- * and the notification unread count are all computed server-side.
+ * comes straight from a payload — counts, school-year labels, fee totals and
+ * the notification unread count are all computed server-side. The one extra
+ * request (registrar enrollment figures) is gated the same way and reports
+ * its own failure instead of showing zeros.
  */
 export default function AdminDashboard() {
   const { user, can } = useAuth()
   const summary = useFetch('/dashboard/')
+  // Pending applications are the registrar's numbers, served by
+  // /enrollment/dashboard/ only to accounts holding `enrollment.view` — so
+  // the request itself is permission-gated, not just the tile.
+  const enrollment = useFetch('/enrollment/dashboard/', {
+    enabled: can('enrollment.view'),
+  })
 
   const firstName = (user.fullName || '').split(' ')[0] || user.fullName
 
@@ -96,14 +123,21 @@ export default function AdminDashboard() {
         </span>
         <div className="dashboard dash-admin" aria-hidden="true">
           <div className="skeleton skeleton-hero" />
-          <div className="stat-grid">
-            {[0, 1, 2, 3, 4, 5].map((i) => (
+          <div className="skeleton skeleton-toolbar" />
+          <div className="kpi-grid">
+            {[0, 1, 2, 3, 4].map((i) => (
               <StatCardSkeleton key={i} />
             ))}
           </div>
           <div className="two-col">
-            <CardSkeleton />
-            <CardSkeleton />
+            <div className="stack stack-md">
+              <CardSkeleton />
+              <CardSkeleton />
+            </div>
+            <div className="stack stack-md">
+              <CardSkeleton />
+              <CardSkeleton />
+            </div>
           </div>
         </div>
       </>
@@ -136,150 +170,132 @@ export default function AdminDashboard() {
   const unread = data.unread_notifications || 0
   const departmentsList = user.departments || []
 
-  /* Shortcuts — only the pages this administrator's keys unlock. */
-  const quickActions = [
-    { label: 'Manage users', to: '/admin/users', icon: 'users', perm: 'users.view' },
-    { label: 'Sections & subjects', to: '/admin/sections', icon: 'layers', perm: 'structure.manage' },
-    { label: 'Student requirements', to: '/admin/requirements', icon: 'clipboard', perm: 'requirements.view' },
-    { label: 'Attendance', to: '/admin/attendance', icon: 'calendar', perm: 'attendance.view' },
-    { label: 'Fee management', to: '/admin/fees', icon: 'creditCard', perm: 'fees.view' },
-    { label: 'Announcements', to: '/announcements', icon: 'megaphone', perm: 'announcements.view' },
-    { label: 'Reports', to: '/admin/reports', icon: 'file', perm: 'reports.view' },
-    { label: 'Departments & roles', to: '/admin/departments', icon: 'shield', perm: 'departments.view' },
-    { label: 'Audit logs', to: '/admin/audit-logs', icon: 'clock', perm: 'audit.view' },
-    { label: 'System settings', to: '/admin/settings', icon: 'settings', perm: 'settings.manage' },
-  ].filter((action) => can(action.perm))
+  /* Shortcuts — the first five this administrator's keys unlock stay visible. */
+  const allowedActions = DASH_ACTIONS.filter((action) => can(action.perm))
+  const primaryActions = allowedActions.slice(0, 5)
+  const moreActions = allowedActions.slice(5)
 
-  /* Statistic cards — only blocks the server sent, in module order. */
-  const statCards = []
+  /* Key metrics — the daily-triage numbers, each linking to its own screen. */
+  const kpis = []
   if (accounts) {
-    statCards.push(
+    const totalUsers = accounts.total_users || 0
+    kpis.push(
       <StatCard
         key="students"
         icon="gradCap"
         label="Students"
+        to="/admin/users"
         value={formatNumber(accounts.total_students)}
-        hint={accounts.total_students ? 'Enrolled learner accounts' : 'No student accounts yet'}
+        hint={
+          accounts.total_students
+            ? `of ${formatNumber(totalUsers)} accounts in the directory`
+            : 'No student accounts yet'
+        }
       />,
       <StatCard
         key="teachers"
         icon="book"
         label="Teachers"
+        to="/admin/users"
         value={formatNumber(accounts.total_teachers)}
         hint={accounts.total_teachers ? 'Teaching accounts on record' : 'No teacher accounts yet'}
-      />,
-      <StatCard
-        key="parents"
-        icon="users"
-        label="Parents"
-        value={formatNumber(accounts.total_parents)}
-        hint={accounts.total_parents ? 'Linked guardian accounts' : 'No parent accounts yet'}
       />
     )
   }
-  if (structure) {
-    statCards.push(
+  if (attendance) {
+    const records = attendance.total_records || 0
+    const todayRecords = attendanceToday?.total_records || 0
+    kpis.push(
       <StatCard
-        key="sections"
-        icon="layers"
-        label="Sections"
-        value={formatNumber(structure.total_sections)}
+        key="attendance"
+        icon="checkCircle"
+        label={attendance.present_rate === null ? 'Attendance' : 'Attendance present'}
+        to="/admin/attendance"
+        value={
+          records === 0
+            ? '—'
+            : attendance.present_rate === null
+              ? formatNumber(records)
+              : `${attendance.present_rate}%`
+        }
         hint={
-          structure.total_sections
-            ? `${structure.total_subjects} subjects · ${structure.total_grade_levels} grade levels`
-            : 'No sections yet'
+          records === 0
+            ? 'Nothing recorded yet'
+            : `${formatNumber(records)} records${
+                todayRecords ? ` · ${formatNumber(todayRecords)} today` : ''
+              }`
         }
       />
     )
   }
   if (requirements) {
-    statCards.push(
+    const submissions = requirements.total_submissions || 0
+    const verified = requirements.submission_status?.verified || 0
+    kpis.push(
       <StatCard
         key="requirements"
         icon="clipboard"
-        label="Active requirements"
-        value={formatNumber(requirements.active_requirements)}
+        label="Requirements verified"
+        to="/admin/requirements"
+        value={submissions ? `${Math.round((verified / submissions) * 100)}%` : '—'}
         hint={
-          !requirements.total_requirements
-            ? 'No requirements defined yet'
-            : requirements.active_requirements
-              ? `of ${requirements.total_requirements} total · ${requirements.total_submissions} submissions`
-              : `of ${requirements.total_requirements} total · none with open deadlines`
+          submissions
+            ? `${formatNumber(verified)} of ${formatNumber(submissions)} submissions`
+            : 'No submissions yet'
         }
       />
     )
   }
-  if (fees) {
-    const assessed = fees.total_assessed || 0
-    const outstanding = fees.total_outstanding || 0
-    const collectedPct =
-      assessed > 0 ? Math.round(((fees.total_collected || 0) / assessed) * 100) : null
-    statCards.push(
-      <StatCard
-        key="assessed"
-        icon="file"
-        label="Fees assessed"
-        value={formatCurrency(assessed)}
-        hint={
-          assessed
-            ? `Published for ${fees.active_school_year || 'the active year'}`
-            : 'No published assessments yet'
-        }
-      />,
-      <StatCard
-        key="collected"
-        icon="checkCircle"
-        tone="green"
-        label="Fees collected"
-        value={formatCurrency(fees.total_collected)}
-        hint={
-          assessed
-            ? `${collectedPct}% of assessed`
-            : 'No payments recorded yet'
-        }
-      />,
-      <StatCard
-        key="outstanding"
-        icon="clock"
-        tone={outstanding > 0 ? 'amber' : 'green'}
-        label="Outstanding balance"
-        value={formatCurrency(outstanding)}
-        hint={outstanding > 0 ? 'Yet to be collected' : 'Fully collected'}
-      />
+  if (can('enrollment.view')) {
+    if (enrollment.loading && !enrollment.data) {
+      kpis.push(<StatCardSkeleton key="enrollment" />)
+    } else if (enrollment.error) {
+      // A failed request is reported as such — never as "0 applications".
+      kpis.push(
+        <StatCard
+          key="enrollment"
+          icon="userPlus"
+          label="Applications in review"
+          value="Unavailable"
+          hint="Enrollment figures could not be loaded."
+        />
+      )
+    } else if (enrollment.data) {
+      const stats = enrollment.data
+      kpis.push(
+        <StatCard
+          key="enrollment"
+          icon="userPlus"
+          label="Applications in review"
+          to="/admin/enrollment"
+          tone={stats.under_review > 0 ? 'amber' : 'default'}
+          value={formatNumber(stats.under_review)}
+          hint={`${formatNumber(stats.submitted)} submitted · ${formatNumber(
+            stats.awaiting_corrections
+          )} awaiting corrections`}
+        />
+      )
+    }
+  }
+
+  /* Organisation figures that no longer justify a card of their own. */
+  const facts = []
+  if (structure) {
+    facts.push(
+      `${formatNumber(structure.total_sections)} sections · ${formatNumber(
+        structure.total_subjects
+      )} subjects · ${formatNumber(structure.total_grade_levels)} grade levels`
     )
   }
   if (departments) {
-    statCards.push(
-      <StatCard
-        key="departments"
-        icon="shield"
-        label="Departments"
-        value={formatNumber(departments.total)}
-        hint={
-          departments.total
-            ? `${departments.active} active · ${departments.super_admins} super administrator${
-                departments.super_admins === 1 ? '' : 's'
-              }`
-            : 'No departments defined yet'
-        }
-      />
-    )
-  }
-  if (announcements) {
-    statCards.push(
-      <StatCard
-        key="announcements"
-        icon="megaphone"
-        label="Announcements"
-        value={formatNumber(announcements.total)}
-        hint={
-          announcements.total
-            ? announcements.pinned
-              ? `${announcements.pinned} pinned`
-              : 'On the school feed'
-            : 'Nothing published yet'
-        }
-      />
+    facts.push(
+      !departments.total
+        ? 'No departments defined yet'
+        : `${formatNumber(departments.total)} departments · ${formatNumber(
+            departments.active
+          )} active · ${departments.super_admins} super administrator${
+            departments.super_admins === 1 ? '' : 's'
+          }`
     )
   }
 
@@ -297,9 +313,17 @@ export default function AdminDashboard() {
         key="submissions"
         title="Requirements overview"
         action={
-          <Link className="btn btn-sm btn-ghost" to="/admin/requirements">
-            Open requirements
-          </Link>
+          <span className="row row-wrap" style={{ gap: 6 }}>
+            {/* The metric tile reports completion; the deadline status the old
+                "Active requirements" card carried stays visible here. */}
+            <span className="badge badge-neutral">
+              {formatNumber(requirements.active_requirements)} of{' '}
+              {formatNumber(requirements.total_requirements)} active
+            </span>
+            <Link className="btn btn-sm btn-ghost" to="/admin/requirements">
+              Open requirements
+            </Link>
+          </span>
         }
       >
         {!hasSubmissionCounts ? (
@@ -404,9 +428,12 @@ export default function AdminDashboard() {
         key="announcements"
         title="Latest announcements"
         action={
-          <Link className="btn btn-sm btn-ghost" to="/announcements">
-            View all
-          </Link>
+          <span className="row row-wrap" style={{ gap: 6 }}>
+            <span className="badge badge-neutral">{formatNumber(announcements.total)} published</span>
+            <Link className="btn btn-sm btn-ghost" to="/announcements">
+              View all
+            </Link>
+          </span>
         }
         empty={
           announcements.latest.length === 0 ? (
@@ -426,26 +453,39 @@ export default function AdminDashboard() {
         }
       >
         <div className="activity-list">
-          {announcements.latest.map((item) => (
-            <div className="activity-item" key={item.id}>
-              <span className="act-icon blue" aria-hidden="true">
-                <Icon name="megaphone" size={15} />
-              </span>
-              <div className="grow">
-                <div className="ai-title">{item.title}</div>
-                <div className="ai-meta">
-                  {AUDIENCE_LABELS[item.audience] || item.audience}
-                  {item.published_at ? ` · ${formatDate(item.published_at)}` : ''}
+          {announcements.latest.map((item, index) => {
+            // The payload is ordered `-is_pinned, -published_at` and only
+            // carries the pinned total, so the first `pinned` rows are exactly
+            // the pinned ones — no per-item flag is invented here.
+            const isPinned = index < (announcements.pinned || 0)
+            return (
+              <div className="activity-item" key={item.id}>
+                <span className="act-icon blue" aria-hidden="true">
+                  <Icon name="megaphone" size={15} />
+                </span>
+                <div className="grow">
+                  <div className="ai-title ann-title">
+                    <span>{item.title}</span>
+                    {isPinned && (
+                      <span className="badge badge-blue" title="Pinned to the top of the feed">
+                        Pinned
+                      </span>
+                    )}
+                  </div>
+                  <div className="ai-meta">
+                    {AUDIENCE_LABELS[item.audience] || item.audience}
+                    {item.published_at ? ` · ${formatDate(item.published_at)}` : ''}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </Card>
     )
   }
 
-  /* Right column: attendance · account distribution · notifications. */
+  /* Right column: attendance · finance · accounts · notifications. */
   const right = []
   if (attendance) {
     right.push(
@@ -454,9 +494,27 @@ export default function AdminDashboard() {
         attendance={attendance}
         today={attendanceToday}
         title="School attendance summary"
+        link={
+          <Link className="btn btn-sm btn-ghost" to="/admin/attendance">
+            Manage
+          </Link>
+        }
         emptyAction={
           <Link className="btn btn-sm btn-secondary" to="/admin/attendance">
             Open attendance
+          </Link>
+        }
+      />
+    )
+  }
+  if (fees) {
+    right.push(
+      <FinanceSummaryCard
+        key="finance"
+        fees={fees}
+        action={
+          <Link className="btn btn-sm btn-ghost" to="/admin/fees">
+            Manage
           </Link>
         }
       />
@@ -505,6 +563,8 @@ export default function AdminDashboard() {
   }
   right.push(<NotificationsCard key="notifications" />)
 
+  const nothingGranted = kpis.length === 0 && facts.length === 0 && left.length === 0
+
   return (
     <div className="dashboard dash-admin">
       <PageHeader
@@ -550,11 +610,25 @@ export default function AdminDashboard() {
         </div>
       </PageHeader>
 
-      {quickActions.length > 0 && <QuickActions actions={quickActions} />}
+      {primaryActions.length > 0 && (
+        <ActionToolbar primary={primaryActions} more={moreActions} />
+      )}
 
-      {statCards.length > 0 && <div className="stat-grid">{statCards}</div>}
+      {kpis.length > 0 && (
+        <section className="kpi-grid" aria-label="Key metrics">
+          {kpis}
+        </section>
+      )}
 
-      {statCards.length === 0 && left.length === 0 && (
+      {facts.length > 0 && (
+        <ul className="fact-strip">
+          {facts.map((fact) => (
+            <li key={fact}>{fact}</li>
+          ))}
+        </ul>
+      )}
+
+      {nothingGranted && (
         <EmptyState
           icon="shield"
           title="No modules granted yet"
@@ -563,12 +637,14 @@ export default function AdminDashboard() {
       )}
 
       {left.length > 0 ? (
-        <div className="two-col">
+        <div className="two-col bento">
           <div className="stack stack-md">{left}</div>
           <div className="stack stack-md">{right}</div>
         </div>
       ) : (
-        <div className="stack stack-md">{right}</div>
+        /* Nothing for the wide lane — let the narrow panels use the full
+           width instead of stranding them in a third of the grid. */
+        <div className="stack stack-md bento-single">{right}</div>
       )}
     </div>
   )

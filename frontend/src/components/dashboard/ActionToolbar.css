@@ -1,0 +1,100 @@
+/* Compact dashboard shortcut bar (ActionToolbar). */
+
+.action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.action-bar-wrap {
+  position: relative;
+}
+
+.action-bar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--navy-700);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 650;
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color var(--ease), background var(--ease),
+    box-shadow var(--ease);
+}
+.action-bar-btn:hover {
+  border-color: var(--navy-700);
+  background: var(--surface-alt);
+  text-decoration: none;
+}
+.action-bar-btn:focus-visible {
+  outline: 2px solid var(--blue-600);
+  outline-offset: 2px;
+}
+.action-bar-btn svg {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
+}
+.action-bar-btn[aria-expanded='true'] {
+  border-color: var(--navy-700);
+  background: var(--surface-2);
+}
+
+/* The shared `popover` panel is 330px wide because it holds notification
+   rows; a list of shortcuts needs far less. */
+.action-bar-panel {
+  width: 236px;
+}
+
+.action-bar-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+}
+
+.action-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 14px;
+  color: var(--navy-700);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+.action-bar-item:hover {
+  background: var(--surface-alt);
+  text-decoration: none;
+}
+.action-bar-item:focus-visible {
+  outline: 2px solid var(--blue-600);
+  outline-offset: -2px;
+}
+.action-bar-item svg {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
+}
+
+@media (max-width: 767px) {
+  /* Comfortable thumb targets: the shortcuts share the row evenly. */
+  .action-bar-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+    min-height: 42px;
+  }
+  .action-bar-wrap {
+    flex: 1 1 auto;
+  }
+}

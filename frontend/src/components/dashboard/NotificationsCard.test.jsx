@@ -12,12 +12,14 @@ const NOTIFICATIONS = [
   {
     id: 1,
     title: 'Requirement graded',
+    body: 'Grade 7 Sampaguita · Biology Performance Task 2 was verified.',
     is_read: false,
     created_at: '2026-10-23T08:00:00+08:00',
   },
   {
     id: 2,
     title: 'Attendance recorded',
+    body: '',
     is_read: true,
     created_at: '2026-10-22T08:00:00+08:00',
   },
@@ -49,6 +51,15 @@ describe('NotificationsCard', () => {
     expect(useFetch).not.toHaveBeenCalled()
     expect(screen.getByText('Requirement graded')).toBeInTheDocument()
     expect(screen.getByText('1 new')).toBeInTheDocument()
+
+    // The description line renders when the backend sends one, and the
+    // unread dot stays paired with the "· unread" text for non-visual reads.
+    expect(
+      screen.getByText('Grade 7 Sampaguita · Biology Performance Task 2 was verified.')
+    ).toBeInTheDocument()
+    // Only the unread row carries the "unread" marker; the read row is silent.
+    expect(screen.getByText(/unread$/)).toHaveTextContent('unread')
+    expect(screen.queryAllByText(/unread/)).toHaveLength(1)
   })
 
   it('falls back to its own fetch when rendered outside the shell', () => {

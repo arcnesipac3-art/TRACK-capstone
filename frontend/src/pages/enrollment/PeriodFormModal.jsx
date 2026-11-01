@@ -7,6 +7,7 @@ import {
   ENROLLMENT_TYPE_OPTIONS,
   PERIOD_STATUS,
 } from '../../utils/enrollment'
+import FieldError from '../../components/FieldError'
 
 const STATUS_OPTIONS = Object.entries(PERIOD_STATUS).map(
   ([value, config]) => ({ value, label: config.label })
@@ -40,17 +41,6 @@ function fromInput(value) {
   if (!value) return null
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? null : date.toISOString()
-}
-
-/** Inline field error rendered as a plain call (never remounted). */
-function FieldError({ id, message }) {
-  if (!message) return null
-  return (
-    <span className="field-error" id={id}>
-      <Icon name="info" size={13} />
-      {message}
-    </span>
-  )
 }
 
 /**

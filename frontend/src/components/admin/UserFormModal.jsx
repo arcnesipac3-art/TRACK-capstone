@@ -4,6 +4,7 @@ import Icon from '../Icon'
 import Modal from '../Modal'
 import api from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
+import FieldError from '../FieldError'
 
 const ROLES = [
   ['student', 'Student'],
@@ -24,17 +25,6 @@ const EMPTY = {
   section: '',
   contact_number: '',
   is_active: true,
-}
-
-/** Inline field error; rendered as a function so it is not remounted per render. */
-function FieldError({ id, message }) {
-  if (!message) return null
-  return (
-    <span className="field-error" id={id}>
-      <Icon name="info" size={13} />
-      {message}
-    </span>
-  )
 }
 
 /**

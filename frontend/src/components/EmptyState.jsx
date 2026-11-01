@@ -11,9 +11,10 @@ export default function EmptyState({
   message,
   action,
   as: Heading = 'h3',
+  className = '',
 }) {
   return (
-    <div className="empty-state">
+    <div className={`empty-state${className ? ` ${className}` : ''}`}>
       <span className="empty-icon" aria-hidden="true">
         <Icon name={icon} size={20} />
       </span>

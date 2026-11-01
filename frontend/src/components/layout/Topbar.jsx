@@ -1,14 +1,28 @@
 import { useLocation } from 'react-router-dom'
 import Icon from '../Icon'
+import Breadcrumbs from './Breadcrumbs'
 import NotificationBell from './NotificationBell'
 import UserProfileMenu from './UserProfileMenu'
-import { titleForPath } from '../../config/navigation'
+import useFetch from '../../hooks/useFetch'
+import { titleForPath, trailForPath } from '../../config/navigation'
 import { useAuth } from '../../context/AuthContext'
+
+const SCHOOL_NAME = 'Kiwalan National High School'
 
 export default function Topbar({ onOpenMenu, notifications }) {
   const location = useLocation()
   const { user } = useAuth()
+  const trail = trailForPath(location.pathname, user?.role)
   const title = titleForPath(location.pathname, user?.role)
+
+  // Which school year the whole screen is about. Reads are open to every
+  // signed-in role, so this is context rather than a permission check; when no
+  // year is flagged active the chip simply stays out of the way.
+  const schoolYears = useFetch('/school-years/', {
+    list: true,
+    params: { is_active: true },
+  })
+  const activeYear = (schoolYears.data || [])[0]
 
   const items = notifications?.data || []
   const unreadCount = items.filter((item) => !item.is_read).length
@@ -24,9 +38,19 @@ export default function Topbar({ onOpenMenu, notifications }) {
         <Icon name="menu" size={19} />
       </button>
 
-      <div className="grow" style={{ minWidth: 0 }}>
+      <div className="topbar-context">
         <div className="topbar-title">{title}</div>
-        <div className="topbar-school">Kiwalan National High School</div>
+        <Breadcrumbs trail={trail} />
+      </div>
+
+      <div className="topbar-meta">
+        <span className="topbar-school">{SCHOOL_NAME}</span>
+        {activeYear && (
+          <span className="topbar-year" title="Active school year">
+            <Icon name="calendar" size={13} />
+            {activeYear.label}
+          </span>
+        )}
       </div>
 
       <NotificationBell

@@ -45,9 +45,10 @@ export default function Card({
   onRetry,
   empty,
   flush = false,
+  ...rest
 }) {
   return (
-    <section className="card">
+    <section className="card" {...rest}>
       {(title || action) && (
         <header className="card-header">
           <h2>{title}</h2>

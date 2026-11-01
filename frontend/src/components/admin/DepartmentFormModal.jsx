@@ -3,19 +3,9 @@ import { useState } from 'react'
 import Icon from '../Icon'
 import Modal from '../Modal'
 import api from '../../services/api'
+import FieldError from '../FieldError'
 
 const EMPTY = { name: '', code: '', description: '', is_active: true }
-
-/** Inline field error; rendered as a function so it is not remounted per render. */
-function FieldError({ id, message }) {
-  if (!message) return null
-  return (
-    <span className="field-error" id={id}>
-      <Icon name="info" size={13} />
-      {message}
-    </span>
-  )
-}
 
 /**
  * Create or edit a department.

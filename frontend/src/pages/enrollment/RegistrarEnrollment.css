@@ -197,43 +197,6 @@
   text-align: right;
 }
 
-/* ---------------------------- Pagination -------------------------- */
-/* Same pattern as SectionsPage / AnnouncementsPage, scoped here so    */
-/* the shared stylesheet stays untouched.                              */
-
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 12px 16px;
-  background: var(--surface-1);
-  border-top: 1px solid var(--border);
-  font-size: 0.8rem;
-  color: var(--text-muted);
-}
-
-.pagination-info {
-  font-variant-numeric: tabular-nums;
-}
-
-.pagination-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.pagination-pages {
-  display: flex;
-  gap: 4px;
-}
-
-.pagination-size select {
-  min-width: 130px;
-}
-
 /* ----------------------- Review workspace grid -------------------- */
 
 .review-grid {

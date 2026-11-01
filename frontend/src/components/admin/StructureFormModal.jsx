@@ -4,6 +4,7 @@ import Icon from '../Icon'
 import Modal from '../Modal'
 import api from '../../services/api'
 import { fieldsFor, nounFor, endpointFor } from '../../config/structure'
+import FieldError from '../FieldError'
 
 const EMPTY = {
   name: '',
@@ -17,17 +18,6 @@ const EMPTY = {
   end_date: '',
   is_active: false,
   order: '',
-}
-
-/** Inline field error; hoisted so it is not remounted on every render. */
-function FieldError({ id, message }) {
-  if (!message) return null
-  return (
-    <span className="field-error" id={id}>
-      <Icon name="info" size={13} />
-      {message}
-    </span>
-  )
 }
 
 /**

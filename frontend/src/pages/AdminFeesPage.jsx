@@ -11,9 +11,14 @@ import Icon from '../components/Icon'
 import Button from '../components/Button'
 import Modal from '../components/Modal'
 import Card from '../components/dashboard/Card'
+import Tabs from '../components/Tabs'
 import { formatCurrency, formatDate } from '../utils/format'
 
 const TABS = ['dashboard', 'categories', 'assessments', 'payments', 'reports']
+const TAB_ITEMS = TABS.map((tab) => ({
+  id: tab,
+  label: tab.charAt(0).toUpperCase() + tab.slice(1),
+}))
 const REQUIRED = <span style={{ color: 'var(--red-700)' }}>*</span>
 
 function initialPaymentForm() {
@@ -1241,22 +1246,21 @@ export default function AdminFeesPage() {
     <div className="stack stack-md">
       <PageHeader {...pageHeader} />
 
-      <div className="tabs" role="tablist" aria-label="Fee management sections">
-        {TABS.map((tab) => (
-          <button
-            key={tab}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === tab}
-            className={`tab${activeTab === tab ? ' active' : ''}`}
-            onClick={() => setActiveTab(tab)}
-          >
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        tabs={TAB_ITEMS}
+        value={activeTab}
+        onChange={setActiveTab}
+        label="Fee management sections"
+        idPrefix="fees"
+      />
 
-      {tabContent()}
+      <div
+        id={`fees-panel-${activeTab}`}
+        role="tabpanel"
+        aria-labelledby={`fees-tab-${activeTab}`}
+      >
+        {tabContent()}
+      </div>
 
       {/* Payment Modal */}
       <Modal

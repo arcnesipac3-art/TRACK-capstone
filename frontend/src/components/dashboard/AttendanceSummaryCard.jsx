@@ -12,16 +12,18 @@ import EmptyState from '../EmptyState'
  * `today` (optional, same shape, date-scoped by the backend) renders a
  * "Today" strip above the summary — the morning-check figures — including
  * an honest "nothing recorded today yet" line when the day is still bare.
+ * `link` is the caller's permission-aware route to the attendance screen.
  */
 export default function AttendanceSummaryCard({
   attendance,
   title = 'Attendance summary',
   emptyAction,
   today,
+  link,
 }) {
   if (!attendance || attendance.total_records === 0) {
     return (
-      <Card title={title}>
+      <Card title={title} action={link}>
         <EmptyState
           icon="calendar"
           title="No attendance recorded yet"
@@ -43,10 +45,13 @@ export default function AttendanceSummaryCard({
     <Card
       title={title}
       action={
-        <span className="badge badge-blue" title="Share of records marked present">
-          {attendance.present_rate !== null
-            ? `${attendance.present_rate}% present`
-            : `${attendance.total_records} records`}
+        <span className="row row-wrap" style={{ gap: 6 }}>
+          <span className="badge badge-blue" title="Share of records marked present">
+            {attendance.present_rate !== null
+              ? `${attendance.present_rate}% present`
+              : `${attendance.total_records} records`}
+          </span>
+          {link}
         </span>
       }
     >
@@ -78,6 +83,9 @@ export default function AttendanceSummaryCard({
       {today && today.total_records === 0 && (
         <p className="subtle att-today-empty">No attendance recorded today yet.</p>
       )}
+      {/* The "Today" strip above only covers this school day — name the scope
+          of the rows so the two figures are never read as the same thing. */}
+      {today && <p className="att-scope">All recorded sessions</p>}
       <SummaryRows rows={rows} />
       <p className="subtle" style={{ marginTop: 10 }}>
         Based on {attendance.total_records} attendance record
