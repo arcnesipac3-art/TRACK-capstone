@@ -3,6 +3,7 @@ import {
   attendanceStatus,
   dashboardPath,
   deadlineInfo,
+  formatCount,
   formatDate,
   formatRelative,
   initials,
@@ -185,5 +186,18 @@ describe('dashboardPath', () => {
   it('builds the role dashboard route', () => {
     expect(dashboardPath('admin')).toBe('/admin/dashboard')
     expect(dashboardPath('parent')).toBe('/parent/dashboard')
+  })
+})
+
+describe('formatCount', () => {
+  it('pluralises only when the count is not one', () => {
+    expect(formatCount(1, 'parent')).toBe('1 parent')
+    expect(formatCount(0, 'record')).toBe('0 records')
+    expect(formatCount(12, 'teacher')).toBe('12 teachers')
+  })
+
+  it('treats a missing count as zero instead of printing undefined', () => {
+    expect(formatCount(null, 'submission')).toBe('0 submissions')
+    expect(formatCount(undefined, 'submission')).toBe('0 submissions')
   })
 })

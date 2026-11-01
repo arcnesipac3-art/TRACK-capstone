@@ -329,6 +329,12 @@
 
 /* ----------------------------- Reports ---------------------------- */
 
+/* The school-year picker in the page header keeps its width even when a
+   label like "2026-2027" is short, so the Print button never jumps. */
+.report-year {
+  min-width: 200px;
+}
+
 .report-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

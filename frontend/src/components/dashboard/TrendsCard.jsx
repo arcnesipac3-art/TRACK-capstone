@@ -3,12 +3,13 @@ import Card from './Card'
 import { formatCurrency } from '../../utils/format'
 
 /**
- * Monthly collection and enrollment trends, drawn as inline SVG bars.
+ * Monthly collection and enrollment trends, drawn as inline SVG lines.
  *
- * No chart library: one <svg> per series, one <rect> per month, each with
- * a native <title> tooltip. The bars are decorative (the <svg> carries a
- * text summary in its aria-label); a visually hidden table repeats every
- * number for screen readers.
+ * No chart library: one <svg> per series, one vertex per month, each with a
+ * native <title> tooltip. A trend over time is read as a line, so the twelve
+ * months are plotted as a stroked polyline over a tinted area and a hairline
+ * baseline. The drawing is decorative (the <svg> carries a text summary in its
+ * aria-label); a visually hidden table repeats every number for screen readers.
  */
 export default function TrendsCard({ months, loading, error, onRetry }) {
   const rows = months || []
@@ -32,7 +33,7 @@ export default function TrendsCard({ months, loading, error, onRetry }) {
             <span className="trend-total">{formatCurrency(totalCollected)} collected</span>
           </div>
           {hasPayments ? (
-            <BarChart
+            <TrendLine
               rows={rows}
               valueOf={(m) => m.collected}
               format={formatCurrency}
@@ -50,7 +51,7 @@ export default function TrendsCard({ months, loading, error, onRetry }) {
             <span className="trend-total">{totalEnrollments} new students</span>
           </div>
           {hasEnrollments ? (
-            <BarChart
+            <TrendLine
               rows={rows}
               valueOf={(m) => m.enrollments}
               format={(v) => `${v} student${v === 1 ? '' : 's'}`}
@@ -90,16 +91,21 @@ export default function TrendsCard({ months, loading, error, onRetry }) {
   )
 }
 
-/** One bar chart: a fixed-size SVG scaled to its container, bars per month. */
-function BarChart({ rows, valueOf, format, tone, chartLabel }) {
+/** One trend line: a fixed 320×96 box scaled to its container, one vertex per month. */
+function TrendLine({ rows, valueOf, format, tone, chartLabel }) {
   const WIDTH = 320
   const HEIGHT = 96
+  const PAD = 8
   const values = rows.map(valueOf)
   const max = Math.max(...values)
   const total = values.reduce((sum, v) => sum + v, 0)
   const peakIndex = values.indexOf(max)
-  const slot = WIDTH / rows.length
-  const barWidth = Math.max(slot - 4, 2)
+  const step = values.length > 1 ? (WIDTH - PAD * 2) / (values.length - 1) : 0
+  const x = (i) => PAD + i * step
+  const y = (v) => HEIGHT - PAD - (max > 0 ? (v / max) * (HEIGHT - PAD * 2) : 0)
+  const baseline = HEIGHT - PAD
+  const vertices = values.map((v, i) => `${x(i)},${y(v)}`).join(' ')
+  const area = `${PAD},${baseline} ${vertices} ${x(values.length - 1)},${baseline}`
 
   const summary =
     `${chartLabel}: ${format(total)} across ${rows.length} months, ` +
@@ -107,29 +113,33 @@ function BarChart({ rows, valueOf, format, tone, chartLabel }) {
 
   return (
     <div className="trend-chart">
-      <svg
-        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        role="img"
-        aria-label={summary}
-        preserveAspectRatio="none"
-      >
-        {rows.map((m, i) => {
-          const value = values[i]
-          const h = max > 0 ? Math.max((value / max) * (HEIGHT - 8), 0) : 0
-          return (
-            <rect
-              key={m.month}
-              x={i * slot + 2}
-              y={HEIGHT - h}
-              width={barWidth}
-              height={h}
-              rx={2}
-              fill={tone}
-            >
-              <title>{`${m.label}: ${format(value)}`}</title>
-            </rect>
-          )
-        })}
+      <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label={summary}>
+        <line
+          className="trend-baseline"
+          x1={PAD}
+          x2={WIDTH - PAD}
+          y1={baseline}
+          y2={baseline}
+        />
+        <polygon className="trend-area" points={area} fill={tone} />
+        <polyline
+          className="trend-line"
+          points={vertices}
+          stroke={tone}
+          vectorEffect="non-scaling-stroke"
+        />
+        {values.map((v, i) => (
+          <circle
+            key={rows[i].month}
+            className={i === peakIndex ? 'trend-dot is-peak' : 'trend-dot'}
+            cx={x(i)}
+            cy={y(v)}
+            r={i === peakIndex ? 3.4 : 2.2}
+            fill={tone}
+          >
+            <title>{`${rows[i].label}: ${format(v)}`}</title>
+          </circle>
+        ))}
       </svg>
       <div className="trend-axis">
         <span>{rows[0].label}</span>

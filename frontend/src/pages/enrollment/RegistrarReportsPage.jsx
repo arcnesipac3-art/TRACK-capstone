@@ -1,3 +1,4 @@
+import Card from '../../components/dashboard/Card'
 import EmptyState from '../../components/EmptyState'
 import ErrorMessage from '../../components/ErrorMessage'
 import Icon from '../../components/Icon'
@@ -9,7 +10,7 @@ import TableSkeleton from '../../components/loading/TableSkeleton'
 import { useState } from 'react'
 import useFetch from '../../hooks/useFetch'
 import { ENROLLMENT_TYPES, applicationStatus } from '../../utils/enrollment'
-import { formatNumber } from '../../utils/format'
+import { formatCount, formatNumber } from '../../utils/format'
 import Button from '../../components/Button'
 import './RegistrarEnrollment.css'
 
@@ -40,6 +41,42 @@ export default function RegistrarReportsPage() {
   const denied = error?.status === 403
   const report = data || null
 
+  /* Every headline below is either a field the payload sent or a sum of the
+     rows it sent — the report never estimates what it was not given. */
+  const sumBy = (rows, key) => rows.reduce((total, row) => total + (row[key] || 0), 0)
+  const statusRows = report?.by_status || []
+  const gradeRows = report?.by_grade || []
+  const typeRows = report?.by_type || []
+  const sectionRows = report?.sections || []
+  const awaitingRegistrar = statusRows
+    .filter((row) => ['submitted', 'under_review', 'resubmitted'].includes(row.status))
+    .reduce((total, row) => total + (row.total || 0), 0)
+
+  const tiles = [
+    {
+      label: 'Confirmed enrollments',
+      value: formatNumber(report?.confirmed_enrollments),
+      tone: 'green',
+      hint: report?.school_year?.label,
+    },
+    {
+      label: 'Applications',
+      value: formatNumber(sumBy(statusRows, 'total')),
+      hint: `${formatCount(statusRows.length, 'status')} reported`,
+    },
+    {
+      label: 'Awaiting the Registrar',
+      value: formatNumber(awaitingRegistrar),
+      tone: awaitingRegistrar > 0 ? 'amber' : 'default',
+      hint: 'Submitted, under review or resubmitted',
+    },
+    sectionRows.length > 0 && {
+      label: 'Section seats filled',
+      value: formatNumber(sumBy(sectionRows, 'assigned')),
+      hint: `across ${formatCount(sectionRows.length, 'section')}`,
+    },
+  ].filter(Boolean)
+
   return (
     <div className="stack stack-md">
       <PageHeader
@@ -47,7 +84,7 @@ export default function RegistrarReportsPage() {
         subtitle="Confirmed enrollments and application breakdowns per school year."
         actions={
           <>
-            <div className="field no-print" style={{ minWidth: 200 }}>
+            <div className="field report-year no-print">
               <label htmlFor="rep-year" className="sr-only">
                 School year
               </label>
@@ -134,164 +171,157 @@ export default function RegistrarReportsPage() {
 
       {selectedYear && !loading && !error && report && (
         <>
-          <section className="enr-stat-grid">
-            <StatCard
-              label="Confirmed enrollments"
-              value={formatNumber(report.confirmed_enrollments)}
-              tone="green"
-              hint={report.school_year?.label}
-            />
+          <section className="kpi-grid" aria-label="Report totals">
+            {tiles.map((tile) => (
+              <StatCard key={tile.label} {...tile} />
+            ))}
           </section>
 
           <div className="report-grid">
-            <section className="card">
-              <div className="card-header">
-                <h2>By status</h2>
-              </div>
-              {(report.by_status || []).length === 0 ? (
-                <div className="card-body">
+            <Card
+              title="By status"
+              flush={statusRows.length > 0}
+              empty={
+                statusRows.length === 0 ? (
                   <p className="subtle">No applications in this school year.</p>
-                </div>
-              ) : (
-                <div className="table-wrap">
-                  <table className="table responsive-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Status</th>
-                        <th scope="col">Applications</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.by_status.map((row) => {
-                        const status = applicationStatus(row.status)
-                        return (
-                          <tr key={row.status}>
-                            <td data-label="Status" className="cell-main">
-                              <StatusBadge label={status.label} tone={status.tone} />
-                            </td>
-                            <td data-label="Applications">
-                              {formatNumber(row.total)}
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-
-            <section className="card">
-              <div className="card-header">
-                <h2>By grade level</h2>
-              </div>
-              {(report.by_grade || []).length === 0 ? (
-                <div className="card-body">
-                  <p className="subtle">No records in this school year.</p>
-                </div>
-              ) : (
-                <div className="table-wrap">
-                  <table className="table responsive-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Grade level</th>
-                        <th scope="col">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.by_grade.map((row) => (
-                        <tr key={row.grade_level_id ?? row.grade_level}>
-                          <td data-label="Grade level" className="cell-main">
-                            {row.grade_level}
+                ) : null
+              }
+            >
+              <div className="table-wrap">
+                <table className="table responsive-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Status</th>
+                      <th scope="col">Applications</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {statusRows.map((row) => {
+                      const status = applicationStatus(row.status)
+                      return (
+                        <tr key={row.status}>
+                          <td data-label="Status" className="cell-main">
+                            <StatusBadge label={status.label} tone={status.tone} />
                           </td>
-                          <td data-label="Total">{formatNumber(row.total)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-
-            <section className="card">
-              <div className="card-header">
-                <h2>By enrollment type</h2>
-              </div>
-              {(report.by_type || []).length === 0 ? (
-                <div className="card-body">
-                  <p className="subtle">No records in this school year.</p>
-                </div>
-              ) : (
-                <div className="table-wrap">
-                  <table className="table responsive-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Enrollment type</th>
-                        <th scope="col">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.by_type.map((row) => (
-                        <tr key={row.enrollment_type}>
-                          <td data-label="Enrollment type" className="cell-main">
-                            {ENROLLMENT_TYPES[row.enrollment_type] ||
-                              row.enrollment_type ||
-                              '—'}
+                          <td data-label="Applications">
+                            {formatNumber(row.total)}
                           </td>
-                          <td data-label="Total">{formatNumber(row.total)}</td>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
-
-            <section className="card">
-              <div className="card-header">
-                <h2>Section occupancy</h2>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
-              {(report.sections || []).length === 0 ? (
-                <div className="card-body">
+            </Card>
+
+            <Card
+              title="By grade level"
+              flush={gradeRows.length > 0}
+              empty={
+                gradeRows.length === 0 ? (
+                  <p className="subtle">No records in this school year.</p>
+                ) : null
+              }
+            >
+              <div className="table-wrap">
+                <table className="table responsive-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Grade level</th>
+                      <th scope="col">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gradeRows.map((row) => (
+                      <tr key={row.grade_level_id ?? row.grade_level}>
+                        <td data-label="Grade level" className="cell-main">
+                          {row.grade_level}
+                        </td>
+                        <td data-label="Total">{formatNumber(row.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+
+            <Card
+              title="By enrollment type"
+              flush={typeRows.length > 0}
+              empty={
+                typeRows.length === 0 ? (
+                  <p className="subtle">No records in this school year.</p>
+                ) : null
+              }
+            >
+              <div className="table-wrap">
+                <table className="table responsive-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Enrollment type</th>
+                      <th scope="col">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {typeRows.map((row) => (
+                      <tr key={row.enrollment_type}>
+                        <td data-label="Enrollment type" className="cell-main">
+                          {ENROLLMENT_TYPES[row.enrollment_type] ||
+                            row.enrollment_type ||
+                            '—'}
+                        </td>
+                        <td data-label="Total">{formatNumber(row.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+
+            <Card
+              title="Section occupancy"
+              flush={sectionRows.length > 0}
+              empty={
+                sectionRows.length === 0 ? (
                   <p className="subtle">No sections in this school year.</p>
-                </div>
-              ) : (
-                <div className="table-wrap">
-                  <table className="table responsive-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Section</th>
-                        <th scope="col">Grade level</th>
-                        <th scope="col">Capacity</th>
-                        <th scope="col">Assigned</th>
-                        <th scope="col">Available</th>
+                ) : null
+              }
+            >
+              <div className="table-wrap">
+                <table className="table responsive-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Section</th>
+                      <th scope="col">Grade level</th>
+                      <th scope="col">Capacity</th>
+                      <th scope="col">Assigned</th>
+                      <th scope="col">Available</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sectionRows.map((row) => (
+                      <tr key={row.section_id}>
+                        <td data-label="Section" className="cell-main">
+                          {row.section}
+                        </td>
+                        <td data-label="Grade level">{row.grade_level}</td>
+                        <td data-label="Capacity">
+                          {row.capacity ?? <span className="subtle">No limit</span>}
+                        </td>
+                        <td data-label="Assigned">{formatNumber(row.assigned)}</td>
+                        <td data-label="Available">
+                          {row.capacity === null || row.capacity === undefined ? (
+                            <span className="subtle">—</span>
+                          ) : (
+                            formatNumber(Math.max(0, row.capacity - row.assigned))
+                          )}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {report.sections.map((row) => (
-                        <tr key={row.section_id}>
-                          <td data-label="Section" className="cell-main">
-                            {row.section}
-                          </td>
-                          <td data-label="Grade level">{row.grade_level}</td>
-                          <td data-label="Capacity">
-                            {row.capacity ?? <span className="subtle">No limit</span>}
-                          </td>
-                          <td data-label="Assigned">{formatNumber(row.assigned)}</td>
-                          <td data-label="Available">
-                            {row.capacity === null || row.capacity === undefined ? (
-                              <span className="subtle">—</span>
-                            ) : (
-                              formatNumber(Math.max(0, row.capacity - row.assigned))
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
           </div>
         </>
       )}

@@ -998,7 +998,28 @@
 .trend-chart svg {
   display: block;
   width: 100%;
-  height: 96px;
+  height: auto;
+  /* The 320×96 drawing box keeps its own ratio instead of stretching, so the
+     line stays a constant weight and the dots stay round on a wide panel. */
+  aspect-ratio: 320 / 96;
+}
+
+.trend-baseline {
+  stroke: var(--border-strong);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+.trend-area { opacity: 0.14; }
+.trend-line {
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.trend-dot.is-peak {
+  stroke: var(--surface);
+  stroke-width: 1.4;
+  vector-effect: non-scaling-stroke;
 }
 .trend-axis {
   display: flex;
@@ -6823,4 +6844,36 @@
   .loc-highlights,
   .loc-map-wrap { animation: none; }
   .loc-hero::before { transition: none; }
+}
+
+/* ---------------------------------------------------------------------------
+ * Print — report screens
+ *
+ * The reports are meant to be handed over as paper, so the shell steps aside:
+ * no navigation, no topbar, no rail offset and no width cap. Multi-column grids
+ * collapse to a single column so a table never prints half-cut, and a card is
+ * never split across two pages.
+ * ------------------------------------------------------------------------- */
+@media print {
+  .sidebar,
+  .topbar,
+  .drawer-overlay,
+  .no-print {
+    display: none !important;
+  }
+
+  .app-main { margin-left: 0; }
+  .app-content { max-width: none; padding: 0; }
+
+  .two-col,
+  .report-grid,
+  .trend-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .card,
+  .stat-card {
+    break-inside: avoid;
+    box-shadow: none;
+  }
 }

@@ -9,13 +9,15 @@ const MONTHS = [
 ]
 
 describe('TrendsCard', () => {
-  it('draws one bar per month per series, with accessible summaries', () => {
+  it('plots one vertex per month per series, with accessible summaries', () => {
     const { container } = render(<TrendsCard months={MONTHS} />)
 
     const charts = screen.getAllByRole('img')
     expect(charts).toHaveLength(2)
-    // Three months -> three bars in each of the two charts.
-    expect(container.querySelectorAll('svg rect')).toHaveLength(6)
+    // Three months -> three dots in each of the two charts.
+    expect(container.querySelectorAll('svg circle')).toHaveLength(6)
+    expect(container.querySelectorAll('svg polyline')).toHaveLength(2)
+    expect(container.querySelectorAll('svg polygon')).toHaveLength(2)
     expect(charts[0]).toHaveAttribute(
       'aria-label',
       expect.stringContaining('peak ₱1,500.00 in Dec 2025'),

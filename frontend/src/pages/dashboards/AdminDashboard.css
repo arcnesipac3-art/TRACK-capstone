@@ -117,30 +117,6 @@
 }
 
 /* ---------------------------------------------------------------------
-   Key metrics
-   --------------------------------------------------------------------- */
-
-/* The daily-triage numbers, sized to the viewport instead of a fixed column
-   count — five tiles fit a laptop, six fit a wide desktop, no tile is ever
-   stretched to half the page. */
-.kpi-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(186px, 1fr));
-  gap: 16px;
-  align-items: stretch;
-}
-
-.kpi-grid .stat-card {
-  height: 100%;
-  min-height: 96px;
-  padding: 13px 16px;
-  gap: 4px;
-}
-
-.kpi-grid .stat-value { font-size: var(--text-4xl); }
-.kpi-grid .stat-hint { font-size: var(--text-xs); }
-
-/* ---------------------------------------------------------------------
    Organisation figures (no card of their own)
    --------------------------------------------------------------------- */
 
@@ -251,16 +227,7 @@
 
 @media (max-width: 767px) {
   .dash-hero .page-title { font-size: 1.3rem; }
-  /* Two comfortable columns on phones. */
-  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .kpi-grid .stat-card { min-height: 100px; }
   .dash-meta { gap: 6px 10px; }
   .fact-strip { font-size: var(--text-xs); gap: 4px 12px; }
   .fact-strip li + li { padding-left: 12px; }
-}
-
-@media (max-width: 479px) {
-  /* Very narrow screens: one metric per row keeps the figures readable. */
-  .kpi-grid { grid-template-columns: minmax(0, 1fr); }
-  .kpi-grid .stat-card { min-height: 0; }
 }

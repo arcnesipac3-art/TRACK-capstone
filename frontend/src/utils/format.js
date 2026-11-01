@@ -168,6 +168,12 @@ export function formatNumber(value) {
   return Number(value || 0).toLocaleString()
 }
 
+/** Count and noun together, pluralised ("1 parent", "12 parents"). */
+export function formatCount(value, noun) {
+  const n = Number(value || 0)
+  return `${formatNumber(n)} ${noun}${Math.abs(n) === 1 ? '' : 's'}`
+}
+
 /** Format currency in Philippine Peso (e.g., 5000 -> ₱5,000.00). */
 export function formatCurrency(value) {
   return '₱' + Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })

@@ -5,11 +5,14 @@ import Icon from '../components/Icon'
 import CardSkeleton from '../components/loading/CardSkeleton'
 import ButtonLoader from '../components/loading/ButtonLoader'
 import PageHeader from '../components/PageHeader'
+import StatCard from '../components/StatCard'
 import TrendsCard from '../components/dashboard/TrendsCard'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 import useFetch from '../hooks/useFetch'
 import Button from '../components/Button'
+import ButtonLink from '../components/ButtonLink'
+import { formatCount, formatNumber } from '../utils/format'
 
 /**
  * School-wide reports.
@@ -34,6 +37,37 @@ export default function ReportsPage() {
   const accounts = blocks.accounts
   const attendance = blocks.attendance
   const requirements = blocks.requirements
+
+  /* One tile per module the backend actually handed over. A department-scoped
+     administrator whose payload has no attendance block gets no attendance
+     tile — nothing here is estimated to fill the row. */
+  const attendanceRecords = Object.values(attendance?.by_status || {})
+    .reduce((sum, count) => sum + count, 0)
+  const kpis = [
+    accounts && {
+      label: 'User accounts',
+      value: formatNumber(accounts.total_users),
+      hint: `${formatCount(accounts.total_students, 'student')} · ${formatCount(
+        accounts.total_teachers,
+        'teacher',
+      )} · ${formatCount(accounts.total_parents, 'parent')}`,
+    },
+    attendance && {
+      label: 'Attendance records',
+      value: formatNumber(attendanceRecords),
+      hint:
+        attendance.present_rate != null
+          ? `${attendance.present_rate}% present across every status`
+          : 'No attendance records counted yet',
+    },
+    requirements && {
+      label: 'Requirements',
+      value: formatNumber(requirements.total_requirements),
+      hint: `${formatCount(requirements.total_submissions, 'submission')} · ${formatNumber(
+        requirements.awaiting_verification,
+      )} awaiting verification`,
+    },
+  ].filter(Boolean)
 
   const escape = (v) => {
     const s = v === null || v === undefined ? '' : String(v)
@@ -69,8 +103,10 @@ export default function ReportsPage() {
     }
   }
 
+  /* PageHeader already lays its actions out in a wrapping row, so the exports
+     go straight to it instead of nesting a second toolbar inside. */
   const exportButtons = canExport && (
-    <div className="row row-wrap" style={{ gap: 8 }}>
+    <>
       {can('users.view') && (
         <Button
           variant="secondary"
@@ -182,7 +218,7 @@ export default function ReportsPage() {
           {exporting === 'submissions' ? 'Exporting…' : 'Submissions summary'}
         </Button>
       )}
-    </div>
+    </>
   )
 
   if (summary.loading && !summary.data) {
@@ -232,6 +268,19 @@ export default function ReportsPage() {
         onRetry={trends.reload}
       />
 
+      {kpis.length > 1 && (
+        <section className="kpi-grid" aria-label="Report totals">
+          {kpis.map((tile) => (
+            <StatCard
+              key={tile.label}
+              label={tile.label}
+              value={tile.value}
+              hint={tile.hint}
+            />
+          ))}
+        </section>
+      )}
+
       <div className="two-col">
         <div className="stack stack-md">
           {accounts && (
@@ -243,7 +292,7 @@ export default function ReportsPage() {
                   { label: 'Parents', value: accounts.total_parents, tone: 'blue', total: accounts.total_users },
                 ].map((row) => ({ ...row, showPercent: true }))}
               />
-              <p className="subtle" style={{ marginTop: 10 }}>
+              <p className="subtle mt-xs">
                 {accounts.total_users} user accounts in total.
               </p>
             </Card>
@@ -268,7 +317,7 @@ export default function ReportsPage() {
                           : 'amber',
                   }))}
               />
-              <p className="subtle" style={{ marginTop: 10 }}>
+              <p className="subtle mt-xs">
                 {requirements.total_requirements} requirements on record ·{' '}
                 {requirements.awaiting_verification} awaiting verification ·{' '}
                 {requirements.total_submissions} submissions in total.
@@ -307,7 +356,7 @@ export default function ReportsPage() {
                   }))
                 })()}
               />
-              <p className="subtle" style={{ marginTop: 10 }}>
+              <p className="subtle mt-xs">
                 {attendance.present_rate != null
                   ? `${attendance.present_rate}% present, all records counted.`
                   : 'No attendance records yet.'}
@@ -322,10 +371,10 @@ export default function ReportsPage() {
                 school-year and category filters — live on the Fees screen
                 under Reports.
               </p>
-              <p style={{ marginTop: 10 }}>
-                <a className="btn btn-secondary btn-sm" href="/admin/fees">
+              <p className="mt-xs">
+                <ButtonLink variant="secondary" size="sm" to="/admin/fees">
                   <Icon name="creditCard" size={14} /> Open fee reports
-                </a>
+                </ButtonLink>
               </p>
             </Card>
           )}
