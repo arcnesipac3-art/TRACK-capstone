@@ -803,16 +803,22 @@
   cursor: pointer;
 }
 
+/* Floating dock: detached from the viewport edges on a rounded, softly
+   elevated bar rather than a full-width sheet welded to the bottom. The
+   safe-area inset lives on `bottom` now, so content clearance (see
+   `.app-content`) only has to out-reach the bar plus its gap. */
 .mobile-nav {
   display: none;
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  left: 12px;
+  right: 12px;
   z-index: 35;
   background: var(--surface);
-  border-top: 1px solid var(--border);
-  padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow);
+  padding: 6px 8px;
 }
 
 .mobile-nav ul {
@@ -4139,7 +4145,7 @@
   .user-menu-btn .user-name { display: none; }
   .user-menu-btn { padding: 4px; border-color: transparent; }
 
-  .app-content { padding: 18px 14px 104px; }
+  .app-content { padding: 18px 14px 116px; }
 
   .mobile-nav { display: block; }
 
@@ -4649,9 +4655,14 @@
   .att-pager { padding-left: 14px; padding-right: 14px; }
   .att-student-hit { padding-left: 14px; padding-right: 14px; }
 
-  /* Keep the save bar above the fixed bottom navigation. */
+  /* Keep the save bar above the floating bottom dock (64px tall + 12px gap). */
   .att-foot {
-    bottom: calc(62px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    margin-left: 12px;
+    margin-right: 12px;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
     padding: 10px 14px;
   }
 }
