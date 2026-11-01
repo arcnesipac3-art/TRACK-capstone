@@ -169,6 +169,6 @@ the key, **401** for anonymous callers — never a silent empty success.
   the system will not let itself be left without one.
 - **Emergency lockdown**: deactivate a department to revoke its whole
   permission set at once; reactivate it to restore the previous grants.
-- **Verification**: `python manage.py test core` (227 tests) and
-  `npm run test` in `frontend/` (227 tests) cover the RBAC rules, safeguards
+- **Verification**: `python manage.py test core` (324 tests) and
+  `npm run test` in `frontend/` (368 tests) cover the RBAC rules, safeguards
   and screens, including the permission-gated navigation and the matrix.

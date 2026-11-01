@@ -1,7 +1,7 @@
 name: CI
 
 # Runs the full verification suite on every push to main and on every pull
-# request, so the backend tests (227), frontend tests (250), lint and the
+# request, so the backend tests (324), frontend tests (368), lint and the
 # production build are enforced before code lands on main.
 on:
   push:

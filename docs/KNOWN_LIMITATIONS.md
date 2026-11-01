@@ -2,6 +2,8 @@
 
 This document describes all known incomplete features, external service dependencies, unresolved defects, native testing gaps, and deployment restrictions. Do not claim something works if it appears in this file without a resolution note.
 
+Last verified against the code: **2026-11-01** (backend 324 tests, frontend 368 tests, `oxlint` clean).
+
 ---
 
 ## Authentication and security
@@ -33,8 +35,8 @@ This document describes all known incomplete features, external service dependen
 - **Severity:** High for Render/cloud deployment
 - **Description:** Student submission files are stored under `backend/media/submissions/`. On Render's free and starter tiers, the filesystem is ephemeral — files are lost on restart or redeployment. No Supabase Storage integration is implemented.
 - **Impact:** On Render, uploaded files are lost on every deploy unless a persistent disk is attached ($0.25/GB/month on Render).
-- **Current state:** The `Submission.file_upload` field, the serializer validation, and the upload directory exist. No frontend currently sends files — submissions use `link_url`. The `/media/` URL is served by Django's dev static handler only.
-- **Fix:** Before enabling file uploads in the frontend, either: (a) attach a Render persistent disk and configure `MEDIA_ROOT` to a path on that disk, or (b) implement Supabase Storage as the Django storage backend.
+- **Current state:** Enrollment applications DO upload files today — the public wizard and the applicant detail page send `multipart/form-data` to the document endpoints, and the files land under `backend/media/`. The requirements-side `Submission.file_upload` field still has no frontend upload path (submissions use `link_url`). `/media/` is only routed when `DEBUG=True`, so production reads uploads back through the authorized download view (see L-018), not through a public URL.
+- **Fix:** Before deploying to a host with an ephemeral filesystem, either: (a) attach a persistent disk and point `MEDIA_ROOT` at it, or (b) implement Supabase Storage as the Django storage backend.
 
 ---
 
@@ -42,15 +44,13 @@ This document describes all known incomplete features, external service dependen
 
 ### L-005: SchedulesPage lint warnings (non-blocking)
 - **Severity:** Informational
-- **Description:** `frontend/src/pages/SchedulesPage.jsx` has 9 oxlint warnings: React purity hints (`Date` used in render), missing `useEffect` dependency, `useMemo` signature, and fast-refresh export warnings. Exit code is 0 (warnings only, not errors).
-- **Impact:** None on production behavior. May cause subtle stale-state bugs in development hot-reload.
-- **Fix:** Address the warnings in a future maintenance pass.
+- **Status:** Resolved (2026-11-01) — the purity, dependency-array and fast-refresh warnings in `frontend/src/pages/SchedulesPage.jsx` are gone; `npm run lint` reports 0 warnings and 0 errors over 145 files.
+- **Original description:** 9 oxlint warnings (React purity hints, missing `useEffect` dependency, `useMemo` signature, fast-refresh exports). Exit code was already 0 (warnings only).
 
 ### L-006: AttendancePage unused variable warnings
 - **Severity:** Informational
-- **Description:** `frontend/src/pages/AttendancePage.jsx` has 3 oxlint warnings for an unused function and variable, and a missing `useEffect` dependency.
-- **Impact:** None on production behavior.
-- **Fix:** Remove unused declarations in a future cleanup.
+- **Status:** Resolved (2026-11-01) — no unused declarations remain in `frontend/src/pages/AttendancePage.jsx`.
+- **Original description:** 3 oxlint warnings for an unused function and variable, and a missing `useEffect` dependency. No production impact.
 
 ---
 
@@ -96,8 +96,7 @@ This document describes all known incomplete features, external service dependen
 
 ### L-013: Stray empty db.sqlite3 file
 - **Severity:** Informational
-- **Description:** `backend/db.sqlite3` (empty, 0 bytes or near-empty) exists alongside the real `backend/track_db.sqlite3`. It is not used by the application but may cause confusion.
-- **Fix:** Delete `backend/db.sqlite3` after confirming the real database is `track_db.sqlite3`.
+- **Status:** Resolved (2026-11-01) — `backend/db.sqlite3` (a legacy Django-only database with 11 built-in tables, all empty, and no `core_*` tables) has been deleted. `backend/track_db.sqlite3` is the only database file; `settings.py` points at it and `*.sqlite3` is gitignored.
 
 ---
 
@@ -105,9 +104,8 @@ This document describes all known incomplete features, external service dependen
 
 ### L-014: Nothing is committed to git
 - **Severity:** Critical (before deployment)
-- **Description:** The entire working tree — including migrations `0002–0004`, `pagination.py`, `SchedulesPage.jsx`, `AttendancePage.jsx` updates, all Phase docs, the entire `mobile/` directory, and all backend/frontend changes since the initial commit — is uncommitted. A clean clone of the `origin/main` branch would be missing critical migration files and all Phase 1–6 features.
-- **Impact:** Any deployment from a fresh clone today would fail at the migration step and present an incomplete application.
-- **Fix:** Commit the working tree. At minimum, commit: `backend/core/migrations/0002_auto_attendance.py`, `0003_attendance_constraints.py`, `0004_alter_attendancesession_schedule.py`, and all modified tracked files.
+- **Status:** Resolved (2026-11-01) — `main` and `origin/main` both point at `743da85` with a clean working tree. Migrations `0001`–`0010` and the `mobile/` app are tracked, so a fresh clone runs `migrate` and builds all four roles.
+- **Original description:** During the October audit the working tree was entirely uncommitted, so a clean clone was missing migrations and the Phase 1–6 features.
 
 ### L-015: No production deployment exists
 - **Severity:** High (by design)
@@ -117,8 +115,7 @@ This document describes all known incomplete features, external service dependen
 
 ### L-016: Split-origin web auth requires a settings change
 - **Severity:** High (if using Render + Vercel split-origin topology)
-- **Description:** If the Django backend and React frontend are on different hostnames (e.g., Render backend + Vercel frontend), `SameSite=Lax` session cookies will not be sent cross-site, and web login silently fails.
-- **Fix:** Either use same-origin hosting (VPS + nginx recommended), or add `SESSION_COOKIE_SAMESITE = "None"` inside the `if IS_PRODUCTION:` block in `settings.py` (requires `SESSION_COOKIE_SECURE = True`, which is already set).
+- **Status:** Resolved (2026-11-01) — the production block already sets `SESSION_COOKIE_SAMESITE = "None"` and `CSRF_COOKIE_SAMESITE = "None"` alongside `*_SECURE = True` (`backend/config/settings.py:278-280`), so cross-origin web login works without a manual edit. Same-origin hosting is still the simpler topology.
 
 ---
 
@@ -131,6 +128,6 @@ This document describes all known incomplete features, external service dependen
 
 ### L-018: Media files not access-controlled in production
 - **Severity:** High (when file uploads are enabled in the frontend)
-- **Description:** The production settings comment notes that `/media/` should be served by nginx with a restrictive content-type allow-list. There is no backend authorization check on media file access — anyone who knows the URL can download a submission file.
-- **Current state:** No frontend sends files, so no submission files exist from real users. The feature is dormant.
-- **Fix:** Before enabling file uploads, implement signed URL generation or a Django view that checks permissions before streaming the file.
+- **Status:** Mostly resolved for enrollment uploads (2026-11-01). Enrollment documents are streamed by `ApplicationDocumentDownloadView` (`backend/core/enrollment_views.py:613`), which re-checks ownership or `enrollment.view` staff permission per request and answers 404 — never 403 — for someone else's record. The frontend fetches them through that endpoint (`downloadAuthorizedFile`), not the public `/media/` URL, and `/media/` is only routed when `DEBUG=True`.
+- **Remaining:** Requirement `Submission.file_upload` has no authorized download view yet, and nothing stops a future `/media/`-served path from being opened in production by an nginx rule.
+- **Fix:** Reuse the document download pattern for submissions before that upload path is enabled.

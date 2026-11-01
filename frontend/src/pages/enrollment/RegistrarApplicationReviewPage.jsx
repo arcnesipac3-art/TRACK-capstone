@@ -176,9 +176,11 @@ export default function RegistrarApplicationReviewPage() {
     }
   }, [id])
 
+  // Both loaders flip their own loading flag synchronously before the first
+  // await — queueMicrotask runs that kickoff outside the effect's render pass.
   useEffect(() => {
-    loadDetail()
-    loadRecs()
+    queueMicrotask(loadDetail)
+    queueMicrotask(loadRecs)
   }, [loadDetail, loadRecs])
 
   function openModal(config) {

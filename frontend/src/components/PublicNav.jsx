@@ -34,8 +34,13 @@ export default function PublicNav({ activeSection = '', onScrollToTop }) {
     }
   }, [mobileMenuOpen])
 
-  // Close mobile menu on route change
-  useEffect(() => { setMobileMenuOpen(false) }, [pathname])
+  // Close mobile menu on route change — render-time adjustment, so the new
+  // route never paints with the menu still open.
+  const [prevPathname, setPrevPathname] = useState(pathname)
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname)
+    setMobileMenuOpen(false)
+  }
 
   const isLanding = pathname === '/'
 
@@ -44,11 +49,6 @@ export default function PublicNav({ activeSection = '', onScrollToTop }) {
     if (isLanding) return activeSection === sectionId ? 'nav-active' : ''
     return pathname === path ? 'nav-active' : ''
   }
-
-  // Home link — on landing page smooth-scrolls to top; elsewhere navigates to /
-  const HomeLink = isLanding
-    ? <a href="#" className={!activeSection ? 'nav-active' : ''} onClick={(e) => { e.preventDefault(); onScrollToTop?.() }}>Home</a>
-    : <Link to="/" className={navClass('', '/')}>Home</Link>
 
   const NAV_LINKS = (close = null) => (
     <>

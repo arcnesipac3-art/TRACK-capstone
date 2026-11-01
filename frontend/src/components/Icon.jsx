@@ -236,12 +236,6 @@ const PATHS = {
       <path d="M16 13c3 0 5-2 5-5 0-2-2-4-5-4s-5 2-5 4c0 3 2 5 5 5z" />
     </>
   ),
-  mapPin: (
-    <>
-      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-      <circle cx="12" cy="10" r="3" />
-    </>
-  ),
 }
 
 export default function Icon({ name, size = 18, className }) {

@@ -4,6 +4,11 @@
 **Environment:** Windows 11, Python 3.15, Node.js (LTS), local SQLite database
 **Tester:** Kiro (automated + manual inspection)
 
+> This is a point-in-time audit record and is not updated in place. Re-run on
+> 2026-11-01: backend 324 tests and frontend 368 tests all passing, `oxlint`
+> clean (0 warnings), production build succeeding. Enrollment coverage is
+> tracked separately in `docs/ENROLLMENT.md`.
+
 ---
 
 ## Summary

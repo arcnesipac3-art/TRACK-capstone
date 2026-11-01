@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import Icon from '../components/Icon'
 import Logo from '../components/Logo'
 import PublicNav from '../components/PublicNav'
 import { useAuth } from '../context/AuthContext'

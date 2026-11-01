@@ -11,9 +11,8 @@ import { createContext, useContext } from 'react'
 const AuthContext = createContext(null)
 
 // The hook stays beside the context it reads; the <AuthProvider> component
-// lives in AuthProvider.jsx, so this module exports no components and keeps
-// an exact Fast Refresh boundary (react/only-export-components needs no
-// suppression here).
+// lives in AuthProvider.jsx. This module has no JSX, so it stays a .js file and
+// the react/only-export-components Fast Refresh rule never applies to it.
 export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>')

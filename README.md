@@ -50,14 +50,18 @@ TRACK-capstone/
 │   ├── core/               Only Django app
 │   │   ├── models.py       All database models
 │   │   ├── views.py        All API views (generics + custom)
+│   │   ├── enrollment.py   Enrollment rules: transitions, capacity, confirmation
+│   │   ├── enrollment_auth.py / enrollment_views.py / enrollment_serializers.py
+│   │   │                   Account-less guest access + enrollment API layer
 │   │   ├── serializers.py  DRF serializers
 │   │   ├── permissions.py  Role-based permission classes
 │   │   ├── urls.py         All /api/* routes
 │   │   ├── notifications.py In-app notification fan-out
 │   │   ├── pagination.py   TrackPagination class
-│   │   ├── tests.py        197 automated tests
+│   │   ├── tests.py        Core test suite (TRACK domain)
+│   │   ├── tests_enrollment.py Enrollment test suite
 │   │   └── migrations/     Database migration history
-│   ├── media/              Uploaded submission files (dev)
+│   ├── media/              Uploaded files (dev): submissions, enrollment documents
 │   ├── staticfiles/        collectstatic output (gitignored)
 │   ├── track_db.sqlite3    Development database
 │   ├── requirements.txt    Python dependencies
@@ -66,7 +70,7 @@ TRACK-capstone/
 ├── frontend/               React web app
 │   ├── src/
 │   │   ├── App.jsx         React Router route tree
-│   │   ├── pages/          Page components (20 pages, 4 dashboards)
+│   │   ├── pages/          Page components (52 pages, 4 dashboards, enrollment portal)
 │   │   ├── components/     Shared UI components
 │   │   ├── context/        AuthContext (session state)
 │   │   ├── services/api.js Centralized API client (CSRF + session)
@@ -86,12 +90,15 @@ TRACK-capstone/
 │   ├── eas.json            EAS Build profiles
 │   ├── package.json
 │   └── .env.development    Dev API URL (committed — no secrets)
-└── docs/                   Generated deployment documentation
+└── docs/                   Generated documentation
     ├── DEPLOYMENT.md
+    ├── ENROLLMENT.md
     ├── BACKUP_RECOVERY.md
+    ├── DEPARTMENTS_ROLES.md
     ├── TESTING_REPORT.md
     ├── KNOWN_LIMITATIONS.md
-    └── ADMIN_HANDOVER.md
+    ├── ADMIN_HANDOVER.md
+    └── archive/            Historical feature & phase reports (Oct 2026)
 ```
 
 ---
@@ -195,14 +202,14 @@ The mobile dev environment reads `mobile/.env.development` which points to `http
 
 ## Running tests
 
-### Backend (227 tests)
+### Backend (324 tests)
 
 ```bash
 # From project root, with .venv activated
 python backend/manage.py test core
 ```
 
-### Frontend (227 tests)
+### Frontend (368 tests)
 
 ```bash
 cd frontend
