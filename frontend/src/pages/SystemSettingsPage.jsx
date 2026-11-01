@@ -9,6 +9,7 @@ import StatusBadge from '../components/StatusBadge'
 import api from '../services/api'
 import useFetch from '../hooks/useFetch'
 import { formatDate } from '../utils/format'
+import Button from '../components/Button'
 
 /**
  * System settings.
@@ -64,10 +65,10 @@ export default function SystemSettingsPage() {
         title="System Settings"
         subtitle="School-wide configuration — the school year calendar and system status."
         actions={
-          <button type="button" className="btn btn-primary btn-sm" onClick={openCreate}>
+          <Button variant="primary" size="sm" onClick={openCreate}>
             <Icon name="userPlus" size={15} />
             Add school year
-          </button>
+          </Button>
         }
       />
 
@@ -75,9 +76,9 @@ export default function SystemSettingsPage() {
         <div className="alert alert-success" role="status">
           <Icon name="check" size={17} />
           <span className="grow">{notice}</span>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={() => setNotice(null)}>
+          <Button variant="secondary" size="sm" onClick={() => setNotice(null)}>
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
 
@@ -85,9 +86,9 @@ export default function SystemSettingsPage() {
         <div className="alert alert-error" role="alert">
           <Icon name="info" size={17} />
           <span className="grow">{actionError}</span>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={() => setActionError(null)}>
+          <Button variant="secondary" size="sm" onClick={() => setActionError(null)}>
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
 
@@ -98,9 +99,9 @@ export default function SystemSettingsPage() {
         onRetry={years.reload}
         action={
           activeYear ? (
-            <span className="badge badge-green">Active: {activeYear.label}</span>
+            <StatusBadge tone="green" label={`Active: ${activeYear.label}`} />
           ) : (
-            <span className="badge badge-red">No active year</span>
+            <StatusBadge tone="red" label="No active year" />
           )
         }
       >
@@ -136,19 +137,19 @@ export default function SystemSettingsPage() {
                     </td>
                     <td data-label="Actions">
                       <div className="row-actions">
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-ghost"
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => openEdit(year)}
                           disabled={busyId === year.id}
                         >
                           <Icon name="pencil" size={14} />
                           Edit
-                        </button>
+                        </Button>
                         {!year.is_active && (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-secondary"
+                          <Button
+                            variant="secondary"
+                            size="sm"
                             onClick={() => activate(year)}
                             disabled={busyId === year.id}
                           >
@@ -158,7 +159,7 @@ export default function SystemSettingsPage() {
                               <Icon name="check" size={14} />
                             )}
                             Set active
-                          </button>
+                          </Button>
                         )}
                       </div>
                     </td>
@@ -296,13 +297,13 @@ function SchoolYearModal({ open, year, onClose, onSaved }) {
       dismissible={!busy}
       footer={
         <>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} disabled={busy}>
+          <Button variant="secondary" size="sm" onClick={onClose} disabled={busy}>
             Cancel
-          </button>
-          <button type="submit" form="school-year-form" className="btn btn-primary btn-sm" disabled={busy}>
+          </Button>
+          <Button type="submit" form="school-year-form" variant="primary" size="sm" disabled={busy}>
             {busy && <ButtonLoader />}
             {busy ? 'Saving…' : editing ? 'Save changes' : 'Create school year'}
-          </button>
+          </Button>
         </>
       }
     >

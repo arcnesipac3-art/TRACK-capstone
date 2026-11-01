@@ -162,6 +162,7 @@ function mockBackend({
   assignments = ASSIGNMENTS,
   students = STUDENTS,
   records = [],
+  children = [],
 } = {}) {
   useFetch.mockImplementation((path, options = {}) => {
     const idle = { data: null, loading: false, error: null, reload: vi.fn() }
@@ -174,6 +175,9 @@ function mockBackend({
     if (path === '/students/') {
       return { data: students, loading: false, error: null, reload: vi.fn() }
     }
+    if (path === '/dashboard/') {
+      return { data: { children }, loading: false, error: null, reload: vi.fn() }
+    }
     if (path === '/attendance/records/') {
       // Student history: mirrors the real hook staying idle until enabled.
       return { ...idle, data: options.enabled ? records : null }
@@ -185,6 +189,16 @@ function mockBackend({
 function renderTeacher(options) {
   mockBackend(options)
   return render(<AttendancePage mode="teacher" />)
+}
+
+function renderStudent(options) {
+  mockBackend(options)
+  return render(<AttendancePage mode="student" />)
+}
+
+function renderParent(options) {
+  mockBackend(options)
+  return render(<AttendancePage mode="parent" />)
 }
 
 /** Switch the teacher page to the Attendance history tab. */
@@ -231,6 +245,49 @@ describe('Teacher attendance — session list', () => {
     // Two sessions in today's list — roster stays out of the list view.
     expect(screen.getAllByRole('button', { name: /take attendance for/i })).toHaveLength(2)
     expect(screen.queryByText('Maria Cruz')).not.toBeInTheDocument()
+  })
+
+  it('asks StatusBadge only for tones the badge layer defines', () => {
+    // 'gray' is not one of the five tones StatusBadge can render, so the
+    // not-started chips used to ship as an undefined `.badge-gray` and lose
+    // their styling. The grouped session tables are where that lived.
+    const VALID = /^badge badge-(amber|blue|green|red|neutral)$/
+    const dated = (id, date, extra) => ({
+      id,
+      teacher_assignment: 7,
+      subject_name: 'Mathematics',
+      section_name: 'Grade 7 – Sampaguita',
+      date,
+      notes: '',
+      created_at: `${date}T01:00:00Z`,
+      records: [],
+      ...extra,
+    })
+
+    renderTeacher({
+      ...HISTORY_OPTS,
+      sessions: [
+        dated(60, '2026-10-16', { status: 'completed', status_display: 'Completed' }),
+        dated(61, '2026-10-17', { status: 'in_progress', status_display: 'In Progress' }),
+        dated(62, '2026-10-18'),
+      ],
+    })
+
+    const badges = [...document.querySelectorAll('.badge')]
+    expect(badges.length).toBeGreaterThan(0)
+    expect(badges.filter((b) => !VALID.test(b.className))).toEqual([])
+    expect(document.querySelectorAll('.badge-gray')).toHaveLength(0)
+
+    // Each server status still reaches the chip that shows it.
+    expect(
+      badges.find((b) => b.textContent === 'Completed')?.className
+    ).toBe('badge badge-green')
+    expect(
+      badges.find((b) => b.textContent === 'In Progress')?.className
+    ).toBe('badge badge-blue')
+    expect(
+      badges.find((b) => b.textContent === 'Not Started')?.className
+    ).toBe('badge badge-neutral')
   })
 
   it('filters sessions by class', async () => {
@@ -801,5 +858,128 @@ describe('Teacher attendance — history', () => {
 
     expect(screen.getByText('No attendance history yet')).toBeInTheDocument()
     expect(screen.getByText('0 sessions')).toBeInTheDocument()
+  })
+})
+
+/* ------------------------------------------------------------------ */
+/* Student & parent — the shared records table                           */
+/* ------------------------------------------------------------------ */
+
+const DAY = (offset) => {
+  const d = new Date()
+  d.setDate(d.getDate() - offset)
+  return d.toISOString().split('T')[0]
+}
+
+const VIEW_RECORDS = [
+  {
+    id: 1,
+    status: 'present',
+    notes: '',
+    session_detail: { date: DAY(1), section_name: 'Grade 7 – Sampaguita', subject_name: 'Mathematics' },
+  },
+  {
+    id: 2,
+    status: 'absent',
+    notes: 'Fever',
+    session_detail: { date: DAY(3), section_name: 'Grade 7 – Sampaguita', subject_name: 'English' },
+  },
+  {
+    id: 3,
+    status: 'late',
+    notes: '',
+    session_detail: { date: DAY(6), section_name: 'Grade 7 – Sampaguita', subject_name: 'Science' },
+  },
+]
+
+const PARENTS = [
+  { student_id: 101, name: 'Maria Cruz', section: 'Grade 7 – Sampaguita' },
+  { student_id: 102, name: 'Juan Dela Cruz', section: 'Grade 7 – Sampaguita' },
+]
+
+describe('Student/parent attendance — records table', () => {
+  it('filters through one shared filter bar, not a bespoke card header', async () => {
+    const user = userEvent.setup()
+    renderStudent({ records: VIEW_RECORDS })
+
+    const bar = document.querySelector('.filter-bar')
+    expect(bar).not.toBeNull()
+    expect(within(bar).getByLabelText('From')).toBeInTheDocument()
+    expect(within(bar).getByLabelText('To')).toBeInTheDocument()
+    expect(within(bar).getByLabelText('Status')).toBeInTheDocument()
+
+    // The old hand-built header — a heading plus inline margins and gaps — is gone.
+    expect(screen.queryByRole('heading', { name: 'Filter Records' })).toBeNull()
+    expect(bar.querySelectorAll('[style]')).toHaveLength(0)
+
+    await user.selectOptions(within(bar).getByLabelText('Status'), 'absent')
+    expect(screen.getAllByRole('row').slice(1)).toHaveLength(1)
+    expect(screen.getByText('Fever')).toBeInTheDocument()
+    expect(screen.getByText('Showing 1 of 3 records')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /^Clear$/ }))
+    expect(screen.getAllByRole('row').slice(1)).toHaveLength(3)
+    expect(screen.queryByText('Showing 1 of 3 records')).toBeNull()
+  })
+
+  it('narrows to a date window with the same two inputs', () => {
+    renderStudent({ records: VIEW_RECORDS })
+
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: DAY(4) } })
+    expect(screen.getAllByRole('row').slice(1)).toHaveLength(2)
+
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: DAY(2) } })
+    expect(screen.getAllByRole('row').slice(1)).toHaveLength(1)
+    // The denominator is the whole fetched set, not the previous window.
+    expect(screen.getByText('Showing 1 of 3 records')).toBeInTheDocument()
+  })
+
+  it('runs a populated table to the card edge and pads the empty state', () => {
+    const { unmount } = renderStudent({ records: VIEW_RECORDS })
+    const panel = screen.getByRole('heading', { name: 'Attendance records' }).closest('section')
+    expect(panel.querySelector('.card-body').className).toContain('flush')
+    unmount()
+
+    renderStudent({ records: [] })
+    const bare = screen.getByRole('heading', { name: 'Attendance records' }).closest('section')
+    expect(bare.querySelector('.card-body').className).not.toContain('flush')
+    expect(within(bare).getByText('No attendance records')).toBeInTheDocument()
+  })
+
+  it('says which half of a long list the table is showing', () => {
+    const many = Array.from({ length: 120 }, (_, i) => ({
+      id: i + 1,
+      status: 'present',
+      notes: '',
+      session_detail: { date: DAY(1), section_name: 'Grade 7 – Sampaguita', subject_name: 'Mathematics' },
+    }))
+    renderStudent({ records: many })
+
+    expect(screen.getByRole('heading', { name: 'Attendance records' })).toBeInTheDocument()
+    expect(screen.getAllByRole('row').slice(1)).toHaveLength(100)
+    expect(screen.getByText(/Showing the first 100 of 120 records/)).toBeInTheDocument()
+  })
+
+  it('asks for the selected child and re-asks on switch', async () => {
+    const user = userEvent.setup()
+    renderParent({ records: VIEW_RECORDS, children: PARENTS })
+
+    const tablist = screen.getByRole('tablist', { name: 'Select child' })
+    expect(within(tablist).getAllByRole('tab')).toHaveLength(2)
+    // The first child's records land in the same table the student sees.
+    expect(screen.getAllByRole('row').slice(1)).toHaveLength(3)
+
+    await user.click(within(tablist).getByRole('tab', { name: /Juan Dela Cruz/ }))
+    expect(useFetch.mock.calls.filter(([p]) => p === '/attendance/records/').pop()[1].params)
+      .toEqual({ student: 102 })
+  })
+
+  it('explains a parent account with nothing linked to it', () => {
+    renderParent({ children: [] })
+
+    const panel = screen.getByText('No linked children').closest('section')
+    expect(panel.className).toContain('card')
+    expect(panel.querySelector('.card-body').className).not.toContain('flush')
+    expect(screen.queryByLabelText('From')).toBeNull()
   })
 })

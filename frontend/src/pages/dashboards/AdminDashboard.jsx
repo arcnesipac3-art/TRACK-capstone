@@ -6,6 +6,7 @@ import CardSkeleton from '../../components/loading/CardSkeleton'
 import StatCardSkeleton from '../../components/loading/StatCardSkeleton'
 import PageHeader from '../../components/PageHeader'
 import StatCard from '../../components/StatCard'
+import StatusBadge from '../../components/StatusBadge'
 import ActionToolbar from '../../components/dashboard/ActionToolbar'
 import AttendanceSummaryCard from '../../components/dashboard/AttendanceSummaryCard'
 import Card, { SummaryRows } from '../../components/dashboard/Card'
@@ -36,13 +37,18 @@ const SUBMISSION_ROWS = [
  * Dashboard shortcuts, most useful first. The first five permitted by this
  * administrator stay in the toolbar; the rest fold into "More actions", so
  * navigation never outgrows a single row.
+ *
+ * People are reached by role directory — TRACK has no single "all users"
+ * screen in the sidebar, so no shortcut points at one either.
  */
 const DASH_ACTIONS = [
-  { label: 'Manage users', to: '/admin/users', icon: 'users', perm: 'users.view' },
-  { label: 'Manage enrollment', to: '/admin/enrollment', icon: 'userPlus', perm: 'enrollment.view' },
+  { label: 'Manage students', to: '/admin/students', icon: 'gradCap', perm: 'users.view' },
+  { label: 'Manage enrollment', to: '/admin/enrollment/overview', icon: 'userPlus', perm: 'enrollment.view' },
   { label: 'View attendance', to: '/admin/attendance', icon: 'calendar', perm: 'attendance.view' },
   { label: 'Manage requirements', to: '/admin/requirements', icon: 'clipboard', perm: 'requirements.view' },
   { label: 'View reports', to: '/admin/reports', icon: 'chart', perm: 'reports.view' },
+  { label: 'Manage teachers', to: '/admin/teachers', icon: 'user', perm: 'users.view' },
+  { label: 'Manage parents', to: '/admin/parents', icon: 'users', perm: 'users.view' },
   { label: 'Fee management', to: '/admin/fees', icon: 'creditCard', perm: 'fees.view' },
   { label: 'Sections & subjects', to: '/admin/sections', icon: 'layers', perm: 'structure.manage' },
   { label: 'Announcements', to: '/announcements', icon: 'megaphone', perm: 'announcements.view' },
@@ -184,7 +190,7 @@ export default function AdminDashboard() {
         key="students"
         icon="gradCap"
         label="Students"
-        to="/admin/users"
+        to="/admin/students"
         value={formatNumber(accounts.total_students)}
         hint={
           accounts.total_students
@@ -196,7 +202,7 @@ export default function AdminDashboard() {
         key="teachers"
         icon="book"
         label="Teachers"
-        to="/admin/users"
+        to="/admin/teachers"
         value={formatNumber(accounts.total_teachers)}
         hint={accounts.total_teachers ? 'Teaching accounts on record' : 'No teacher accounts yet'}
       />
@@ -267,7 +273,7 @@ export default function AdminDashboard() {
           key="enrollment"
           icon="userPlus"
           label="Applications in review"
-          to="/admin/enrollment"
+          to="/admin/enrollment/applications"
           tone={stats.under_review > 0 ? 'amber' : 'default'}
           value={formatNumber(stats.under_review)}
           hint={`${formatNumber(stats.submitted)} submitted · ${formatNumber(
@@ -316,10 +322,12 @@ export default function AdminDashboard() {
           <span className="row row-wrap" style={{ gap: 6 }}>
             {/* The metric tile reports completion; the deadline status the old
                 "Active requirements" card carried stays visible here. */}
-            <span className="badge badge-neutral">
-              {formatNumber(requirements.active_requirements)} of{' '}
-              {formatNumber(requirements.total_requirements)} active
-            </span>
+            <StatusBadge
+              tone="neutral"
+              label={`${formatNumber(requirements.active_requirements)} of ${formatNumber(
+                requirements.total_requirements
+              )} active`}
+            />
             <Link className="btn btn-sm btn-ghost" to="/admin/requirements">
               Open requirements
             </Link>
@@ -429,7 +437,7 @@ export default function AdminDashboard() {
         title="Latest announcements"
         action={
           <span className="row row-wrap" style={{ gap: 6 }}>
-            <span className="badge badge-neutral">{formatNumber(announcements.total)} published</span>
+            <StatusBadge tone="neutral" label={`${formatNumber(announcements.total)} published`} />
             <Link className="btn btn-sm btn-ghost" to="/announcements">
               View all
             </Link>
@@ -467,9 +475,7 @@ export default function AdminDashboard() {
                   <div className="ai-title ann-title">
                     <span>{item.title}</span>
                     {isPinned && (
-                      <span className="badge badge-blue" title="Pinned to the top of the feed">
-                        Pinned
-                      </span>
+                      <StatusBadge tone="blue" label="Pinned" title="Pinned to the top of the feed" />
                     )}
                   </div>
                   <div className="ai-meta">
@@ -532,11 +538,6 @@ export default function AdminDashboard() {
       <Card
         key="accounts"
         title="Account distribution"
-        action={
-          <Link className="btn btn-sm btn-ghost" to="/admin/users">
-            Open directory
-          </Link>
-        }
         empty={
           total === 0 ? (
             <EmptyState

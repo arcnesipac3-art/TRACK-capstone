@@ -7,6 +7,7 @@ import CardSkeleton from '../components/loading/CardSkeleton'
 import StatCardSkeleton from '../components/loading/StatCardSkeleton'
 import StatCard from '../components/StatCard'
 import Card from '../components/dashboard/Card'
+import StatusBadge from '../components/StatusBadge'
 import { formatCurrency, formatDate } from '../utils/format'
 
 /**
@@ -85,7 +86,7 @@ export default function StudentFeesPage() {
 
       {schoolYears.length > 1 && (
         <div className="filter-bar">
-          <div className="field" style={{ minWidth: 240 }}>
+          <div className="field grow">
             <label htmlFor="school_year">School Year</label>
             <select
               id="school_year"
@@ -102,22 +103,26 @@ export default function StudentFeesPage() {
       )}
 
       {!summary ? (
-        <EmptyState
-          icon="inbox"
-          title="No fee data"
-          message="Your fee assessments will appear here once published."
+        <Card
+          empty={
+            <EmptyState
+              icon="inbox"
+              title="No fee data"
+              message="Your fee assessments will appear here once published."
+            />
+          }
         />
       ) : (
         <>
           <div className="grid grid-3">
-            <StatCard label="Total Assessed" value={formatCurrency(summary.total_assessed)} />
-            <StatCard label="Total Paid" value={formatCurrency(summary.total_paid)} tone="green" />
-            <StatCard label="Outstanding" value={formatCurrency(summary.total_outstanding)} tone="amber" />
+            <StatCard label="Total Assessed" value={formatCurrency(summary.total_assessed)} icon="file" />
+            <StatCard label="Total Paid" value={formatCurrency(summary.total_paid)} tone="green" icon="checkCircle" />
+            <StatCard label="Outstanding" value={formatCurrency(summary.total_outstanding)} tone="amber" icon="clock" />
           </div>
 
           <Card
             title="Fee Assessments"
-            flush
+            flush={sorted.length > 0}
             empty={
               sorted.length === 0 ? (
                 <EmptyState
@@ -155,9 +160,10 @@ export default function StudentFeesPage() {
                         )}
                       </td>
                       <td data-label="Type">
-                        <span className={`badge ${a.category_fee_type === 'voluntary' ? 'badge-info' : 'badge-warning'}`}>
-                          {a.category_fee_type === 'voluntary' ? 'Voluntary' : 'Required'}
-                        </span>
+                        <StatusBadge
+                          tone={a.category_fee_type === 'voluntary' ? 'blue' : 'amber'}
+                          label={a.category_fee_type === 'voluntary' ? 'Voluntary' : 'Required'}
+                        />
                       </td>
                       <td data-label="Due Date">{formatDate(a.due_date)}</td>
                       <td data-label="Assessed">{formatCurrency(a.amount)}</td>
@@ -170,15 +176,16 @@ export default function StudentFeesPage() {
                         )}
                       </td>
                       <td data-label="Status">
-                        <span className={`badge ${
-                          a.payment_status === 'paid'
-                            ? 'badge-success'
-                            : a.payment_status === 'partial'
-                              ? 'badge-warning'
-                              : 'badge-error'
-                        }`}>
-                          {a.payment_status}
-                        </span>
+                        <StatusBadge
+                          tone={
+                            a.payment_status === 'paid'
+                              ? 'green'
+                              : a.payment_status === 'partial'
+                                ? 'amber'
+                                : 'red'
+                          }
+                          label={a.payment_status}
+                        />
                       </td>
                       <td data-label="Receipt">
                         {a.receipt_number ? (

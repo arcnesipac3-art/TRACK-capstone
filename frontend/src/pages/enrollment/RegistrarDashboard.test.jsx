@@ -1,6 +1,7 @@
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MemoryRouter } from 'react-router-dom'
 import RegistrarDashboard from './RegistrarDashboard'
 import useFetch from '../../hooks/useFetch'
 
@@ -48,6 +49,14 @@ const SECTIONS = [
     assigned: 3,
     available: null,
   },
+  {
+    section_id: 12,
+    section: 'Rosa',
+    grade_level: 'Grade 8',
+    capacity: 10,
+    assigned: 10,
+    available: 0,
+  },
 ]
 
 function mockUseFetch({ dashboard, dashboardError, dashboardParams } = {}) {
@@ -68,6 +77,14 @@ function mockUseFetch({ dashboard, dashboardError, dashboardParams } = {}) {
   })
 }
 
+function renderDashboard() {
+  return render(
+    <MemoryRouter initialEntries={['/admin/enrollment/overview']}>
+      <RegistrarDashboard />
+    </MemoryRouter>
+  )
+}
+
 /** Text of the stat-value inside the card whose label matches. */
 function statValue(label) {
   const card = [...document.querySelectorAll('.enr-stat-grid .stat-card')].find(
@@ -83,7 +100,7 @@ describe('RegistrarDashboard', () => {
 
   it('shows every headline figure from the dashboard payload', async () => {
     mockUseFetch({ dashboard: DASHBOARD })
-    render(<RegistrarDashboard />)
+    renderDashboard()
 
     await waitFor(() => expect(statValue('Total applications')).toBe('42'))
     expect(statValue('Submitted')).toBe('7')
@@ -95,18 +112,61 @@ describe('RegistrarDashboard', () => {
     expect(statValue('Confirmed enrollments')).toBe('6')
   })
 
+  it('says which school year the figures describe', async () => {
+    mockUseFetch({ dashboard: DASHBOARD })
+    renderDashboard()
+
+    expect(await screen.findByText(/2026-2027 school year/i)).toBeInTheDocument()
+    // The payload's open-period count covers every year, so it is worded so.
+    expect(screen.getByText(/open, counted across every school year/i)).toBeInTheDocument()
+  })
+
+  it('links the figures the applications queue can filter to', async () => {
+    mockUseFetch({ dashboard: DASHBOARD })
+    renderDashboard()
+
+    const review = await screen.findByRole('link', { name: /under review/i })
+    expect(review).toHaveAttribute(
+      'href',
+      '/admin/enrollment/applications?status=under_review&school_year=1'
+    )
+    const corrections = screen.getByRole('link', { name: /awaiting corrections/i })
+    expect(corrections.getAttribute('href')).toContain('status=incomplete')
+    expect(corrections.getAttribute('href')).toContain('school_year=1')
+    expect(screen.getByRole('link', { name: /total applications/i })).toHaveAttribute(
+      'href',
+      '/admin/enrollment/applications?school_year=1'
+    )
+    // Document verification and enrollment records have no queue filter —
+    // those tiles stay plain instead of opening a list that cannot match.
+    expect(
+      screen.queryByRole('link', { name: /pending document verification/i })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /confirmed enrollments/i })
+    ).not.toBeInTheDocument()
+  })
+
   it('renders section occupancy and applications by grade level', async () => {
     mockUseFetch({ dashboard: { ...DASHBOARD, sections: SECTIONS } })
-    render(<RegistrarDashboard />)
+    renderDashboard()
 
     expect(await screen.findByText('Section occupancy')).toBeInTheDocument()
-    expect(screen.getByText('Sampaguita')).toBeInTheDocument()
-    expect(screen.getByText('No limit')).toBeInTheDocument()
-    expect(screen.getByText('Applications by grade level')).toBeInTheDocument()
+    const occupancy = screen.getByText('Section occupancy').closest('.card')
+    expect(within(occupancy).getByText('No limit')).toBeInTheDocument()
+    // Fullest first: Rosa is at 100%, Sampaguita at 80%, and the
+    // unlimited-capacity section has no utilisation to rank.
+    const rows = within(occupancy).getAllByRole('row').slice(1)
+    expect(within(rows[0]).getByText('Rosa')).toBeInTheDocument()
+    expect(within(rows[0]).getByText('100%')).toBeInTheDocument()
+    expect(within(rows[1]).getByText('Sampaguita')).toBeInTheDocument()
+    expect(within(rows[2]).getByText('Gumamela')).toBeInTheDocument()
+
     const chart = screen.getByText('Applications by grade level').closest('.card')
     expect(within(chart).getByText('Grade 7')).toBeInTheDocument()
     expect(within(chart).getByText('Grade 8')).toBeInTheDocument()
-    expect(within(chart).getByText('24')).toBeInTheDocument()
+    expect(within(chart).getByText('24 · 57%')).toBeInTheDocument()
+    expect(within(chart).getByText('18 · 43%')).toBeInTheDocument()
   })
 
   it('shows an error with retry instead of zeroed figures when the request fails', async () => {
@@ -115,10 +175,10 @@ describe('RegistrarDashboard', () => {
         status: 0,
       }),
     })
-    render(<RegistrarDashboard />)
+    renderDashboard()
 
     expect(
-      await screen.findByText(/could not load the registrar dashboard/i)
+      await screen.findByText(/could not load the enrollment overview/i)
     ).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /try again/i })
@@ -128,11 +188,16 @@ describe('RegistrarDashboard', () => {
     expect(screen.queryByText('0')).not.toBeInTheDocument()
   })
 
-  it('passes the chosen school year to the dashboard request', async () => {
+  it('scopes the overview to the active school year, and follows the picker', async () => {
     const seen = []
     mockUseFetch({ dashboard: DASHBOARD, dashboardParams: seen })
     const user = userEvent.setup()
-    render(<RegistrarDashboard />)
+    renderDashboard()
+
+    // Sections only arrive with a year, so the page opens on the active one.
+    await waitFor(() =>
+      expect(seen.some((params) => params && params.school_year === '1')).toBe(true)
+    )
 
     const select = await screen.findByLabelText(/school year/i)
     await user.selectOptions(select, '2')
@@ -142,5 +207,6 @@ describe('RegistrarDashboard', () => {
         seen.some((params) => params && params.school_year === '2')
       ).toBe(true)
     )
+    expect(await screen.findByText(/2027-2028 school year/i)).toBeInTheDocument()
   })
 })

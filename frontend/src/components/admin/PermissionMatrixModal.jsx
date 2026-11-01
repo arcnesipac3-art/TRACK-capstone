@@ -4,6 +4,7 @@ import Icon from '../Icon'
 import Modal from '../Modal'
 import api from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
+import Button from '../../components/Button'
 
 /**
  * The permission matrix for one department.
@@ -111,24 +112,24 @@ export default function PermissionMatrixModal({
       width={720}
       footer={
         <>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={onClose}
             disabled={busy}
           >
             {editable ? 'Cancel' : 'Close'}
-          </button>
+          </Button>
           {editable && (
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
+            <Button
+              variant="primary"
+              size="sm"
               onClick={save}
               disabled={busy || loading}
             >
               {busy && <ButtonLoader />}
               {busy ? 'Saving…' : 'Save permissions'}
-            </button>
+            </Button>
           )}
         </>
       }

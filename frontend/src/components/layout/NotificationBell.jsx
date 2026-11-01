@@ -6,6 +6,7 @@ import Popover from '../Popover'
 import ListSkeleton from '../loading/ListSkeleton'
 import api from '../../services/api'
 import { formatRelative } from '../../utils/format'
+import Button from '../../components/Button'
 
 /**
  * Bell with unread badge + popover listing the user's latest notifications.
@@ -71,14 +72,14 @@ export default function NotificationBell({
         <>
           <div className="popover-head">
             <h3>Notifications</h3>
-            <button
-              type="button"
-              className="btn btn-sm btn-ghost"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={markAll}
               disabled={busy || unreadCount === 0}
             >
               {busy ? 'Working…' : 'Mark all read'}
-            </button>
+            </Button>
           </div>
 
           <div className="popover-list">
@@ -116,16 +117,16 @@ export default function NotificationBell({
           </div>
 
           <div className="popover-foot">
-            <button
-              type="button"
-              className="btn btn-sm btn-ghost"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => {
                 close()
                 navigate('/notifications')
               }}
             >
               View all notifications
-            </button>
+            </Button>
           </div>
         </>
       )}

@@ -4,6 +4,7 @@ import Icon from '../Icon'
 import Modal from '../Modal'
 import api from '../../services/api'
 import FieldError from '../FieldError'
+import Button from '../../components/Button'
 
 const EMPTY = { name: '', code: '', description: '', is_active: true }
 
@@ -98,23 +99,24 @@ export default function DepartmentFormModal({ open, department, onClose, onSaved
       dismissible={!busy}
       footer={
         <>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={onClose}
             disabled={busy}
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             form="department-form"
-            className="btn btn-primary btn-sm"
+            variant="primary"
+            size="sm"
             disabled={busy}
           >
             {busy && <ButtonLoader />}
             {busy ? 'Saving…' : editing ? 'Save changes' : 'Create department'}
-          </button>
+          </Button>
         </>
       }
     >

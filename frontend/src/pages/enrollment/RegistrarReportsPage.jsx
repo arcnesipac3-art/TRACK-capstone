@@ -10,6 +10,7 @@ import { useState } from 'react'
 import useFetch from '../../hooks/useFetch'
 import { ENROLLMENT_TYPES, applicationStatus } from '../../utils/enrollment'
 import { formatNumber } from '../../utils/format'
+import Button from '../../components/Button'
 import './RegistrarEnrollment.css'
 
 /**
@@ -66,15 +67,16 @@ export default function RegistrarReportsPage() {
                 ))}
               </select>
             </div>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm no-print"
+            <Button
+              variant="secondary"
+              size="sm"
+              className="no-print"
               onClick={() => window.print()}
               disabled={!report}
             >
               <Icon name="printer" size={14} />
               Print
-            </button>
+            </Button>
           </>
         }
       />

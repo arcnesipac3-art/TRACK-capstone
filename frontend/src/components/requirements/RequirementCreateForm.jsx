@@ -3,6 +3,7 @@ import { useState } from 'react'
 import Icon from '../Icon'
 import api from '../../services/api'
 import useFetch from '../../hooks/useFetch'
+import Button from '../../components/Button'
 
 const TYPES = [
   ['assignment', 'Assignment'],
@@ -88,15 +89,15 @@ export default function RequirementCreateForm({ onCreated }) {
 
   if (!open) {
     return (
-      <button
-        type="button"
-        className="btn btn-primary btn-sm"
+      <Button
+        variant="primary"
+        size="sm"
         onClick={() => setOpen(true)}
         disabled={assignments.loading}
       >
         <Icon name="plus" size={15} />
         {assignments.loading ? 'Loading classes…' : 'New requirement'}
-      </button>
+      </Button>
     )
   }
 
@@ -202,18 +203,18 @@ export default function RequirementCreateForm({ onCreated }) {
       )}
 
       <div className="row row-end">
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm"
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => setOpen(false)}
           disabled={busy}
         >
           Cancel
-        </button>
-        <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
+        </Button>
+        <Button type="submit" variant="primary" size="sm" disabled={busy}>
           {busy && <ButtonLoader />}
           {busy ? 'Creating…' : 'Create requirement'}
-        </button>
+        </Button>
       </div>
     </form>
   )

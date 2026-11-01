@@ -5,6 +5,7 @@ import Modal from '../Modal'
 import api from '../../services/api'
 import { useAuth } from '../../context/AuthContext'
 import FieldError from '../FieldError'
+import Button from '../../components/Button'
 
 const ROLES = [
   ['student', 'Student'],
@@ -281,23 +282,24 @@ export default function UserFormModal({ open, user, sections = [], onClose, onSa
       dismissible={!busy}
       footer={
         <>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={onClose}
             disabled={busy}
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             form="user-form"
-            className="btn btn-primary btn-sm"
+            variant="primary"
+            size="sm"
             disabled={busy}
           >
             {busy && <ButtonLoader />}
             {busy ? 'Saving…' : editing ? 'Save changes' : 'Create account'}
-          </button>
+          </Button>
         </>
       }
     >

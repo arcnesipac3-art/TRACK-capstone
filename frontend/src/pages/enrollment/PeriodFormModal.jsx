@@ -8,6 +8,7 @@ import {
   PERIOD_STATUS,
 } from '../../utils/enrollment'
 import FieldError from '../../components/FieldError'
+import Button from '../../components/Button'
 
 const STATUS_OPTIONS = Object.entries(PERIOD_STATUS).map(
   ([value, config]) => ({ value, label: config.label })
@@ -190,23 +191,24 @@ export default function PeriodFormModal({ open, period, onClose, onSaved }) {
       width={640}
       footer={
         <>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={onClose}
             disabled={busy}
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             form="period-form"
-            className="btn btn-primary btn-sm"
+            variant="primary"
+            size="sm"
             disabled={busy}
           >
             {busy && <ButtonLoader />}
             {busy ? 'Saving…' : editing ? 'Save changes' : 'Create period'}
-          </button>
+          </Button>
         </>
       }
     >

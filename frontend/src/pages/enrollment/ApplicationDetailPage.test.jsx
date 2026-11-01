@@ -178,6 +178,58 @@ describe('ApplicationDetailPage', () => {
     expect(await screen.findByText('My applications')).toBeInTheDocument()
   })
 
+  it('hands every workflow control to the shared button primitives', async () => {
+    // This screen is reachable anonymously at /enroll/applications/:id, so its
+    // markup doubles as public markup. The class strings below are exactly the
+    // ones the hand-written buttons carried; asserting them keeps the swap to
+    // the primitives honest — a lost or renamed class would restyle a control.
+    const user = userEvent.setup()
+    renderDetail(
+      makeDetail({ status: 'draft', available_actions: ['submitted', 'withdrawn'] })
+    )
+
+    expect(screen.getByRole('button', { name: /submit application/i })).toHaveClass(
+      'btn',
+      'btn-primary',
+      'btn-sm'
+    )
+    expect(screen.getByRole('button', { name: /withdraw application/i })).toHaveClass(
+      'btn',
+      'btn-danger',
+      'btn-sm'
+    )
+    expect(screen.getByRole('button', { name: /^delete application$/i })).toHaveClass(
+      'btn',
+      'btn-danger',
+      'btn-sm'
+    )
+    expect(screen.getByRole('button', { name: /download/i })).toHaveClass(
+      'btn',
+      'btn-secondary',
+      'btn-sm'
+    )
+    expect(screen.getByRole('link', { name: /back to enrollment/i })).toHaveClass(
+      'btn',
+      'btn-secondary',
+      'btn-sm'
+    )
+
+    await user.click(screen.getByRole('button', { name: /withdraw application/i }))
+    const dialog = await screen.findByRole('dialog', { name: /withdraw application/i })
+    expect(within(dialog).getByRole('button', { name: /^cancel$/i })).toHaveClass(
+      'btn',
+      'btn-secondary',
+      'btn-sm'
+    )
+    // The confirm button's variant comes from ACTION_CONFIG, not a hardcoded
+    // class — withdraw is danger, submit is primary.
+    expect(within(dialog).getByRole('button', { name: /^withdraw$/i })).toHaveClass(
+      'btn',
+      'btn-danger',
+      'btn-sm'
+    )
+  })
+
   it('offers the delete action on a draft next to submit', () => {
     renderDetail(
       makeDetail({ status: 'draft', available_actions: ['submitted'] })

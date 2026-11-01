@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import ButtonLink from '../../components/ButtonLink'
 import EmptyState from '../../components/EmptyState'
 import ErrorMessage from '../../components/ErrorMessage'
 import PageHeader from '../../components/PageHeader'
@@ -68,44 +69,48 @@ export default function StudentDashboard() {
           label="Requirements"
           value={data.total_requirements ?? '—'}
           hint="Assigned to your section"
+          icon="clipboard"
+          to="/student/requirements"
         />
         <StatCard
           label="Overdue"
           value={data.overdue ?? '—'}
           tone={data.overdue > 0 ? 'red' : 'default'}
           hint="Past deadline, not submitted"
+          icon="clock"
         />
         <StatCard
           label="Awaiting check"
           value={data.awaiting_verification ?? '—'}
           tone="amber"
           hint="Submitted, pending verification"
+          icon="inbox"
         />
         <StatCard
           label="Verified"
           value={data.verified ?? '—'}
           tone="green"
           hint="Accepted by your teacher"
+          icon="checkSquare"
         />
       </div>
 
       <div className="two-col">
         <div className="stack stack-md">
-          <section className="card">
-            <header className="card-header">
-              <h2>Your requirements</h2>
-              <Link className="btn btn-sm btn-ghost" to="/student/requirements">
+          <Card
+            title="Your requirements"
+            action={
+              <ButtonLink variant="ghost" size="sm" to="/student/requirements">
                 View all
-              </Link>
-            </header>
-            <div className="card-body">
-              <RequirementsExplorer
-                scope="student"
-                limit={6}
-                showFilter
-              />
-            </div>
-          </section>
+              </ButtonLink>
+            }
+          >
+            <RequirementsExplorer
+              scope="student"
+              limit={6}
+              showFilter
+            />
+          </Card>
 
           <Card
             title="Recent attendance"
@@ -121,7 +126,7 @@ export default function StudentDashboard() {
                 />
               ) : null
             }
-            flush
+            flush={recentRecords.length > 0}
           >
             <div className="table-wrap">
               <table className="table responsive-table">
@@ -188,11 +193,14 @@ function SubmissionStatusCard({ data }) {
   ]
   return (
     <Card title="Submission status">
-      <SummaryRows rows={rows} />
-      <p className="subtle" style={{ marginTop: 10 }}>
-        Returned work needs a revision before the deadline —{' '}
-        <Link to="/student/submissions">open my submissions</Link>.
-      </p>
+      {/* .stack-sm is the 10px the note used to ask for by hand. */}
+      <div className="stack stack-sm">
+        <SummaryRows rows={rows} />
+        <p className="subtle">
+          Returned work needs a revision before the deadline —{' '}
+          <Link to="/student/submissions">open my submissions</Link>.
+        </p>
+      </div>
     </Card>
   )
 }

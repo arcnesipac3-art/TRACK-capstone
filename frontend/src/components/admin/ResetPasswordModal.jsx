@@ -4,6 +4,7 @@ import Icon from '../Icon'
 import Modal from '../Modal'
 import api from '../../services/api'
 import FieldError from '../FieldError'
+import Button from '../../components/Button'
 
 /** Matches Django's MinimumLengthValidator so the common case fails fast. */
 const MIN_LENGTH = 8
@@ -108,9 +109,9 @@ export default function ResetPasswordModal({ open, user, onClose, onDone }) {
         onClose={onClose}
         width={520}
         footer={
-          <button type="button" className="btn btn-primary btn-sm" onClick={onClose}>
+          <Button variant="primary" size="sm" onClick={onClose}>
             Done
-          </button>
+          </Button>
         }
       >
         <div className="stack stack-sm">
@@ -137,23 +138,24 @@ export default function ResetPasswordModal({ open, user, onClose, onDone }) {
       width={520}
       footer={
         <>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={onClose}
             disabled={busy}
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             form="reset-password-form"
-            className="btn btn-primary btn-sm"
+            variant="primary"
+            size="sm"
             disabled={busy}
           >
             {busy && <ButtonLoader />}
             {busy ? 'Resetting…' : 'Reset password'}
-          </button>
+          </Button>
         </>
       }
     >

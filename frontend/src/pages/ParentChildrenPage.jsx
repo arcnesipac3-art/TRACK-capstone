@@ -17,9 +17,9 @@ export default function ParentChildrenPage() {
 
   if (summary.loading && !summary.data) {
     return (
-      <section className="card">
+      <Card>
         <ListSkeleton items={3} lines={2} avatar label="Loading your children…" />
-      </section>
+      </Card>
     )
   }
   if (summary.error) {
@@ -40,65 +40,69 @@ export default function ParentChildrenPage() {
       />
 
       {children.length === 0 ? (
-        <section className="card card-pad">
-          <EmptyState
-            icon="users"
-            title="No linked children"
-            message="Your account is not connected to any student record. Please coordinate with the school registrar."
-          />
-        </section>
+        <Card
+          empty={
+            <EmptyState
+              icon="users"
+              title="No linked children"
+              message="Your account is not connected to any student record. Please coordinate with the school registrar."
+            />
+          }
+        />
       ) : (
         <div className="grid grid-2">
           {children.map((child) => {
             const profile = profilesById.get(child.student_id)
             const attendance = child.attendance
             return (
-              <section className="card card-pad stack stack-sm" key={child.student_id}>
-                <div className="row row-between row-wrap">
-                  <div>
-                    <h2>{child.name}</h2>
-                    <p className="subtle">{child.section || 'No section assigned'}</p>
+              <Card key={child.student_id}>
+                <div className="stack stack-sm">
+                  <div className="row row-between row-wrap">
+                    <div>
+                      <h2>{child.name}</h2>
+                      <p className="subtle">{child.section || 'No section assigned'}</p>
+                    </div>
+                    <StatusBadge
+                      label={
+                        child.overdue > 0
+                          ? `${child.overdue} overdue`
+                          : 'On track'
+                      }
+                      tone={child.overdue > 0 ? 'red' : 'green'}
+                    />
                   </div>
-                  <StatusBadge
-                    label={
-                      child.overdue > 0
-                        ? `${child.overdue} overdue`
-                        : 'On track'
-                    }
-                    tone={child.overdue > 0 ? 'red' : 'green'}
-                  />
-                </div>
 
-                <dl className="profile-grid">
-                  <div className="profile-field">
-                    <dt>Learner reference no.</dt>
-                    <dd>{profile?.lrn || '—'}</dd>
-                  </div>
-                  <div className="profile-field">
-                    <dt>Requirements</dt>
-                    <dd>{child.total_requirements}</dd>
-                  </div>
-                  <div className="profile-field">
-                    <dt>Verified</dt>
-                    <dd>{child.verified}</dd>
-                  </div>
-                  <div className="profile-field">
-                    <dt>Attendance</dt>
-                    <dd>
-                      {attendance && attendance.total_records > 0
-                        ? `${attendance.present_rate}% present (${attendance.total_records} records)`
-                        : 'No records yet'}
-                    </dd>
-                  </div>
-                </dl>
-              </section>
+                  <dl className="profile-grid">
+                    <div className="profile-field">
+                      <dt>Learner reference no.</dt>
+                      <dd>{profile?.lrn || '—'}</dd>
+                    </div>
+                    <div className="profile-field">
+                      <dt>Requirements</dt>
+                      <dd>{child.total_requirements}</dd>
+                    </div>
+                    <div className="profile-field">
+                      <dt>Verified</dt>
+                      <dd>{child.verified}</dd>
+                    </div>
+                    <div className="profile-field">
+                      <dt>Attendance</dt>
+                      <dd>
+                        {attendance && attendance.total_records > 0
+                          ? `${attendance.present_rate}% present (${attendance.total_records} records)`
+                          : 'No records yet'}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              </Card>
             )
           })}
         </div>
       )}
 
       <Card title="Privacy">
-        <p className="muted" style={{ fontSize: '0.9rem' }}>
+        <p className="subtle">
           Your account can only open the records of children linked to you in
           the school system — this is enforced by the server, not by this page.
         </p>

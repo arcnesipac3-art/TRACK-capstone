@@ -253,10 +253,41 @@ describe('AdminDashboard — key metrics', () => {
     })
     renderDash()
 
-    expect(kpiCard('Students')).toHaveAttribute('href', '/admin/users')
+    expect(kpiCard('Students')).toHaveAttribute('href', '/admin/students')
+    expect(kpiCard('Teachers')).toHaveAttribute('href', '/admin/teachers')
     expect(kpiCard('Attendance present')).toHaveAttribute('href', '/admin/attendance')
     expect(kpiCard('Requirements verified')).toHaveAttribute('href', '/admin/requirements')
-    expect(kpiCard('Applications in review')).toHaveAttribute('href', '/admin/enrollment')
+    expect(kpiCard('Applications in review')).toHaveAttribute(
+      'href',
+      '/admin/enrollment/applications'
+    )
+  })
+
+  it('sends the enrollment shortcut to the registrar overview, not a bare group', () => {
+    mockFetch({
+      dashboard: { ...IDLE, data: SUPER_PAYLOAD },
+      enrollment: { ...IDLE, data: ENROLLMENT_PAYLOAD },
+    })
+    renderDash()
+
+    // /admin/enrollment is a sidebar group with no page of its own.
+    const hrefs = [...document.querySelectorAll('a')].map((a) => a.getAttribute('href'))
+    expect(hrefs).not.toContain('/admin/enrollment')
+    expect(hrefs).toContain('/admin/enrollment/overview')
+  })
+
+  it('sends people management to the role directories, never an all-users screen', () => {
+    mockFetch({
+      dashboard: { ...IDLE, data: SUPER_PAYLOAD },
+      enrollment: { ...IDLE, data: ENROLLMENT_PAYLOAD },
+    })
+    renderDash()
+
+    // TRACK has no "all users" page: every account link names its role.
+    const hrefs = [...document.querySelectorAll('a')].map((a) => a.getAttribute('href'))
+    expect(hrefs).not.toContain('/admin/users')
+    expect(hrefs).toContain('/admin/students')
+    expect(hrefs).toContain('/admin/teachers')
   })
 
   it('adds the registrar queue only for enrollment staff, using real statuses', () => {
@@ -359,7 +390,10 @@ describe('AdminDashboard — shortcuts', () => {
     // Five visible shortcuts; the overflow sits behind a button, not a link.
     expect(within(bar).getAllByRole('link')).toHaveLength(5)
 
-    expect(within(bar).getByRole('link', { name: 'Manage users' })).toBeInTheDocument()
+    expect(within(bar).getByRole('link', { name: 'Manage students' })).toHaveAttribute(
+      'href',
+      '/admin/students'
+    )
     expect(within(bar).getByRole('link', { name: 'Manage enrollment' })).toBeInTheDocument()
     expect(within(bar).getByRole('link', { name: 'View attendance' })).toBeInTheDocument()
     expect(within(bar).getByRole('link', { name: 'Manage requirements' })).toBeInTheDocument()
@@ -370,6 +404,8 @@ describe('AdminDashboard — shortcuts', () => {
     await user.click(within(bar).getByRole('button', { name: 'More actions' }))
 
     const menu = await screen.findByRole('menu', { name: 'More dashboard actions' })
+    expect(within(menu).getByRole('menuitem', { name: 'Manage teachers' })).toBeInTheDocument()
+    expect(within(menu).getByRole('menuitem', { name: 'Manage parents' })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: 'Fee management' })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: 'Audit logs' })).toBeInTheDocument()
     expect(within(menu).getByRole('menuitem', { name: 'System settings' })).toBeInTheDocument()
@@ -386,7 +422,7 @@ describe('AdminDashboard — shortcuts', () => {
 
     const bar = screen.getByRole('navigation', { name: 'Quick actions' })
     expect(within(bar).getByRole('link', { name: 'Fee management' })).toBeInTheDocument()
-    expect(within(bar).queryByRole('link', { name: 'Manage users' })).not.toBeInTheDocument()
+    expect(within(bar).queryByRole('link', { name: 'Manage students' })).not.toBeInTheDocument()
     expect(within(bar).queryByRole('button', { name: 'More actions' })).not.toBeInTheDocument()
   })
 

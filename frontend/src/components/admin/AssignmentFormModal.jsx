@@ -4,6 +4,7 @@ import Icon from '../Icon'
 import Modal from '../Modal'
 import api from '../../services/api'
 import FieldError from '../FieldError'
+import Button from '../../components/Button'
 
 /**
  * Create or edit a teacher's class assignment (teacher + subject + section).
@@ -113,23 +114,24 @@ export default function AssignmentFormModal({
       width={520}
       footer={
         <>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={onClose}
             disabled={busy}
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             form="assignment-form"
-            className="btn btn-primary btn-sm"
+            variant="primary"
+            size="sm"
             disabled={busy}
           >
             {busy && <ButtonLoader />}
             {busy ? 'Saving…' : editing ? 'Save changes' : 'Assign class'}
-          </button>
+          </Button>
         </>
       }
     >

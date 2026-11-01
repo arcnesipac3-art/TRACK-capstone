@@ -7,6 +7,7 @@ import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
 import useFetch from '../hooks/useFetch'
 import { formatDateTime } from '../utils/format'
+import Button from '../components/Button'
 
 /** All known audit action values produced by the backend. */
 const ACTION_OPTIONS = [
@@ -63,10 +64,12 @@ export default function AuditLogsPage() {
         title="Audit Logs"
         subtitle="Every administrative action, recorded by the server as it happens."
         actions={
-          <span className="badge badge-blue">
-            {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
-            {hasFilters ? ' (filtered)' : ''}
-          </span>
+          <StatusBadge
+            tone="blue"
+            label={`${entries.length} ${entries.length === 1 ? 'entry' : 'entries'}${
+              hasFilters ? ' (filtered)' : ''
+            }`}
+          />
         }
       />
 
@@ -119,9 +122,9 @@ export default function AuditLogsPage() {
               />
             </div>
             {hasFilters && (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={clearFilters}>
+              <Button variant="secondary" size="sm" onClick={clearFilters}>
                 Clear
-              </button>
+              </Button>
             )}
           </div>
         </div>

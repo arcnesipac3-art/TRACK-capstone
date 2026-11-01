@@ -1,4 +1,7 @@
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import Button from '../../components/Button'
+import ButtonLink from '../../components/ButtonLink'
+import Card from '../../components/dashboard/Card'
 import EmptyState from '../../components/EmptyState'
 import ErrorMessage from '../../components/ErrorMessage'
 import Icon from '../../components/Icon'
@@ -10,7 +13,8 @@ import { applicationStatus, periodStatus } from '../../utils/enrollment'
 import { formatDateTime } from '../../utils/format'
 import './EnrollmentPages.css'
 
-/** Applicant enrollment home: open periods + this account's applications. */export default function EnrollmentLandingPage() {
+/** Applicant enrollment home: open periods + this account's applications. */
+export default function EnrollmentLandingPage() {
   const navigate = useNavigate()
 
   const {
@@ -30,6 +34,12 @@ import './EnrollmentPages.css'
   const applications = appData || []
   const openPeriods = (periodData || []).filter((p) => p.is_accepting_applications)
 
+  // A signed-in applicant whose session expired mid-visit gets the account-less
+  // entry points rather than a "failed to load" alert.
+  const isAuthError =
+    Boolean(error) && (error.status === 401 || error.status === 403)
+  const showNoApplications = !loading && !error && applications.length === 0
+
   function startApplication(period) {
     navigate(`new?period=${period.id}`, { state: { periodId: period.id } })
   }
@@ -41,92 +51,116 @@ import './EnrollmentPages.css'
         subtitle="Start an application for the open school year and follow it through the Registrar's review."
       />
 
-      <section className="card">
-        <header className="card-header">
-          <h2>Open enrollment periods</h2>
-          <button
-            type="button"
-            className="btn btn-ghost btn-xs"
+      <Card
+        title="Open enrollment periods"
+        action={
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={reloadPeriods}
             disabled={periodsLoading}
           >
             <Icon name="refresh" size={13} />
             Refresh
-          </button>
-        </header>
-        <div className="card-body">
-          {periodsLoading && !periodData && (
-            <ListSkeleton items={2} lines={2} label="Loading enrollment periods…" />
-          )}
+          </Button>
+        }
+      >
+        {periodsLoading && !periodData && (
+          <ListSkeleton items={2} lines={2} label="Loading enrollment periods…" />
+        )}
 
-          {!periodsLoading && periodsError && (
-            <ErrorMessage
-              error={periodsError}
-              title="Could not load enrollment periods"
-              onRetry={reloadPeriods}
-            />
-          )}
+        {!periodsLoading && periodsError && (
+          <ErrorMessage
+            error={periodsError}
+            title="Could not load enrollment periods"
+            onRetry={reloadPeriods}
+          />
+        )}
 
-          {!periodsLoading && !periodsError && openPeriods.length === 0 && (
-            <EmptyState
-              icon="calendar"
-              title="No open enrollment periods"
-              message="New application windows will appear here as soon as the Registrar opens them."
-            />
-          )}
+        {!periodsLoading && !periodsError && openPeriods.length === 0 && (
+          <EmptyState
+            icon="calendar"
+            title="No open enrollment periods"
+            message="New application windows will appear here as soon as the Registrar opens them."
+          />
+        )}
 
-          {!periodsLoading && !periodsError && openPeriods.length > 0 && (
-            <div className="enr-grid">
-              {openPeriods.map((period) => {
-                const status = periodStatus(period.status)
-                return (
-                  <div className="enr-period-card" key={period.id}>
-                    <div className="row row-wrap">
-                      <h3 className="enr-period-title grow">{period.name}</h3>
-                      <StatusBadge label={status.label} tone={status.tone} />
-                    </div>
-                    <span className="subtle">{period.school_year_label}</span>
-                    <span className="subtle">
-                      <Icon name="calendar" size={13} />{' '}
-                      {formatDateTime(period.opens_at)} – {formatDateTime(period.closes_at)}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      onClick={() => startApplication(period)}
-                    >
-                      Start an application
-                    </button>
+        {!periodsLoading && !periodsError && openPeriods.length > 0 && (
+          <div className="enr-grid">
+            {openPeriods.map((period) => {
+              const status = periodStatus(period.status)
+              return (
+                <div className="enr-period-card" key={period.id}>
+                  <div className="row row-wrap">
+                    <h3 className="enr-period-title grow">{period.name}</h3>
+                    <StatusBadge label={status.label} tone={status.tone} />
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </section>
+                  <span className="subtle">{period.school_year_label}</span>
+                  <span className="subtle">
+                    <Icon name="calendar" size={13} />{' '}
+                    {formatDateTime(period.opens_at)} – {formatDateTime(period.closes_at)}
+                  </span>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => startApplication(period)}
+                  >
+                    Start an application
+                  </Button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </Card>
 
-      <section className="card">
-        <header className="card-header">
-          <h2>My applications</h2>
+      <Card
+        title="My applications"
+        action={
           <div className="row row-wrap gap-xs">
-            <Link className="btn btn-ghost btn-xs" to="applications">
+            <ButtonLink variant="ghost" size="xs" to="applications">
               View all applications
-            </Link>
-            <Link className="btn btn-ghost btn-xs" to="history">
+            </ButtonLink>
+            <ButtonLink variant="ghost" size="xs" to="history">
               My enrollments
-            </Link>
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs"
-              onClick={reload}
-              disabled={loading}
-            >
+            </ButtonLink>
+            <Button variant="ghost" size="xs" onClick={reload} disabled={loading}>
               <Icon name="refresh" size={13} />
               Refresh
-            </button>
+            </Button>
           </div>
-        </header>
-
+        }
+        // The table needs the card's full width; every other state is text that
+        // needs the body padding back.
+        flush={applications.length > 0}
+        empty={
+          !loading && (isAuthError || showNoApplications) ? (
+            isAuthError ? (
+              <EmptyState
+                icon="gradCap"
+                title="Apply or track without an account"
+                message="You are not signed in here. You can still start an enrollment application or follow one you already submitted — no account needed."
+                action={
+                  <div className="row row-wrap row-center gap-xs">
+                    <ButtonLink variant="primary" size="sm" to="/enroll/apply">
+                      Start an application
+                    </ButtonLink>
+                    <ButtonLink variant="secondary" size="sm" to="/enroll/track">
+                      Track my application
+                    </ButtonLink>
+                  </div>
+                }
+              />
+            ) : (
+              <EmptyState
+                icon="gradCap"
+                title="No applications yet"
+                message="When you start an application from an open enrollment period, it will show up here."
+              />
+            )
+          ) : null
+        }
+      >
         {loading && !appData && (
           <TableSkeleton
             headers={[
@@ -143,44 +177,12 @@ import './EnrollmentPages.css'
           />
         )}
 
-        {!loading && error && (error.status === 401 || error.status === 403) && (
-          <div className="card-body">
-            <EmptyState
-              icon="gradCap"
-              title="Apply or track without an account"
-              message="You are not signed in here. You can still start an enrollment application or follow one you already submitted — no account needed."
-              action={
-                <div className="row row-wrap row-center gap-xs">
-                  <Link className="btn btn-primary btn-sm" to="/enroll/apply">
-                    Start an application
-                  </Link>
-                  <Link className="btn btn-secondary btn-sm" to="/enroll/track">
-                    Track my application
-                  </Link>
-                </div>
-              }
-            />
-          </div>
-        )}
-
-        {!loading && error && error.status !== 401 && error.status !== 403 && (
-          <div className="card-body">
-            <ErrorMessage
-              error={error}
-              title="Could not load your applications"
-              onRetry={reload}
-            />
-          </div>
-        )}
-
-        {!loading && !error && applications.length === 0 && (
-          <div className="card-body">
-            <EmptyState
-              icon="gradCap"
-              title="No applications yet"
-              message="When you start an application from an open enrollment period, it will show up here."
-            />
-          </div>
+        {!loading && error && !isAuthError && (
+          <ErrorMessage
+            error={error}
+            title="Could not load your applications"
+            onRetry={reload}
+          />
         )}
 
         {!loading && !error && applications.length > 0 && (
@@ -227,13 +229,21 @@ import './EnrollmentPages.css'
                       </td>
                       <td data-label="Actions">
                         <div className="row row-wrap gap-xs">
-                          <Link className="btn btn-secondary btn-xs" to={`applications/${app.id}`}>
+                          <ButtonLink
+                            variant="secondary"
+                            size="xs"
+                            to={`applications/${app.id}`}
+                          >
                             View
-                          </Link>
+                          </ButtonLink>
                           {app.status === 'draft' && (
-                            <Link className="btn btn-primary btn-xs" to={`new?application=${app.id}`}>
+                            <ButtonLink
+                              variant="primary"
+                              size="xs"
+                              to={`new?application=${app.id}`}
+                            >
                               Continue draft
-                            </Link>
+                            </ButtonLink>
                           )}
                         </div>
                       </td>
@@ -244,7 +254,7 @@ import './EnrollmentPages.css'
             </table>
           </div>
         )}
-      </section>
+      </Card>
     </div>
   )
 }

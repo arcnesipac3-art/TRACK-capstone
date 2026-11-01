@@ -11,6 +11,10 @@
      tablet  max-width: 1023px     (sidebar collapses to drawer)
      laptop  max-width: 1279px
      wide    min-width: 1440px     (content uses its full width)
+     x-wide  min-width: 1680px / 1920px / 2400px
+                                   (the content column and sidebar grow in
+                                    steps — see "Wide desktop" at the bottom
+                                    of this file)
    ========================================================================== */
 
 :root {
@@ -178,7 +182,8 @@
   --topbar-h: 68px;
   /* Wide-desktop cap: 1200px left large empty margins on 1440px+ monitors
      (dashboard content sat in a narrow band). 1440px matches the ≥1440
-     breakpoint in App.css while keeping text lines readable. */
+     breakpoint in App.css while keeping text lines readable. Panels larger
+     than that grow the column instead — see the wide-desktop steps below. */
   --content-max: 1440px;
 
   /* --- Motion (150–250ms is the design target) --------------------------- */
@@ -194,4 +199,43 @@
     Arial, sans-serif;
 
   color-scheme: light;
+}
+
+/* ==========================================================================
+   Wide desktop — the shell grows with the panel
+
+   A 1440px column is right for the 1440–1600 laptop it was chosen for, but
+   the same cap on a 1920 or 2560 monitor wastes a fifth of the screen on
+   dead margin while every screen stays at laptop scale. The steps below
+   widen the content column, and the sidebar with it so the shell's
+   proportions still read as one design.
+
+   Only `.app-content` reads `--content-max`, so the public pages are not
+   involved: landing, public track and the account-less `/enroll` flow live
+   outside `.app-shell` and carry their own containers.
+
+   Data-dense screens (dashboards, tables, KPI strips) are built on
+   `repeat(auto-fit, minmax(…))` grids, so the wider column buys them more
+   columns. Form-first screens are capped back to a readable measure by
+   `.enr-wizard` in EnrollmentPages.css.
+   ========================================================================== */
+
+@media (min-width: 1680px) {
+  :root {
+    --content-max: 1560px;
+  }
+}
+
+@media (min-width: 1920px) {
+  :root {
+    --content-max: 1760px;
+    --sidebar-w: 272px;
+  }
+}
+
+@media (min-width: 2400px) {
+  :root {
+    --content-max: 2040px;
+    --sidebar-w: 288px;
+  }
 }

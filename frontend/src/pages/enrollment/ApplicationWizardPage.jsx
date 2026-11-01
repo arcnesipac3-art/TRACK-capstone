@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import Button from '../../components/Button'
+import ButtonLink from '../../components/ButtonLink'
 import Icon from '../../components/Icon'
 import Modal from '../../components/Modal'
 import { ButtonLoader } from '../../components/loading'
@@ -576,7 +578,7 @@ export default function ApplicationWizardPage() {
 
   if (resumeLoading) {
     return (
-      <div className="stack stack-md">
+      <div className="stack stack-md enr-wizard">
         <PageHeader title="Enrollment application" subtitle="Loading your draft…" />
         <div className="alert alert-info" role="status">
           <Icon name="refresh" size={16} />
@@ -588,7 +590,7 @@ export default function ApplicationWizardPage() {
 
   if (resumeError) {
     return (
-      <div className="stack stack-md">
+      <div className="stack stack-md enr-wizard">
         <PageHeader title="Enrollment application" />
         <div className="alert alert-error" role="alert">
           <Icon name="info" size={18} />
@@ -596,9 +598,9 @@ export default function ApplicationWizardPage() {
             <strong className="alert-title">Could not load this application</strong>
             <span>{resumeError.message}</span>
             <div>
-              <Link className="btn btn-sm btn-secondary" to="..">
+              <ButtonLink variant="secondary" size="sm" to="..">
                 Back to my applications
-              </Link>
+              </ButtonLink>
             </div>
           </div>
         </div>
@@ -609,7 +611,7 @@ export default function ApplicationWizardPage() {
   const appStatus = application ? applicationStatus(application.status) : null
 
   return (
-    <div className="stack stack-md">
+    <div className="stack stack-md enr-wizard">
       <PageHeader
         title="Enrollment application"
         subtitle={
@@ -654,9 +656,9 @@ export default function ApplicationWizardPage() {
         <div className="alert alert-info" role="alert">
           <Icon name="info" size={16} />
           <span className="grow">{duplicate}</span>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() =>
               navigate(
                 duplicateAppId ? `/enroll/applications/${duplicateAppId}` : '..',
@@ -664,7 +666,7 @@ export default function ApplicationWizardPage() {
             }
           >
             {duplicateAppId ? 'Open my application' : 'Go to my applications'}
-          </button>
+          </Button>
         </div>
       )}
 
@@ -699,13 +701,9 @@ export default function ApplicationWizardPage() {
                 <div className="alert alert-error" role="alert">
                   <Icon name="info" size={15} />
                   <span className="grow">Could not load enrollment periods.</span>
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-xs"
-                    onClick={reloadPeriods}
-                  >
+                  <Button variant="secondary" size="xs" onClick={reloadPeriods}>
                     Try again
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <>
@@ -760,13 +758,9 @@ export default function ApplicationWizardPage() {
               <div className="alert alert-error" role="alert">
                 <Icon name="info" size={15} />
                 <span className="grow">Could not load grade levels.</span>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-xs"
-                  onClick={reloadGrades}
-                >
+                <Button variant="secondary" size="xs" onClick={reloadGrades}>
                   Try again
-                </button>
+                </Button>
               </div>
             ) : (
               <select
@@ -824,9 +818,9 @@ export default function ApplicationWizardPage() {
           </div>
 
           <div className="row row-between row-wrap">
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => {
                 // A draft already on the server keeps its saved answers; only
                 // edits made on this step since the last save are lost.
@@ -835,10 +829,10 @@ export default function ApplicationWizardPage() {
               }}
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              className="btn btn-primary"
+              variant="primary"
               disabled={busy || (!applicationId && (periodsLoading || gradesLoading))}
             >
               {busy && <ButtonLoader />}
@@ -847,7 +841,7 @@ export default function ApplicationWizardPage() {
                 : applicationId
                   ? 'Save & continue'
                   : 'Create draft & continue'}
-            </button>
+            </Button>
           </div>
         </form>
       )}
@@ -961,24 +955,19 @@ export default function ApplicationWizardPage() {
           </div>
 
           <div className="row row-between row-wrap">
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={handleBack}
-              disabled={busy}
-            >
+            <Button variant="ghost" size="sm" onClick={handleBack} disabled={busy}>
               Back
-            </button>
+            </Button>
             <div className="row row-wrap gap-sm">
               {savedSections.student && (
                 <span className="enr-saved" role="status">
                   <Icon name="check" size={13} /> Saved
                 </span>
               )}
-              <button type="submit" className="btn btn-primary" disabled={busy}>
+              <Button type="submit" variant="primary" disabled={busy}>
                 {busy && <ButtonLoader />}
                 {busy ? 'Saving…' : 'Save & continue'}
-              </button>
+              </Button>
             </div>
           </div>
         </form>
@@ -1045,24 +1034,19 @@ export default function ApplicationWizardPage() {
           </div>
 
           <div className="row row-between row-wrap">
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={handleBack}
-              disabled={busy}
-            >
+            <Button variant="ghost" size="sm" onClick={handleBack} disabled={busy}>
               Back
-            </button>
+            </Button>
             <div className="row row-wrap gap-sm">
               {savedSections.guardian && (
                 <span className="enr-saved" role="status">
                   <Icon name="check" size={13} /> Saved
                 </span>
               )}
-              <button type="submit" className="btn btn-primary" disabled={busy}>
+              <Button type="submit" variant="primary" disabled={busy}>
                 {busy && <ButtonLoader />}
                 {busy ? 'Saving…' : 'Save & continue'}
-              </button>
+              </Button>
             </div>
           </div>
         </form>
@@ -1136,22 +1120,12 @@ export default function ApplicationWizardPage() {
           )}
 
           <div className="row row-between row-wrap">
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={handleBack}
-              disabled={busy}
-            >
+            <Button variant="ghost" size="sm" onClick={handleBack} disabled={busy}>
               Back
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => setStep(5)}
-              disabled={busy}
-            >
+            </Button>
+            <Button variant="primary" onClick={() => setStep(5)} disabled={busy}>
               Continue to review
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -1300,23 +1274,13 @@ export default function ApplicationWizardPage() {
           )}
 
           <div className="row row-between row-wrap">
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={handleBack}
-              disabled={busy}
-            >
+            <Button variant="ghost" size="sm" onClick={handleBack} disabled={busy}>
               Back
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={openSubmitConfirm}
-              disabled={busy || submitting}
-            >
+            </Button>
+            <Button variant="primary" onClick={openSubmitConfirm} disabled={busy || submitting}>
               {submitting && <ButtonLoader />}
               {submitting ? 'Submitting…' : 'Submit application'}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -1327,23 +1291,19 @@ export default function ApplicationWizardPage() {
         onClose={() => setCancelOpen(false)}
         footer={
           <>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => setCancelOpen(false)}
-            >
+            <Button variant="secondary" size="sm" onClick={() => setCancelOpen(false)}>
               Keep editing
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => {
                 setCancelOpen(false)
                 navigate('..')
               }}
             >
               Discard & leave
-            </button>
+            </Button>
           </>
         }
       >
@@ -1361,23 +1321,13 @@ export default function ApplicationWizardPage() {
         dismissible={!submitting}
         footer={
           <>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => setConfirmOpen(false)}
-              disabled={submitting}
-            >
+            <Button variant="secondary" size="sm" onClick={() => setConfirmOpen(false)} disabled={submitting}>
               Cancel
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={confirmSubmit}
-              disabled={submitting}
-            >
+            </Button>
+            <Button variant="primary" size="sm" onClick={confirmSubmit} disabled={submitting}>
               {submitting && <ButtonLoader />}
               {submitting ? 'Submitting…' : 'Submit now'}
-            </button>
+            </Button>
           </>
         }
       >

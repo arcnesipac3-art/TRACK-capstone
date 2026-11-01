@@ -6,6 +6,7 @@ import AppLoader from '../components/loading/AppLoader'
 import ButtonLoader from '../components/loading/ButtonLoader'
 import { useAuth } from '../context/AuthContext'
 import { dashboardPath } from '../utils/format'
+import Button from '../components/Button'
 
 /* Campus backdrop for the branding panel. Kept here (not in the stylesheet) so
    the URL can be handed to the browser *after* first paint — a CSS background
@@ -256,15 +257,15 @@ export default function LoginPage() {
               )}
             </div>
 
-            <button
+            <Button
               type="submit"
-              className="btn btn-primary btn-block"
+              variant="primary"
               disabled={submitting}
               aria-busy={submitting}
             >
               {submitting && <ButtonLoader />}
               {submitting ? 'Signing in…' : 'Sign in'}
-            </button>
+            </Button>
           </form>
 
           <div className="auth-divider" aria-hidden="true" />

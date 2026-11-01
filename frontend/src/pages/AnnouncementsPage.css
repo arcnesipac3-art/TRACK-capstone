@@ -217,19 +217,24 @@
   border-radius: var(--radius);
 }
 
-/* Responsive adjustments */
+/* Responsive adjustments
+   Every rule below also names plain shared classes (`.page-header`,
+   `.pagination`, `.btn`), so each one is scoped to this page. Route CSS is
+   bundled once and stays live for the rest of the session, and an
+   unscoped rule here would restyle the header and pager of every other
+   screen a parent or student opens afterwards on a phone. */
 @media (max-width: 640px) {
   .announcements-page {
     padding: 0 8px;
   }
 
-  .page-header {
+  .announcements-page .page-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
   }
 
-  .page-header .row {
+  .announcements-page .page-header .row {
     width: 100%;
     justify-content: space-between;
   }
@@ -253,28 +258,28 @@
     max-width: none;
   }
 
-  .pagination {
+  .announcements-page .pagination {
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
   }
 
-  .pagination-controls {
+  .announcements-page .pagination-controls {
     width: 100%;
     justify-content: space-between;
   }
 
-  .pagination-pages {
+  .announcements-page .pagination-pages {
     order: -1;
     justify-content: center;
     width: 100%;
   }
 
-  .pagination-size {
+  .announcements-page .pagination-size {
     margin-left: 0;
   }
 
-  .pagination-size .select-sm {
+  .announcements-page .pagination-size .select-sm {
     width: 100%;
   }
 
@@ -306,7 +311,7 @@
 @media (prefers-reduced-motion: reduce) {
   .announcement-card,
   .search-wrapper .input,
-  .btn {
+  .announcements-page .btn {
     transition: none;
   }
 }
@@ -315,8 +320,8 @@
 @media print {
   .announcements-toolbar,
   .announcement-actions,
-  .pagination,
-  .btn-primary {
+  .announcements-page .pagination,
+  .announcements-page .btn-primary {
     display: none !important;
   }
 

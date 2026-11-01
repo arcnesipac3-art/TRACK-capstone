@@ -6,10 +6,18 @@ import MobileNavigation from './MobileNavigation'
 import PageLoader from '../loading/PageLoader'
 import RouteTransition from '../loading/RouteTransition'
 import useFetch from '../../hooks/useFetch'
+import { useAuth } from '../../context/AuthContext'
 import { NotificationsContext } from '../../context/NotificationsContext'
 
 /** Where the desktop rail preference lives, so a reload keeps it. */
 const RAIL_KEY = 'track.sidebar.rail'
+
+/**
+ * The roles the soft portal styling is written for. Staff screens keep the
+ * enterprise treatment, and the account-less enrollment flow renders in
+ * `PublicEnrollLayout` — never this shell — so it cannot inherit the scope.
+ */
+const PORTAL_ROLES = ['student', 'parent']
 
 function readRailPreference() {
   return window.localStorage.getItem(RAIL_KEY) === '1'
@@ -27,6 +35,7 @@ export default function AppLayout() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [rail, setRail] = useState(readRailPreference)
   const location = useLocation()
+  const { user } = useAuth()
   const notifications = useFetch('/notifications/', {
     list: true,
     params: { page_size: 100 },
@@ -50,6 +59,7 @@ export default function AppLayout() {
   }, [drawerOpen])
 
   const unreadCount = (notifications.data || []).filter((n) => !n.is_read).length
+  const portal = PORTAL_ROLES.includes(user?.role) ? user.role : undefined
 
   function toggleRail(next) {
     setRail(next)
@@ -58,7 +68,10 @@ export default function AppLayout() {
 
   return (
     <NotificationsContext.Provider value={notifications}>
-      <div className={rail ? 'app-shell nav-rail' : 'app-shell'}>
+      <div
+        className={rail ? 'app-shell nav-rail' : 'app-shell'}
+        data-portal={portal}
+      >
         <Sidebar rail={rail} onToggleRail={toggleRail} />
 
         {drawerOpen && (

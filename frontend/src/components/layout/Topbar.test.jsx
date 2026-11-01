@@ -55,10 +55,10 @@ describe('Topbar', () => {
       'href',
       '/admin/dashboard'
     )
-    expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute(
-      'href',
-      '/admin/users'
-    )
+    // Users is a group, not a page: it names the section without offering a
+    // link to an all-users screen that does not exist.
+    expect(screen.getByText('Users')).toBeInTheDocument()
+    expect(within(trail).queryByRole('link', { name: 'Users' })).toBeNull()
     // The page itself is the title, not a link to where you already are.
     expect(within(trail).queryByRole('link', { name: 'Students' })).toBeNull()
   })
@@ -70,7 +70,7 @@ describe('Topbar', () => {
   })
 
   it('shows the school year the screens are scoped to', async () => {
-    await renderTopbar('/admin/users')
+    await renderTopbar('/admin/students')
     expect(screen.getByTitle('Active school year')).toHaveTextContent('2026-2027')
   })
 })

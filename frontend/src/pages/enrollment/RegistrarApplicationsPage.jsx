@@ -4,10 +4,11 @@ import Modal from '../../components/Modal'
 import PageHeader from '../../components/PageHeader'
 import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'
+import Tabs from '../../components/Tabs'
 import { ButtonLoader } from '../../components/loading'
 import TableSkeleton from '../../components/loading/TableSkeleton'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import useFetch from '../../hooks/useFetch'
 import api from '../../services/api'
 import {
@@ -16,6 +17,7 @@ import {
   applicationStatus,
 } from '../../utils/enrollment'
 import { formatDateTime } from '../../utils/format'
+import Button from '../../components/Button'
 import './RegistrarEnrollment.css'
 
 /** Default page size options. */
@@ -42,11 +44,42 @@ const QUICK_FILTERS = [
 /** Status filter options — every ApplicationStatus value. */
 const STATUS_OPTIONS = Object.entries(APPLICATION_STATUS)
 
-/** The two views above the list — one source of truth for the tablist,
- *  the roving tabindex and the arrow-key handling. */
+/**
+ * The query-string keys this queue understands, each with the values it will
+ * accept. The overview tiles link here already scoped
+ * (`?status=under_review&school_year=3`), so an arrival opens on the rows
+ * behind a figure instead of the whole queue.
+ */
+const STATUS_VALUES = Object.keys(APPLICATION_STATUS)
+const TYPE_VALUES = Object.keys(ENROLLMENT_TYPES)
+const URL_FILTERS = [
+  ['status', (value) => STATUS_VALUES.includes(value)],
+  ['enrollment_type', (value) => TYPE_VALUES.includes(value)],
+  // A year id the select cannot name is filtered invisibly, but that select
+  // already reports "School years could not be loaded" when it cannot fill.
+  ['school_year', (value) => /^\d+$/.test(value)],
+]
+
+/** Values the page cannot show in its controls are dropped, so a mistyped or
+ *  stale link opens the whole queue rather than an empty one. */
+function filtersFromUrl(params) {
+  const seeded = {}
+  for (const [key, accepts] of URL_FILTERS) {
+    const value = params.get(key)
+    if (value && accepts(value)) seeded[key] = value
+  }
+  return seeded
+}
+
+/** Snapshot of the keys this page owns; changing it re-seeds the filters. */
+function urlFiltersKey(params) {
+  return URL_FILTERS.map(([key]) => `${key}=${params.get(key) || ''}`).join('&')
+}
+
+/** The two views above the list — one source of truth for the shared tablist. */
 const TABS = [
-  { key: 'queue', label: 'Queue' },
-  { key: 'trash', label: 'Trash' },
+  { id: 'queue', label: 'Queue' },
+  { id: 'trash', label: 'Trash' },
 ]
 
 /** Tab/pill counts: a placeholder until the first response arrives so a
@@ -68,19 +101,19 @@ const TRASH_CONFIRM = {
     title: 'Move this application to the trash?',
     body: 'The application leaves every queue, list and report, and the applicant can no longer see it. You can restore it from the trash until you delete it for good.',
     confirmLabel: 'Move to trash',
-    buttonMod: 'btn-danger',
+    buttonVariant: 'danger',
   },
   purge: {
     title: 'Delete this application permanently?',
     body: 'The application and its uploaded documents are gone for good. This cannot be undone — restore it instead if you may need it later.',
     confirmLabel: 'Delete permanently',
-    buttonMod: 'btn-danger',
+    buttonVariant: 'danger',
   },
   empty: {
     title: 'Empty the trash?',
     body: 'Every application in the trash is permanently deleted together with its uploaded documents. This cannot be undone.',
     confirmLabel: 'Empty trash',
-    buttonMod: 'btn-danger',
+    buttonVariant: 'danger',
   },
 }
 
@@ -233,11 +266,22 @@ function PermissionDenied() {
  */
 export default function RegistrarApplicationsPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const list = usePaginatedList(
     '/enrollment/applications/',
-    {},
+    filtersFromUrl(searchParams),
     '-submitted_at'
   )
+
+  // The link opened the queue; the controls own it from there. When the query
+  // string changes again — sidebar click, back/forward — the filters follow it
+  // so the URL and the selects can never disagree.
+  const urlKey = urlFiltersKey(searchParams)
+  const [prevUrlKey, setPrevUrlKey] = useState(urlKey)
+  if (prevUrlKey !== urlKey) {
+    setPrevUrlKey(urlKey)
+    list.setFilters(filtersFromUrl(searchParams))
+  }
 
   const gradeLevels = useFetch('/grade-levels/', { list: true })
   const schoolYears = useFetch('/school-years/', { list: true })
@@ -268,31 +312,14 @@ export default function RegistrarApplicationsPage() {
     list.setSearch('')
     list.setFilters({})
     list.setOrdering('-submitted_at')
+    // A scoped link (or a shared one) would otherwise re-appear on reload.
+    if ([...searchParams.keys()].length) {
+      setSearchParams(new URLSearchParams(), { replace: true })
+    }
   }
 
   function openDetail(id) {
     navigate(`/admin/enrollment/applications/${id}`)
-  }
-
-  /** Tabs pattern: Left/Right/Home/End move both the selection and the
-   *  focus, since only the selected tab sits in the tab order. */
-  function handleTabKeyDown(event, index) {
-    let next = null
-    if (event.key === 'ArrowLeft') {
-      next = (index - 1 + TABS.length) % TABS.length
-    } else if (event.key === 'ArrowRight') {
-      next = (index + 1) % TABS.length
-    } else if (event.key === 'Home') {
-      next = 0
-    } else if (event.key === 'End') {
-      next = TABS.length - 1
-    }
-    if (next === null) return
-    event.preventDefault()
-    const target = TABS[next]
-    setTab(target.key)
-    setNotice(null)
-    document.getElementById(`appq-tab-${target.key}`)?.focus()
   }
 
   function showNotice(tone, text) {
@@ -365,44 +392,38 @@ export default function RegistrarApplicationsPage() {
         title="Enrollment Applications"
         subtitle="Every application the Registrar is reviewing, newest submissions first."
         actions={
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm no-print"
+          <Button
+            variant="secondary"
+            size="sm"
+            className="no-print"
             onClick={() => (tab === 'trash' ? trashList.reload() : list.reload())}
             disabled={tab === 'trash' ? trashList.loading : list.loading}
           >
             <Icon name="refresh" size={14} />
             Refresh
-          </button>
+          </Button>
         }
       />
 
-      <div className="enr-tabs" role="tablist" aria-label="Application views">
-        {TABS.map((view, index) => {
-          const selected = tab === view.key
-          const viewList = view.key === 'trash' ? trashList : list
-          return (
-            <button
-              key={view.key}
-              type="button"
-              role="tab"
-              id={`appq-tab-${view.key}`}
-              aria-controls={`appq-panel-${view.key}`}
-              aria-selected={selected}
-              tabIndex={selected ? 0 : -1}
-              className={`enr-pill${selected ? ' active' : ''}`}
-              onClick={() => {
-                setTab(view.key)
-                setNotice(null)
-              }}
-              onKeyDown={(event) => handleTabKeyDown(event, index)}
-            >
+      <Tabs
+        idPrefix="appq"
+        className="tabs--pill"
+        label="Application views"
+        value={tab}
+        onChange={(id) => {
+          setTab(id)
+          setNotice(null)
+        }}
+        tabs={TABS.map((view) => ({
+          id: view.id,
+          label: (
+            <>
               {view.label}
-              <span className="enr-pill-count">{countLabel(viewList)}</span>
-            </button>
-          )
-        })}
-      </div>
+              <span className="tab-count">{countLabel(view.id === 'trash' ? trashList : list)}</span>
+            </>
+          ),
+        }))}
+      />
 
       {notice && (
         <div
@@ -587,13 +608,13 @@ export default function RegistrarApplicationsPage() {
                 </div>
                 {hasFilters && (
                   <div className="filter-actions">
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={clearFilters}
                     >
                       Clear
-                    </button>
+                    </Button>
                   </div>
                 )}
               </div>
@@ -627,13 +648,13 @@ export default function RegistrarApplicationsPage() {
                 <div className="alert alert-error" role="alert">
                   <Icon name="info" size={17} />
                   <span className="grow">{list.error.message}</span>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-secondary"
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={list.reload}
                   >
                     Try again
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -704,9 +725,11 @@ export default function RegistrarApplicationsPage() {
                             </td>
                             <td data-label="Documents">
                               {row.outstanding_documents > 0 ? (
-                                <span className="badge badge-amber" title="Outstanding required documents">
-                                  {row.outstanding_documents} outstanding
-                                </span>
+                                <StatusBadge
+                                  tone="amber"
+                                  label={`${row.outstanding_documents} outstanding`}
+                                  title="Outstanding required documents"
+                                />
                               ) : (
                                 <span className="subtle">—</span>
                               )}
@@ -726,16 +749,16 @@ export default function RegistrarApplicationsPage() {
                               onClick={(event) => event.stopPropagation()}
                             >
                               {TRASHABLE_STATUSES.includes(row.status) ? (
-                                <button
-                                  type="button"
-                                  className="btn btn-secondary btn-sm"
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
                                   onClick={() => ask('trash', row)}
                                   aria-label={`Move ${row.reference} to the trash`}
                                   disabled={Boolean(busy)}
                                 >
                                   <Icon name="trash" size={14} />
                                   Trash
-                                </button>
+                                </Button>
                               ) : (
                                 <span className="subtle">—</span>
                               )}
@@ -777,15 +800,15 @@ export default function RegistrarApplicationsPage() {
                   />
                 </div>
                 <div className="filter-actions">
-                  <button
-                    type="button"
-                    className="btn btn-danger btn-sm"
+                  <Button
+                    variant="danger"
+                    size="sm"
                     onClick={() => ask('empty', null)}
                     disabled={trashList.totalCount === 0 || Boolean(busy)}
                   >
                     <Icon name="trash" size={14} />
                     Empty trash
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>
@@ -811,13 +834,13 @@ export default function RegistrarApplicationsPage() {
                   <div className="alert alert-error" role="alert">
                     <Icon name="info" size={17} />
                     <span className="grow">{trashList.error.message}</span>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-secondary"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={trashList.reload}
                     >
                       Try again
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -884,26 +907,26 @@ export default function RegistrarApplicationsPage() {
                               onClick={(event) => event.stopPropagation()}
                             >
                               <div className="row row-wrap gap-xs">
-                                <button
-                                  type="button"
-                                  className="btn btn-secondary btn-sm"
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
                                   onClick={() => runAction('restore', row)}
                                   aria-label={`Restore ${row.reference}`}
                                   disabled={Boolean(busy)}
                                 >
                                   <Icon name="undo" size={14} />
                                   Restore
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-danger btn-sm"
+                                </Button>
+                                <Button
+                                  variant="danger"
+                                  size="sm"
                                   onClick={() => ask('purge', row)}
                                   aria-label={`Delete ${row.reference} permanently`}
                                   disabled={Boolean(busy)}
                                 >
                                   <Icon name="trash" size={14} />
                                   Delete
-                                </button>
+                                </Button>
                               </div>
                             </td>
                           </tr>
@@ -932,9 +955,9 @@ export default function RegistrarApplicationsPage() {
         dismissible={!busy}
         footer={
           <>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => {
                 setPending(null)
                 setActionError(null)
@@ -942,10 +965,10 @@ export default function RegistrarApplicationsPage() {
               disabled={Boolean(busy)}
             >
               Cancel
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${pending ? TRASH_CONFIRM[pending.kind].buttonMod : 'btn-primary'}`}
+            </Button>
+            <Button
+              size="sm"
+              variant={pending ? TRASH_CONFIRM[pending.kind].buttonVariant : 'primary'}
               onClick={() => runAction(pending.kind, pending.row)}
               disabled={Boolean(busy)}
             >
@@ -955,7 +978,7 @@ export default function RegistrarApplicationsPage() {
                 : pending
                   ? TRASH_CONFIRM[pending.kind].confirmLabel
                   : ''}
-            </button>
+            </Button>
           </>
         }
       >

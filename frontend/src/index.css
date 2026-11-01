@@ -126,6 +126,16 @@ img, svg { display: block; }
   cursor: not-allowed;
 }
 
+/* Button.jsx wraps its children in this span so a loading spinner can sit
+   beside a label that stays readable. It has to repeat the button's own
+   layout, or the icon-to-label gap inside the label disappears. `inherit`
+   takes the parent's computed gap, so .btn-xs keeps its tighter 6px. */
+.btn-content {
+  display: inline-flex;
+  align-items: center;
+  gap: inherit;
+}
+
 .btn-primary {
   background: var(--navy-800);
   color: #fff;
@@ -382,7 +392,7 @@ img, svg { display: block; }
 }
 .stat-card.stat-card-link:hover {
   border-color: var(--blue-200);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow);
   transform: translateY(-1px);
   text-decoration: none;
 }
@@ -701,4 +711,119 @@ body.route-fade-stage .res-page {
   gap: 6px 14px;
   font-size: var(--text-sm);
   color: var(--text-muted);
+}
+
+/* ======================================================================
+   Portal surfaces — student & parent
+   ----------------------------------------------------------------------
+   Staff screens sit on the enterprise end of the system: hairline
+   borders, 1px elevation, tight type. Applicants get the soft end of the
+   same system — the same palette and the same components, but elevation
+   that comes from a shadow instead of a border, roomier cards, rounded
+   controls and relaxed prose leading.
+
+   The scope is the shell's `data-portal` attribute, which AppLayout sets
+   for the student and parent roles only. Two consequences are deliberate:
+     - `/enroll/*` renders inside PublicEnrollLayout, which has no
+       `.app-shell` at all, so the account-less flow cannot inherit this.
+     - Staff screens never match, so the finished Phase 3 trees are safe.
+
+   Every selector here is three classes deep on purpose: App.css
+   re-declares `.btn`, `.card-body` and friends *after* this file loads,
+   and a media query adds no specificity, so the mobile block at the
+   bottom is what keeps phones from inheriting desktop padding.
+   ====================================================================== */
+
+.app-shell[data-portal] .card,
+.app-shell[data-portal] .stat-card {
+  border-radius: var(--radius-lg);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow);
+}
+
+/* A flush body draws its table and pagination strip to the card's edge,
+   and the strip's tint would poke square past the softer corner. */
+.app-shell[data-portal] .card > .card-body.flush > .pagination:last-child {
+  border-bottom-left-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-lg);
+}
+
+.app-shell[data-portal] .card-header {
+  padding: var(--space-4) var(--space-6);
+  border-bottom-color: var(--border-light);
+}
+
+/* `:not(.flush)` is load-bearing: this selector is three classes deep to beat
+   App.css, and `.card-body.flush { padding: 0 }` is only two — without it the
+   portal would pad every table back away from the card's edge. */
+.app-shell[data-portal] .card-body:not(.flush),
+.app-shell[data-portal] .card-pad {
+  padding: var(--space-5) var(--space-6);
+}
+
+.app-shell[data-portal] .stat-card {
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+}
+
+.app-shell[data-portal] .stat-card .stat-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-lg);
+}
+
+/* Linked tiles climb the softer shadow ladder on hover instead of
+   flattening back to the resting elevation. */
+.app-shell[data-portal] .stat-card.stat-card-link:hover {
+  box-shadow: var(--shadow-pop);
+}
+
+.app-shell[data-portal] .btn {
+  border-radius: var(--radius-md);
+}
+
+.app-shell[data-portal] .input,
+.app-shell[data-portal] .select,
+.app-shell[data-portal] .textarea {
+  border-radius: var(--radius-md);
+  border-color: var(--border);
+}
+
+.app-shell[data-portal] .progress-track {
+  height: 10px;
+}
+
+/* The filter strip is a surface of its own on these screens, so it takes the
+   card's softer corner and elevation rather than sitting on the page as a
+   flat outlined box. */
+.app-shell[data-portal] .filter-bar {
+  border-radius: var(--radius-lg);
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Nested tiles: an enrollment period card lives *inside* a portal card, so it
+   reads as the inner step of the pair — the card's 14px corner wants a 10px
+   one, and its own outline is what separates it from the white body.
+   `.enr-period-card` is also used by the account-less /enroll pages, which
+   never render inside `.app-shell`, so this cannot reach them. */
+.app-shell[data-portal] .enr-period-card {
+  border-radius: var(--radius);
+  border-color: var(--border-light);
+}
+
+/* First-time readers scan these pages, not grids of figures. */
+.app-shell[data-portal] p {
+  line-height: var(--leading-relaxed);
+}
+
+@media (max-width: 767px) {
+  .app-shell[data-portal] .card-header {
+    padding: 12px var(--space-4);
+  }
+
+  .app-shell[data-portal] .card-body:not(.flush),
+  .app-shell[data-portal] .card-pad {
+    padding: 14px;
+  }
 }

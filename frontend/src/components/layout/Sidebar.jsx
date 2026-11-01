@@ -48,9 +48,11 @@ function NavItem({ item, rail, onNavigate }) {
  * Collapsible navigation group (Users → Students / Teachers / Parents).
  *
  * The row itself is a toggle button, not a link: it expands or collapses the
- * submenu instead of navigating. It auto-expands whenever the current route
- * belongs to one of its children and stays expanded while moving between
- * them; collapsing is always an explicit user action.
+ * submenu instead of navigating. Groups have no page of their own — the
+ * breadcrumb shows their label as plain text for the same reason — so the only
+ * highlight a group can carry is the `child-active` cue. It auto-expands
+ * whenever the current route belongs to one of its children and stays
+ * expanded while moving between them; collapsing is always an explicit action.
  *
  * In the collapsed rail there is no room for a submenu, so toggling a group
  * widens the sidebar back open and reveals it there.
@@ -59,9 +61,6 @@ function NavGroup({ item, rail, onOpenRail, onNavigate }) {
   const { pathname } = useLocation()
   const children = item.children || []
   const childActive = children.some((child) => child.to && pathname.startsWith(child.to))
-  // The group's own route (e.g. /admin/users) reads as active only when no
-  // child is selected, so parent and child never look selected at once.
-  const selfActive = Boolean(item.to) && pathname.startsWith(item.to) && !childActive
 
   const [open, setOpen] = useState(childActive)
   const [prevChildActive, setPrevChildActive] = useState(childActive)
@@ -93,7 +92,6 @@ function NavGroup({ item, rail, onOpenRail, onNavigate }) {
           'nav-link',
           'nav-group-toggle',
           open ? 'expanded' : '',
-          selfActive ? 'active' : '',
           childActive ? 'child-active' : '',
         ]
           .filter(Boolean)

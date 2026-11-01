@@ -13,6 +13,7 @@ import api from '../services/api'
 import useFetch from '../hooks/useFetch'
 import { formatDate } from '../utils/format'
 import './SectionsPage.css'
+import Button from '../components/Button'
 
 /**
  * Delete confirmation messages per kind.
@@ -165,18 +166,18 @@ function ActionsCell({ kind, item, busyId, onEdit, onDelete }) {
   const name = item.name || item.label
   return (
     <div className="row-actions">
-      <button
-        type="button"
-        className="btn btn-sm btn-ghost"
+      <Button
+        variant="ghost"
+        size="sm"
         aria-label={`Edit ${name}`}
         onClick={() => onEdit(kind, item)}
       >
         <Icon name="pencil" size={14} />
         Edit
-      </button>
-      <button
-        type="button"
-        className="btn btn-sm btn-danger"
+      </Button>
+      <Button
+        variant="danger"
+        size="sm"
         aria-label={`Delete ${name}`}
         onClick={() => onDelete(kind, item)}
         disabled={busyId === id}
@@ -187,7 +188,7 @@ function ActionsCell({ kind, item, busyId, onEdit, onDelete }) {
           <Icon name="trash" size={14} />
         )}
         Delete
-      </button>
+      </Button>
     </div>
   )
 }
@@ -502,7 +503,7 @@ export default function SectionsPage() {
   }, [activeTab])
 
   return (
-    <div className="stack stack-md">
+    <div className="sections-page stack stack-md">
       <PageHeader
         title="School Structure"
         subtitle="The school years, grade levels, sections and subjects everything else is built on."
@@ -512,13 +513,13 @@ export default function SectionsPage() {
         <div className="alert alert-error" role="alert">
           <Icon name="info" size={17} />
           <span className="grow">{actionError}</span>
-          <button
-            type="button"
-            className="btn btn-sm btn-secondary"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setActionError(null)}
           >
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
 
@@ -555,15 +556,15 @@ export default function SectionsPage() {
         error={currentList.error}
         onRetry={currentList.reload}
         action={
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
+          <Button
+            variant="primary"
+            size="sm"
             onClick={() => setModal({ kind: activeTab, item: null })}
             disabled={currentList.loading}
           >
             <Icon name="plus" size={15} />
             Add {nounFor(activeTab)}
-          </button>
+          </Button>
         }
         empty={
           !currentList.loading && (!currentList.data || currentList.data.length === 0) ? (

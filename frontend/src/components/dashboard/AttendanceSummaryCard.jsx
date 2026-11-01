@@ -1,5 +1,6 @@
 import Card, { SummaryRows } from './Card'
 import EmptyState from '../EmptyState'
+import StatusBadge from '../StatusBadge'
 
 /**
  * Attendance summary card built from the backend's attendance aggregate:
@@ -46,11 +47,15 @@ export default function AttendanceSummaryCard({
       title={title}
       action={
         <span className="row row-wrap" style={{ gap: 6 }}>
-          <span className="badge badge-blue" title="Share of records marked present">
-            {attendance.present_rate !== null
-              ? `${attendance.present_rate}% present`
-              : `${attendance.total_records} records`}
-          </span>
+          <StatusBadge
+            tone="blue"
+            title="Share of records marked present"
+            label={
+              attendance.present_rate !== null
+                ? `${attendance.present_rate}% present`
+                : `${attendance.total_records} records`
+            }
+          />
           {link}
         </span>
       }

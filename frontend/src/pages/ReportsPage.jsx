@@ -9,6 +9,7 @@ import TrendsCard from '../components/dashboard/TrendsCard'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 import useFetch from '../hooks/useFetch'
+import Button from '../components/Button'
 
 /**
  * School-wide reports.
@@ -71,9 +72,9 @@ export default function ReportsPage() {
   const exportButtons = canExport && (
     <div className="row row-wrap" style={{ gap: 8 }}>
       {can('users.view') && (
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm"
+        <Button
+          variant="secondary"
+          size="sm"
           disabled={exporting !== null}
           onClick={() =>
             runExport(
@@ -100,12 +101,12 @@ export default function ReportsPage() {
           {exporting === 'accounts' && <ButtonLoader />}
           <Icon name="download" size={14} />{' '}
           {exporting === 'accounts' ? 'Exporting…' : 'Accounts'}
-        </button>
+        </Button>
       )}
       {can('students.view') && (
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm"
+        <Button
+          variant="secondary"
+          size="sm"
           disabled={exporting !== null}
           onClick={() =>
             runExport(
@@ -125,12 +126,12 @@ export default function ReportsPage() {
           {exporting === 'students' && <ButtonLoader />}
           <Icon name="download" size={14} />{' '}
           {exporting === 'students' ? 'Exporting…' : 'Student directory'}
-        </button>
+        </Button>
       )}
       {attendance && (
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm"
+        <Button
+          variant="secondary"
+          size="sm"
           disabled={exporting !== null}
           onClick={() =>
             runExport('attendance', async () => attendance, (data) =>
@@ -152,12 +153,12 @@ export default function ReportsPage() {
           {exporting === 'attendance' && <ButtonLoader />}
           <Icon name="download" size={14} />{' '}
           {exporting === 'attendance' ? 'Exporting…' : 'Attendance summary'}
-        </button>
+        </Button>
       )}
       {requirements && (
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm"
+        <Button
+          variant="secondary"
+          size="sm"
           disabled={exporting !== null}
           onClick={() =>
             runExport('submissions', async () => requirements, (data) =>
@@ -179,7 +180,7 @@ export default function ReportsPage() {
           {exporting === 'submissions' && <ButtonLoader />}
           <Icon name="download" size={14} />{' '}
           {exporting === 'submissions' ? 'Exporting…' : 'Submissions summary'}
-        </button>
+        </Button>
       )}
     </div>
   )
@@ -218,9 +219,9 @@ export default function ReportsPage() {
         <div className="alert alert-error" role="alert">
           <Icon name="info" size={17} />
           <span className="grow">Export failed: {exportError}</span>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={() => setExportError(null)}>
+          <Button variant="secondary" size="sm" onClick={() => setExportError(null)}>
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
 

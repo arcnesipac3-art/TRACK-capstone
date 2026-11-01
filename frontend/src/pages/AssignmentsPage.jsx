@@ -1,12 +1,14 @@
 import ButtonLoader from '../components/loading/ButtonLoader'
 import { useState } from 'react'
 import EmptyState from '../components/EmptyState'
+import StatusBadge from '../components/StatusBadge'
 import Icon from '../components/Icon'
 import PageHeader from '../components/PageHeader'
 import Card from '../components/dashboard/Card'
 import AssignmentFormModal from '../components/admin/AssignmentFormModal'
 import api from '../services/api'
 import useFetch from '../hooks/useFetch'
+import Button from '../components/Button'
 
 /**
  * Admin: manage which teacher teaches which subject in which section.
@@ -56,17 +58,18 @@ export default function AssignmentsPage() {
         subtitle="Which teacher teaches which subject in which section."
         actions={
           <div className="row row-wrap" style={{ gap: 10 }}>
-            <span className="badge badge-blue">
-              {rows.length} {rows.length === 1 ? 'assignment' : 'assignments'}
-            </span>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
+            <StatusBadge
+              tone="blue"
+              label={`${rows.length} ${rows.length === 1 ? 'assignment' : 'assignments'}`}
+            />
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => setModal({ item: null })}
             >
               <Icon name="plus" size={15} />
               Assign a class
-            </button>
+            </Button>
           </div>
         }
       />
@@ -75,13 +78,13 @@ export default function AssignmentsPage() {
         <div className="alert alert-error" role="alert">
           <Icon name="info" size={17} />
           <span className="grow">{actionError}</span>
-          <button
-            type="button"
-            className="btn btn-sm btn-secondary"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setActionError(null)}
           >
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
 
@@ -91,14 +94,14 @@ export default function AssignmentsPage() {
         error={assignments.error}
         onRetry={assignments.reload}
         action={
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
+          <Button
+            variant="primary"
+            size="sm"
             onClick={() => setModal({ item: null })}
           >
             <Icon name="plus" size={15} />
             Assign a class
-          </button>
+          </Button>
         }
         empty={
           !assignments.loading && rows.length === 0 ? (
@@ -131,18 +134,18 @@ export default function AssignmentsPage() {
                   <td data-label="Section">{row.section_name}</td>
                   <td data-label="Actions">
                     <div className="row-actions">
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-ghost"
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => setModal({ item: row })}
                         disabled={busyId === row.id}
                       >
                         <Icon name="pencil" size={14} />
                         Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-danger"
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
                         onClick={() => remove(row)}
                         disabled={busyId === row.id}
                       >
@@ -152,7 +155,7 @@ export default function AssignmentsPage() {
                           <Icon name="trash" size={14} />
                         )}
                         Remove
-                      </button>
+                      </Button>
                     </div>
                   </td>
                 </tr>

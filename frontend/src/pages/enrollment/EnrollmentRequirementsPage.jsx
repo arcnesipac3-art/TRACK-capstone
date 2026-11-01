@@ -10,6 +10,7 @@ import useFetch from '../../hooks/useFetch'
 import api from '../../services/api'
 import { ENROLLMENT_TYPES } from '../../utils/enrollment'
 import RequirementFormModal from './RequirementFormModal'
+import Button from '../../components/Button'
 import './RegistrarEnrollment.css'
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
@@ -155,9 +156,10 @@ export default function EnrollmentRequirementsPage() {
         subtitle="The documents each enrollment period asks applicants to submit."
         actions={
           canManage && (
-            <button
-              type="button"
-              className="btn btn-primary btn-sm no-print"
+            <Button
+              variant="primary"
+              size="sm"
+              className="no-print"
               onClick={() => {
                 setAlert(null)
                 setFormModal({ mode: 'new' })
@@ -165,7 +167,7 @@ export default function EnrollmentRequirementsPage() {
             >
               <Icon name="plus" size={15} />
               New requirement
-            </button>
+            </Button>
           )
         }
       />
@@ -177,13 +179,13 @@ export default function EnrollmentRequirementsPage() {
         >
           <Icon name={alert.kind === 'error' ? 'info' : 'checkCircle'} size={17} />
           <span className="grow">{alert.text}</span>
-          <button
-            type="button"
-            className="btn btn-sm btn-secondary"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setAlert(null)}
           >
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
 
@@ -257,13 +259,13 @@ export default function EnrollmentRequirementsPage() {
             </div>
             {hasFilters && (
               <div className="filter-actions">
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={clearFilters}
                 >
                   Clear
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -303,13 +305,13 @@ export default function EnrollmentRequirementsPage() {
             <div className="alert alert-error" role="alert">
               <Icon name="info" size={17} />
               <span className="grow">{list.error.message}</span>
-              <button
-                type="button"
-                className="btn btn-sm btn-secondary"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={list.reload}
               >
                 Try again
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -327,14 +329,14 @@ export default function EnrollmentRequirementsPage() {
               }
               action={
                 canManage && !hasFilters && (
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
+                  <Button
+                    variant="primary"
+                    size="sm"
                     onClick={() => setFormModal({ mode: 'new' })}
                   >
                     <Icon name="plus" size={15} />
                     New requirement
-                  </button>
+                  </Button>
                 )
               }
             />
@@ -384,18 +386,16 @@ export default function EnrollmentRequirementsPage() {
                         )}
                       </td>
                       <td data-label="Required">
-                        <span
-                          className={`badge ${row.is_required ? 'badge-amber' : 'badge-neutral'}`}
-                        >
-                          {row.is_required ? 'Required' : 'Optional'}
-                        </span>
+                        <StatusBadge
+                          tone={row.is_required ? 'amber' : 'neutral'}
+                          label={row.is_required ? 'Required' : 'Optional'}
+                        />
                       </td>
                       <td data-label="Verification">
-                        <span
-                          className={`badge ${row.requires_verification ? 'badge-blue' : 'badge-neutral'}`}
-                        >
-                          {row.requires_verification ? 'Verification' : 'Not required'}
-                        </span>
+                        <StatusBadge
+                          tone={row.requires_verification ? 'blue' : 'neutral'}
+                          label={row.requires_verification ? 'Verification' : 'Not required'}
+                        />
                       </td>
                       <td data-label="Active">
                         <div className="row row-wrap gap-xs">
@@ -404,9 +404,9 @@ export default function EnrollmentRequirementsPage() {
                             tone={row.is_active ? 'green' : 'neutral'}
                           />
                           {canManage && (
-                            <button
-                              type="button"
-                              className="btn btn-xs btn-ghost"
+                            <Button
+                              variant="ghost"
+                              size="xs"
                               aria-label={`${row.is_active ? 'Deactivate' : 'Activate'} ${row.name}`}
                               disabled={busyId === row.id}
                               onClick={() => toggleActive(row)}
@@ -415,7 +415,7 @@ export default function EnrollmentRequirementsPage() {
                                 <Icon name="refresh" size={12} />
                               ) : null}
                               {row.is_active ? 'Deactivate' : 'Activate'}
-                            </button>
+                            </Button>
                           )}
                         </div>
                       </td>
@@ -423,9 +423,9 @@ export default function EnrollmentRequirementsPage() {
                       <td data-label="Actions" className="text-right">
                         {canManage && (
                           <div className="row-actions">
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-ghost"
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               aria-label={`Edit ${row.name}`}
                               onClick={() => {
                                 setAlert(null)
@@ -434,7 +434,7 @@ export default function EnrollmentRequirementsPage() {
                             >
                               <Icon name="pencil" size={14} />
                               Edit
-                            </button>
+                            </Button>
                           </div>
                         )}
                       </td>

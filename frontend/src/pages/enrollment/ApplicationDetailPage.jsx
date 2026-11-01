@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import Button from '../../components/Button'
+import ButtonLink from '../../components/ButtonLink'
 import ErrorMessage from '../../components/ErrorMessage'
 import Icon from '../../components/Icon'
 import { ButtonLoader, PageLoader } from '../../components/loading'
@@ -29,7 +31,7 @@ const ACTION_CONFIG = {
     body: 'Submit now? You can no longer edit the application until the Registrar reviews it.',
     confirmLabel: 'Submit now',
     endpoint: 'submit',
-    buttonMod: 'btn-primary',
+    buttonVariant: 'primary',
   },
   resubmitted: {
     label: 'Resubmit corrections',
@@ -37,7 +39,7 @@ const ACTION_CONFIG = {
     body: 'Resubmit now? Your corrected application goes back into the Registrar review queue, and you can no longer edit it until they review it again.',
     confirmLabel: 'Resubmit now',
     endpoint: 'resubmit',
-    buttonMod: 'btn-primary',
+    buttonVariant: 'primary',
   },
   withdrawn: {
     label: 'Withdraw application',
@@ -45,7 +47,7 @@ const ACTION_CONFIG = {
     body: 'Withdrawing takes this application out of the Registrar review queue. This cannot be undone.',
     confirmLabel: 'Withdraw',
     endpoint: 'withdraw',
-    buttonMod: 'btn-danger',
+    buttonVariant: 'danger',
   },
   delete: {
     label: 'Delete application',
@@ -53,7 +55,7 @@ const ACTION_CONFIG = {
     body: 'Deleting permanently removes this application and its uploaded documents from your list. This cannot be undone.',
     confirmLabel: 'Delete application',
     endpoint: null, // DELETE, not a workflow POST — handled in confirmAction
-    buttonMod: 'btn-danger',
+    buttonVariant: 'danger',
   },
 }
 
@@ -204,10 +206,10 @@ function ClaimAccountPanel({ claimToken }) {
         </div>
 
         <div className="row row-end row-wrap">
-          <button type="submit" className="btn btn-primary" disabled={busy}>
+          <Button type="submit" variant="primary" disabled={busy}>
             {busy && <ButtonLoader />}
             {busy ? 'Creating account…' : 'Create account'}
-          </button>
+          </Button>
         </div>
       </form>
     </section>
@@ -354,9 +356,9 @@ export default function ApplicationDetailPage() {
           onRetry={reload}
         />
         <div>
-          <Link className="btn btn-secondary btn-sm" to="..">
+          <ButtonLink variant="secondary" size="sm" to="..">
             Back to enrollment
-          </Link>
+          </ButtonLink>
         </div>
       </div>
     )
@@ -429,44 +431,44 @@ export default function ApplicationDetailPage() {
                   : 'This application is finished — keep it for your records, or delete it from your list.'}
             </span>
             {available.includes('submitted') && (
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={() => setPendingAction('submitted')}
                 disabled={Boolean(busyAction)}
               >
                 Submit application
-              </button>
+              </Button>
             )}
             {available.includes('resubmitted') && (
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={() => setPendingAction('resubmitted')}
                 disabled={Boolean(busyAction)}
               >
                 Resubmit corrections
-              </button>
+              </Button>
             )}
             {available.includes('withdrawn') && (
-              <button
-                type="button"
-                className="btn btn-danger btn-sm"
+              <Button
+                variant="danger"
+                size="sm"
                 onClick={() => setPendingAction('withdrawn')}
                 disabled={Boolean(busyAction)}
               >
                 Withdraw application
-              </button>
+              </Button>
             )}
             {deletable && (
-              <button
-                type="button"
-                className="btn btn-danger btn-sm"
+              <Button
+                variant="danger"
+                size="sm"
                 onClick={() => setPendingAction('delete')}
                 disabled={Boolean(busyAction)}
               >
                 Delete application
-              </button>
+              </Button>
             )}
           </div>
         </section>
@@ -595,13 +597,13 @@ export default function ApplicationDetailPage() {
                 </div>
                 <div className="row row-wrap gap-xs">
                   {doc.original_filename && (
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => handleDownload(doc)}
                     >
                       <Icon name="download" size={14} /> Download
-                    </button>
+                    </Button>
                   )}
                   {editableDocs && (
                     <input
@@ -685,9 +687,9 @@ export default function ApplicationDetailPage() {
       </dl>
 
       <div>
-        <Link className="btn btn-secondary btn-sm" to="..">
+        <ButtonLink variant="secondary" size="sm" to="..">
           Back to enrollment
-        </Link>
+        </ButtonLink>
       </div>
 
       <Modal
@@ -697,19 +699,19 @@ export default function ApplicationDetailPage() {
         dismissible={!busyAction}
         footer={
           <>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setPendingAction(null)}
               disabled={Boolean(busyAction)}
             >
               Cancel
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${
-                pendingAction ? ACTION_CONFIG[pendingAction].buttonMod : 'btn-primary'
-              }`}
+            </Button>
+            <Button
+              variant={
+                pendingAction ? ACTION_CONFIG[pendingAction].buttonVariant : 'primary'
+              }
+              size="sm"
               onClick={confirmAction}
               disabled={Boolean(busyAction)}
             >
@@ -719,7 +721,7 @@ export default function ApplicationDetailPage() {
                 : pendingAction
                   ? ACTION_CONFIG[pendingAction].confirmLabel
                   : ''}
-            </button>
+            </Button>
           </>
         }
       >

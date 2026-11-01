@@ -1,4 +1,5 @@
 import Icon from './Icon'
+import Button from '../components/Button'
 
 /**
  * Consistent error display with an optional retry action.
@@ -23,9 +24,9 @@ export default function ErrorMessage({
           <span>{message}</span>
         </div>
         {onRetry && (
-          <button type="button" className="btn btn-sm btn-secondary" onClick={onRetry}>
+          <Button variant="secondary" size="sm" onClick={onRetry}>
             Retry
-          </button>
+          </Button>
         )}
       </div>
     )
@@ -39,10 +40,10 @@ export default function ErrorMessage({
         <span>{message}</span>
         {onRetry && (
           <div>
-            <button type="button" className="btn btn-sm btn-secondary" onClick={onRetry}>
+            <Button variant="secondary" size="sm" onClick={onRetry}>
               <Icon name="refresh" size={14} />
               Try again
-            </button>
+            </Button>
           </div>
         )}
       </div>

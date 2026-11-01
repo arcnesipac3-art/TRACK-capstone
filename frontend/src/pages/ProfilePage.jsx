@@ -6,6 +6,7 @@ import StatusBadge from '../components/StatusBadge'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 import { roleLabel } from '../utils/format'
+import Button from '../components/Button'
 
 function ChangePasswordForm() {
   const [oldPassword, setOldPassword] = useState('')
@@ -114,10 +115,10 @@ function ChangePasswordForm() {
           />
           Show passwords
         </label>
-        <button type="submit" className="btn btn-primary btn-sm" disabled={busy}>
+        <Button type="submit" variant="primary" size="sm" disabled={busy}>
           {busy && <ButtonLoader />}
           {busy ? 'Saving…' : 'Change password'}
-        </button>
+        </Button>
       </div>
     </form>
   )

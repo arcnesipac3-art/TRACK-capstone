@@ -13,13 +13,14 @@ export const NAVIGATION = {
   // renders only the modules the administrator holds.
   admin: [
     { label: 'Dashboard', to: '/admin/dashboard', icon: 'grid' },
-    // Users is a collapsible group: the item keeps its own route (/admin/users,
-    // the "all users" directory) and nests the three role directories beneath
-    // it. The sidebar renders `children` as an animated submenu; routes,
-    // permissions and page components are unchanged.
+    // Users is a collapsible group over the three role directories. Groups are
+    // containers — they carry `children` and no `to` of their own, because
+    // TRACK has no "all users" page an administrator would want to land on:
+    // Students, Teachers and Parents are the real destinations. The label
+    // still names the section in the breadcrumb, and the group stays
+    // highlighted while a child is open.
     {
       label: 'Users',
-      to: '/admin/users',
       icon: 'users',
       perm: 'users.view',
       // The directory pages all read /api/users/, so they need users.view;
@@ -33,16 +34,16 @@ export const NAVIGATION = {
     { label: 'School Structure', to: '/admin/sections', icon: 'layers', perm: 'structure.manage' },
     { label: 'Class Assignments', to: '/admin/assignments', icon: 'book', perm: 'structure.manage' },
     { label: 'Class Schedules', to: '/admin/schedules', icon: 'clock', perm: 'structure.manage' },
+    // The Registrar workspace, like Users a container over real pages rather
+    // than a page itself. Django enforces enrollment.view / enrollment.manage
+    // / enrollment.confirm on each endpoint behind these children.
     {
       label: 'Enrollment',
-      to: '/admin/enrollment',
+      container: true,
       icon: 'gradCap',
       perm: 'enrollment.view',
-      // The Registrar workspace: application queue, confirmed enrollments,
-      // period & document-requirement configuration, and reports. Django
-      // enforces enrollment.view / enrollment.manage / enrollment.confirm on
-      // each endpoint behind these pages.
       children: [
+        { label: 'Overview', to: '/admin/enrollment/overview', icon: 'grid', perm: 'enrollment.view' },
         { label: 'Applications', to: '/admin/enrollment/applications', icon: 'file', perm: 'enrollment.view' },
         { label: 'Enrollments', to: '/admin/enrollment/enrollments', icon: 'users', perm: 'enrollment.view' },
         { label: 'Enrollment Periods', to: '/admin/enrollment/periods', icon: 'calendar', perm: 'enrollment.view' },
@@ -97,12 +98,13 @@ export const NAVIGATION = {
 
 /** Navigation items used in the mobile bottom bar (max 4). */
 export const MOBILE_PRIMARY = {
-  admin: ['/admin/dashboard', '/admin/users', '/notifications'],
+  admin: ['/admin/dashboard', '/admin/students', '/notifications'],
   teacher: ['/teacher/dashboard', '/teacher/review', '/notifications'],
   student: ['/student/dashboard', '/student/requirements', '/notifications'],
   parent: ['/parent/dashboard', '/parent/requirements', '/notifications'],
 }
 
+/** Navigation items for a role. */
 export function navForRole(role) {
   return NAVIGATION[role] || []
 }
@@ -126,24 +128,32 @@ export function navForUser(user) {
     )
 }
 
+/**
+ * The bottom bar's items, in the order listed above.
+ *
+ * Matched against groups *and* their children, so a role directory nested
+ * under a container group (Students under Users) can be a primary stop.
+ */
 export function mobileItemsForRole(role) {
   const targets = MOBILE_PRIMARY[role] || []
-  const items = navForRole(role).filter((item) => targets.includes(item.to))
-  return items
+  const flat = navForRole(role).flatMap((item) =>
+    item.children ? [item, ...item.children] : [item]
+  )
+  return targets.map((to) => flat.find((item) => item.to === to)).filter(Boolean)
 }
 
 /**
  * Breadcrumb trail for a pathname: Dashboard → group → page.
  *
- * Route matching follows the same rule as `titleForPath`: a group's children
- * are tested before the group itself, because the group's own prefix
- * (`/admin/users`) also covers every child path (`/admin/students`). Deeper
- * routes inherit the trail of the navigation entry they sit under, so
- * `/admin/enrollment/applications/123` reads Enrollment → Applications.
+ * A group's children are tested before the group's own route, so the deepest
+ * matching entry wins. Deeper routes inherit the trail of the navigation entry
+ * they sit under, which is how `/admin/enrollment/applications/123` reads
+ * Enrollment → Applications rather than stopping at an unnamed prefix.
  *
- * The last entry is the current page; earlier ones are links. A path outside
- * the role's navigation yields just the dashboard (or an empty trail), which
- * keeps the breadcrumb honest instead of inventing a page name.
+ * The last entry is the current page; earlier ones are links, except a group,
+ * which only names its section and has no page to go to. A path outside the
+ * role's navigation yields just the dashboard (or an empty trail), which keeps
+ * the breadcrumb honest instead of inventing a page name.
  */
 export function trailForPath(pathname, role) {
   const items = navForRole(role)
@@ -156,7 +166,8 @@ export function trailForPath(pathname, role) {
     if (item === home) continue
     const child = (item.children || []).find((c) => c.to && pathname.startsWith(c.to))
     if (child) {
-      if (item.to) trail.push({ label: item.label, to: item.to })
+      // A group names the section; it has no page of its own to link to.
+      trail.push({ label: item.label })
       trail.push({ label: child.label, to: child.to })
       return trail
     }

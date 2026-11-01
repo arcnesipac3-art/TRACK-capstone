@@ -7,6 +7,7 @@ import ListSkeleton from '../loading/ListSkeleton'
 import StatusBadge from '../StatusBadge'
 import api from '../../services/api'
 import useFetch from '../../hooks/useFetch'
+import Button from '../../components/Button'
 import {
   deadlineInfo,
   formatDateTime,
@@ -192,16 +193,16 @@ export default function RequirementsExplorer({
             </select>
           </div>
           {(statusFilter !== 'all' || sort !== 'deadline_asc') && (
-            <button
-              type="button"
-              className="btn btn-sm btn-ghost"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => {
                 setStatusFilter('all')
                 setSort('deadline_asc')
               }}
             >
               Reset
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -266,9 +267,9 @@ export default function RequirementsExplorer({
 
               {canSubmit && (
                 <div className="rc-actions">
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-secondary"
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     aria-expanded={openFor === row.id}
                     onClick={() => {
                       setOpenFor(openFor === row.id ? null : row.id)
@@ -278,7 +279,7 @@ export default function RequirementsExplorer({
                   >
                     <Icon name="send" size={14} />
                     {row.status === 'returned' ? 'Resubmit work' : 'Submit work'}
-                  </button>
+                  </Button>
                 </div>
               )}
 
@@ -322,24 +323,25 @@ export default function RequirementsExplorer({
                   )}
 
                   <div className="row row-end">
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-ghost"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => setOpenFor(null)}
                       disabled={submitting}
                     >
                       Cancel
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="submit"
-                      className="btn btn-sm btn-primary"
+                      variant="primary"
+                      size="sm"
                       disabled={submitting}
                     >
                       {submitting && (
                         <ButtonLoader />
                       )}
                       {submitting ? 'Submitting…' : 'Submit'}
-                    </button>
+                    </Button>
                   </div>
                 </form>
               )}

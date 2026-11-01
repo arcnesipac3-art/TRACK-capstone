@@ -2,6 +2,7 @@ import { useContext } from 'react'
 import { Link } from 'react-router-dom'
 import Card from './Card'
 import EmptyState from '../EmptyState'
+import StatusBadge from '../StatusBadge'
 import useFetch from '../../hooks/useFetch'
 import { NotificationsContext } from '../../context/NotificationsContext'
 import { formatRelative } from '../../utils/format'
@@ -52,9 +53,11 @@ function NotificationsFeed({ data, loading, error, reload, limit }) {
       action={
         <div className="row row-wrap" style={{ gap: 6 }}>
           {unread > 0 && (
-            <span className="badge badge-blue" title={`${unread} unread notifications`}>
-              {unread} new
-            </span>
+            <StatusBadge
+              tone="blue"
+              label={`${unread} new`}
+              title={`${unread} unread notifications`}
+            />
           )}
           <Link className="btn btn-sm btn-ghost" to="/notifications">
             View all

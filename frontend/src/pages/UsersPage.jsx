@@ -12,18 +12,19 @@ import api from '../services/api'
 import useFetch from '../hooks/useFetch'
 import { roleLabel } from '../utils/format'
 import { useAuth } from '../context/AuthContext'
+import Button from '../components/Button'
 
 const TITLES = {
-  all: ['Users', 'Every account on the TRACK system.'],
   teacher: ['Teachers', 'Teaching accounts on record.'],
   student: ['Students', 'Learner accounts on record.'],
   parent: ['Parents', 'Guardian accounts on record.'],
 }
 
-export default function UsersPage({ role = 'all' }) {
+/** One directory per role — there is no all-accounts screen. */
+export default function UsersPage({ role }) {
   const { user: me, can } = useAuth()
-  const [title, subtitle] = TITLES[role] || TITLES.all
-  const params = role === 'all' ? {} : { role }
+  const [title, subtitle] = TITLES[role]
+  const params = { role }
   const { data, loading, error, reload } = useFetch('/users/', {
     list: true,
     params,
@@ -79,14 +80,15 @@ export default function UsersPage({ role = 'all' }) {
         subtitle={subtitle}
         actions={
           <div className="row row-wrap" style={{ gap: 10 }}>
-            <span className="badge badge-blue">
-              {users.length} {users.length === 1 ? 'account' : 'accounts'}
-            </span>
+            <StatusBadge
+              tone="blue"
+              label={`${users.length} ${users.length === 1 ? 'account' : 'accounts'}`}
+            />
             {can('users.manage') && (
-              <button type="button" className="btn btn-primary btn-sm" onClick={openCreate}>
+              <Button variant="primary" size="sm" onClick={openCreate}>
                 <Icon name="userPlus" size={15} />
                 Add account
-              </button>
+              </Button>
             )}
           </div>
         }
@@ -96,9 +98,9 @@ export default function UsersPage({ role = 'all' }) {
         <div className="alert alert-success" role="status">
           <Icon name="check" size={17} />
           <span className="grow">{notice}</span>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={() => setNotice(null)}>
+          <Button variant="secondary" size="sm" onClick={() => setNotice(null)}>
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
 
@@ -106,9 +108,9 @@ export default function UsersPage({ role = 'all' }) {
         <div className="alert alert-error" role="alert">
           <Icon name="info" size={17} />
           <span className="grow">{actionError}</span>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={() => setActionError(null)}>
+          <Button variant="secondary" size="sm" onClick={() => setActionError(null)}>
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
 
@@ -172,15 +174,13 @@ export default function UsersPage({ role = 'all' }) {
                             style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}
                           >
                             {user.is_super_admin && (
-                              <span className="badge badge-red">Super Admin</span>
+                              <StatusBadge tone="red" label="Super Admin" />
                             )}
                             {deptNames.map((name) => (
-                              <span className="badge badge-blue" key={name}>
-                                {name}
-                              </span>
+                              <StatusBadge tone="blue" key={name} label={name} />
                             ))}
                             {!user.is_super_admin && deptNames.length === 0 && (
-                              <span className="badge badge-neutral">No department</span>
+                              <StatusBadge tone="neutral" label="No department" />
                             )}
                           </span>
                         )}
@@ -202,18 +202,18 @@ export default function UsersPage({ role = 'all' }) {
                         <div className="row-actions">
                           {canTouch && (
                             <>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-ghost"
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => openEdit(user)}
                             disabled={busyId === user.id}
                           >
                             <Icon name="pencil" size={14} />
                             Edit
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-ghost"
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => {
                               setNotice(null)
                               setResetTarget(user)
@@ -222,10 +222,10 @@ export default function UsersPage({ role = 'all' }) {
                           >
                             <Icon name="shield" size={14} />
                             Reset password
-                          </button>
-                          <button
-                            type="button"
-                            className={`btn btn-sm ${user.is_active ? 'btn-danger' : 'btn-secondary'}`}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={user.is_active ? 'danger' : 'secondary'}
                             onClick={() => toggleActive(user)}
                             disabled={busyId === user.id || isMe}
                             title={
@@ -240,7 +240,7 @@ export default function UsersPage({ role = 'all' }) {
                               <Icon name={user.is_active ? 'shield' : 'check'} size={14} />
                             )}
                             {user.is_active ? 'Deactivate' : 'Reactivate'}
-                          </button>
+                          </Button>
                             </>
                           )}
                         </div>

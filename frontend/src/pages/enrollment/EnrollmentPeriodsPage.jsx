@@ -16,6 +16,7 @@ import {
 } from '../../utils/enrollment'
 import { formatDateTime } from '../../utils/format'
 import PeriodFormModal from './PeriodFormModal'
+import Button from '../../components/Button'
 import './RegistrarEnrollment.css'
 
 /** True while "now" sits inside the period's own open/close window. */
@@ -121,9 +122,10 @@ export default function EnrollmentPeriodsPage() {
         subtitle="The application windows each school year opens and closes."
         actions={
           canManage && (
-            <button
-              type="button"
-              className="btn btn-primary btn-sm no-print"
+            <Button
+              variant="primary"
+              size="sm"
+              className="no-print"
               onClick={() => {
                 setAlert(null)
                 setFormModal({ mode: 'new' })
@@ -131,7 +133,7 @@ export default function EnrollmentPeriodsPage() {
             >
               <Icon name="plus" size={15} />
               New period
-            </button>
+            </Button>
           )
         }
       />
@@ -143,13 +145,13 @@ export default function EnrollmentPeriodsPage() {
         >
           <Icon name={alert.kind === 'error' ? 'info' : 'checkCircle'} size={17} />
           <span className="grow">{alert.text}</span>
-          <button
-            type="button"
-            className="btn btn-sm btn-secondary"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setAlert(null)}
           >
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
 
@@ -200,14 +202,14 @@ export default function EnrollmentPeriodsPage() {
               message="Create the first application window so students can start applying."
               action={
                 canManage && (
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
+                  <Button
+                    variant="primary"
+                    size="sm"
                     onClick={() => setFormModal({ mode: 'new' })}
                   >
                     <Icon name="plus" size={15} />
                     New period
-                  </button>
+                  </Button>
                 )
               }
             />
@@ -255,7 +257,7 @@ export default function EnrollmentPeriodsPage() {
                       <td data-label="Types">{typeSummary(period)}</td>
                       <td data-label="Waitlist">
                         {period.allow_waitlist ? (
-                          <span className="badge badge-blue">Allowed</span>
+                          <StatusBadge tone="blue" label="Allowed" />
                         ) : (
                           <span className="subtle">Off</span>
                         )}
@@ -269,9 +271,9 @@ export default function EnrollmentPeriodsPage() {
                       <td data-label="Actions" className="text-right">
                         {canManage && (
                           <div className="row-actions">
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-ghost"
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               aria-label={`Edit ${period.name || period.school_year_label}`}
                               onClick={() => {
                                 setAlert(null)
@@ -280,11 +282,11 @@ export default function EnrollmentPeriodsPage() {
                             >
                               <Icon name="pencil" size={14} />
                               Edit
-                            </button>
+                            </Button>
                             {period.status === 'open' ? (
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-secondary"
+                              <Button
+                                variant="secondary"
+                                size="sm"
                                 aria-label={`Close ${period.name || period.school_year_label}`}
                                 disabled={busy}
                                 onClick={() => {
@@ -293,11 +295,11 @@ export default function EnrollmentPeriodsPage() {
                                 }}
                               >
                                 Close period
-                              </button>
+                              </Button>
                             ) : (
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-secondary"
+                              <Button
+                                variant="secondary"
+                                size="sm"
                                 aria-label={`Reopen ${period.name || period.school_year_label}`}
                                 disabled={busy || !canReopen}
                                 title={
@@ -311,12 +313,12 @@ export default function EnrollmentPeriodsPage() {
                                 }}
                               >
                                 Reopen
-                              </button>
+                              </Button>
                             )}
                             {canDelete && (
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-danger"
+                              <Button
+                                variant="danger"
+                                size="sm"
                                 aria-label={`Delete ${period.name || period.school_year_label}`}
                                 disabled={busy}
                                 onClick={() => {
@@ -326,7 +328,7 @@ export default function EnrollmentPeriodsPage() {
                               >
                                 <Icon name="trash" size={14} />
                                 Delete
-                              </button>
+                              </Button>
                             )}
                           </div>
                         )}
@@ -364,17 +366,17 @@ export default function EnrollmentPeriodsPage() {
         dismissible={!busy}
         footer={
           <>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={closeConfirm}
               disabled={busy}
             >
               Cancel
-            </button>
-            <button
-              type="button"
-              className={`btn btn-sm ${confirm?.type === 'delete' ? 'btn-danger' : 'btn-primary'}`}
+            </Button>
+            <Button
+              size="sm"
+              variant={confirm?.type === 'delete' ? 'danger' : 'primary'}
               onClick={runConfirmedRequest}
               disabled={busy}
             >
@@ -386,7 +388,7 @@ export default function EnrollmentPeriodsPage() {
                   : confirm?.type === 'close'
                     ? 'Close period'
                     : 'Reopen period'}
-            </button>
+            </Button>
           </>
         }
       >

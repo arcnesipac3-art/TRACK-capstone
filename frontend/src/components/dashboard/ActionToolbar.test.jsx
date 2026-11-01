@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ActionToolbar from './ActionToolbar'
 
 const PRIMARY = [
-  { label: 'Manage users', to: '/admin/users', icon: 'users' },
+  { label: 'Manage students', to: '/admin/students', icon: 'gradCap' },
   { label: 'View attendance', to: '/admin/attendance', icon: 'calendar' },
 ]
 const MORE = [
@@ -33,9 +33,9 @@ describe('ActionToolbar', () => {
 
     const bar = screen.getByRole('navigation', { name: 'Quick actions' })
     expect(within(bar).getAllByRole('link')).toHaveLength(2)
-    expect(within(bar).getByRole('link', { name: 'Manage users' })).toHaveAttribute(
+    expect(within(bar).getByRole('link', { name: 'Manage students' })).toHaveAttribute(
       'href',
-      '/admin/users'
+      '/admin/students'
     )
     expect(within(bar).queryByRole('button')).not.toBeInTheDocument()
   })

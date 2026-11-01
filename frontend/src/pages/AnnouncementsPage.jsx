@@ -12,6 +12,7 @@ import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 import { AUDIENCE_LABELS, formatDateTime, formatRelative } from '../utils/format'
 import './AnnouncementsPage.css'
+import Button from '../components/Button'
 
 const AUDIENCE_OPTIONS = [
   { value: 'all', label: 'Everyone' },
@@ -47,22 +48,22 @@ function ConfirmDialog({
       width={460}
       footer={
         <>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={onCancel}
             disabled={busy}
           >
             Cancel
-          </button>
-          <button
-            type="button"
-            className={`btn btn-sm ${danger ? 'btn-danger' : 'btn-primary'}`}
+          </Button>
+          <Button
+            size="sm"
+            variant={danger ? 'danger' : 'primary'}
             onClick={onConfirm}
             disabled={busy}
           >
             {confirmLabel}
-          </button>
+          </Button>
         </>
       }
     >
@@ -145,23 +146,23 @@ function AnnouncementFormModal({
       width={560}
       footer={
         <>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={handleCancel}
             disabled={busy}
           >
             Cancel
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
             onClick={handleSubmit}
             disabled={busy}
           >
             {busy && <ButtonLoader />}
             {busy ? 'Saving…' : isEdit ? 'Save changes' : 'Publish'}
-          </button>
+          </Button>
         </>
       }
     >
@@ -278,32 +279,32 @@ function AnnouncementCard({
       </div>
 
       <div className="announcement-actions">
-        <button
-          type="button"
-          className="btn btn-ghost btn-xs"
+        <Button
+          variant="ghost"
+          size="xs"
           onClick={() => onView(announcement)}
           disabled={isLoading}
           aria-label={`View "${title}"`}
         >
           <Icon name="search" size={14} />
           View
-        </button>
+        </Button>
         {canEdit && (
-          <button
-            type="button"
-            className="btn btn-ghost btn-xs"
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={() => onEdit(announcement)}
             disabled={isLoading}
             aria-label={`Edit "${title}"`}
           >
             <Icon name="pencil" size={14} />
             Edit
-          </button>
+          </Button>
         )}
         {canEdit && (
-          <button
-            type="button"
-            className="btn btn-ghost btn-xs"
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={() => onPin(announcement)}
             disabled={isLoading}
             aria-label={is_pinned ? `Unpin "${title}"` : `Pin "${title}"`}
@@ -311,19 +312,19 @@ function AnnouncementCard({
           >
             <Icon name={is_pinned ? 'shield' : 'pin'} size={14} />
             {is_pinned ? 'Unpin' : 'Pin'}
-          </button>
+          </Button>
         )}
         {canDelete && (
-          <button
-            type="button"
-            className="btn btn-ghost btn-xs btn-danger"
+          <Button
+            variant="ghost"
+            size="xs"
             onClick={() => onDelete(announcement)}
             disabled={isLoading}
             aria-label={`Delete "${title}"`}
           >
             <Icon name="trash" size={14} />
             Delete
-          </button>
+          </Button>
         )}
       </div>
     </article>
@@ -345,13 +346,13 @@ function AnnouncementDetailModal({ announcement, onClose }) {
       onClose={onClose}
       width={560}
       footer={
-        <button
-          type="button"
-          className="btn btn-primary btn-sm"
+        <Button
+          variant="primary"
+          size="sm"
           onClick={onClose}
         >
           Close
-        </button>
+        </Button>
       }
     >
       <div className="stack stack-md">
@@ -593,16 +594,17 @@ export default function AnnouncementsPage() {
                   {totalCount} announcement{totalCount !== 1 ? 's' : ''}
                 </span>
                 {announcements && announcements.some((a) => a.is_pinned) && (
-                  <span className="badge badge-blue" style={{ fontSize: '0.7rem' }}>
-                    {announcements.filter((a) => a.is_pinned).length} pinned
-                  </span>
+                  <StatusBadge
+                    tone="blue"
+                    label={`${announcements.filter((a) => a.is_pinned).length} pinned`}
+                  />
                 )}
               </div>
             )}
             {canCreate && (
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={() => {
                   setEditingAnnouncement(null)
                   setFormOpen(true)
@@ -611,7 +613,7 @@ export default function AnnouncementsPage() {
               >
                 <Icon name="plus" size={15} />
                 New announcement
-              </button>
+              </Button>
             )}
           </>
         }
@@ -695,9 +697,9 @@ export default function AnnouncementsPage() {
           </div>
 
           {hasActiveFilters && (
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => {
                 setSearch('')
                 setAudienceFilter('')
@@ -707,7 +709,7 @@ export default function AnnouncementsPage() {
             >
               <Icon name="close" size={14} />
               Clear filters
-            </button>
+            </Button>
           )}
         </div>
       </section>

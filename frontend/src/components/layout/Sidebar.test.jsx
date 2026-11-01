@@ -20,6 +20,7 @@ function renderSidebar(path = '/admin/dashboard', { rail = false, onToggleRail =
       permissions: [
         'users.view',
         'structure.manage',
+        'enrollment.view',
         'fees.view',
         'requirements.view',
         'attendance.view',
@@ -50,7 +51,7 @@ function renderSidebar(path = '/admin/dashboard', { rail = false, onToggleRail =
 
 const usersToggle = () => screen.getByRole('button', { name: /users/i })
 
-describe('Sidebar — Users collapsible group', () => {
+describe('Sidebar — collapsible groups', () => {
   it('nests Students, Teachers and Parents under a Users toggle', () => {
     renderSidebar()
     const toggle = usersToggle()
@@ -107,11 +108,19 @@ describe('Sidebar — Users collapsible group', () => {
       toHaveClass('open')
   })
 
-  it('gives the parent the full active style on its own page only', () => {
-    renderSidebar('/admin/users')
+  it('never self-highlights a group — Users is a container, not a page', () => {
+    renderSidebar('/admin/students')
     const toggle = usersToggle()
-    expect(toggle).toHaveClass('active')
-    expect(toggle).not.toHaveClass('child-active')
+    expect(toggle).toHaveClass('child-active')
+    expect(toggle).not.toHaveClass('active')
+  })
+
+  it('treats the Enrollment group the same way now that it has no landing page', () => {
+    renderSidebar('/admin/enrollment/applications')
+    const toggle = screen.getByRole('button', { name: /^enrollment$/i })
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(toggle).toHaveClass('child-active')
+    expect(toggle).not.toHaveClass('active')
   })
 
   it('hides the whole group from an administrator without users.view', () => {

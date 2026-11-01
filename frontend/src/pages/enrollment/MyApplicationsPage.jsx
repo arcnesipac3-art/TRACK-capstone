@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import Button from '../../components/Button'
+import ButtonLink from '../../components/ButtonLink'
+import Card from '../../components/dashboard/Card'
 import EmptyState from '../../components/EmptyState'
 import ErrorMessage from '../../components/ErrorMessage'
+import FieldError from '../../components/FieldError'
 import Icon from '../../components/Icon'
 import { TableSkeleton } from '../../components/loading'
 import PageHeader from '../../components/PageHeader'
@@ -14,7 +17,6 @@ import {
   applicationStatus,
 } from '../../utils/enrollment'
 import { formatDateTime } from '../../utils/format'
-import './EnrollmentPages.css'
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
@@ -66,105 +68,79 @@ export default function MyApplicationsPage() {
         title="My applications"
         subtitle="Every enrollment application this account has started, with its current status."
         actions={
-          <Link className="btn btn-primary btn-sm" to="new">
+          <ButtonLink variant="primary" size="sm" to="new">
             Start a new application
-          </Link>
+          </ButtonLink>
         }
       />
 
-      <section className="card">
-        <div className="card-body">
-          <div className="row row-wrap gap-md" style={{ alignItems: 'flex-end' }}>
-            <div className="field grow" style={{ minWidth: 200 }}>
-              <label htmlFor="apps-status">Status</label>
-              <select
-                id="apps-status"
-                className="select"
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-              >
-                {STATUS_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="field grow" style={{ minWidth: 180 }}>
-              <label htmlFor="apps-year">School year</label>
-              <select
-                id="apps-year"
-                className="select"
-                value={schoolYear}
-                onChange={(e) => setSchoolYear(e.target.value)}
-                aria-invalid={yearsError ? 'true' : undefined}
-                aria-describedby={yearsError ? 'apps-year-err' : undefined}
-              >
-                <option value="">All school years</option>
-                {years.map((year) => (
-                  <option key={year.id} value={year.id}>
-                    {year.label}
-                  </option>
-                ))}
-              </select>
-              {yearsError && (
-                <span className="field-error" id="apps-year-err">
-                  <Icon name="info" size={13} />
-                  School years could not be loaded — only “All school years” is
-                  available right now.
-                </span>
-              )}
-            </div>
-            {hasFilters && (
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => {
-                  setStatus('')
-                  setSchoolYear('')
-                }}
-              >
-                Clear
-              </button>
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="card">
-        <header className="card-header">
-          <h2>All applications</h2>
-          <button
-            type="button"
-            className="btn btn-ghost btn-xs"
-            onClick={reload}
-            disabled={loading}
+      <div className="filter-bar">
+        <div className="field grow">
+          <label htmlFor="apps-status">Status</label>
+          <select
+            id="apps-status"
+            className="select"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
           >
+            {STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="field grow">
+          <label htmlFor="apps-year">School year</label>
+          <select
+            id="apps-year"
+            className="select"
+            value={schoolYear}
+            onChange={(e) => setSchoolYear(e.target.value)}
+            aria-invalid={yearsError ? 'true' : undefined}
+            aria-describedby={yearsError ? 'apps-year-err' : undefined}
+          >
+            <option value="">All school years</option>
+            {years.map((year) => (
+              <option key={year.id} value={year.id}>
+                {year.label}
+              </option>
+            ))}
+          </select>
+          <FieldError
+            id="apps-year-err"
+            message={
+              yearsError
+                ? 'School years could not be loaded — only “All school years” is available right now.'
+                : null
+            }
+          />
+        </div>
+        {hasFilters && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setStatus('')
+              setSchoolYear('')
+            }}
+          >
+            Clear
+          </Button>
+        )}
+      </div>
+
+      <Card
+        title="All applications"
+        action={
+          <Button variant="ghost" size="xs" onClick={reload} disabled={loading}>
             <Icon name="refresh" size={13} />
             Refresh
-          </button>
-        </header>
-
-        {loading && !data && (
-          <TableSkeleton
-            headers={['Reference', 'Grade', 'School year', 'Type', 'Status', 'Missing docs', 'Submitted', 'Actions']}
-            rows={6}
-            label="Loading your applications…"
-          />
-        )}
-
-        {!loading && error && (
-          <div className="card-body">
-            <ErrorMessage
-              error={error}
-              title="Could not load your applications"
-              onRetry={reload}
-            />
-          </div>
-        )}
-
-        {!loading && !error && rows.length === 0 && (
-          <div className="card-body">
+          </Button>
+        }
+        flush={rows.length > 0}
+        empty={
+          !loading && !error && rows.length === 0 ? (
             <EmptyState
               icon="gradCap"
               title={hasFilters ? 'No matching applications' : 'No applications yet'}
@@ -174,7 +150,23 @@ export default function MyApplicationsPage() {
                   : 'Start an application from an open enrollment period and it will appear here.'
               }
             />
-          </div>
+          ) : null
+        }
+      >
+        {loading && !data && (
+          <TableSkeleton
+            headers={['Reference', 'Grade', 'School year', 'Type', 'Status', 'Missing docs', 'Submitted', 'Actions']}
+            rows={6}
+            label="Loading your applications…"
+          />
+        )}
+
+        {!loading && error && (
+          <ErrorMessage
+            error={error}
+            title="Could not load your applications"
+            onRetry={reload}
+          />
         )}
 
         {!loading && !error && rows.length > 0 && (
@@ -228,19 +220,21 @@ export default function MyApplicationsPage() {
                       </td>
                       <td data-label="Actions">
                         <div className="row row-wrap gap-xs">
-                          <Link
-                            className="btn btn-secondary btn-xs"
+                          <ButtonLink
+                            variant="secondary"
+                            size="xs"
                             to={`applications/${app.id}`}
                           >
                             View
-                          </Link>
+                          </ButtonLink>
                           {app.status === 'draft' && (
-                            <Link
-                              className="btn btn-primary btn-xs"
+                            <ButtonLink
+                              variant="primary"
+                              size="xs"
                               to={`new?application=${app.id}`}
                             >
                               Continue draft
-                            </Link>
+                            </ButtonLink>
                           )}
                         </div>
                       </td>
@@ -251,7 +245,7 @@ export default function MyApplicationsPage() {
             </table>
           </div>
         )}
-      </section>
+      </Card>
     </div>
   )
 }

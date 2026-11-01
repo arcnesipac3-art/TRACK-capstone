@@ -152,6 +152,14 @@
 .skeleton-line { height: 14px; }
 .skeleton-block { height: 150px; }
 
+/* Child-selector pills are the only pill-shaped placeholder: same height and
+   radius as `.child-chip`, so the strip keeps its shape while the roster loads. */
+.child-selector .skeleton {
+  flex: 0 0 auto;
+  height: 22px;
+  border-radius: 999px;
+}
+
 .skeleton-stack {
   display: flex;
   flex-direction: column;

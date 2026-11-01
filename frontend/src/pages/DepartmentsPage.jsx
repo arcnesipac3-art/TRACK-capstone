@@ -11,6 +11,7 @@ import StatusBadge from '../components/StatusBadge'
 import api from '../services/api'
 import useFetch from '../hooks/useFetch'
 import { useAuth } from '../context/AuthContext'
+import Button from '../components/Button'
 
 /**
  * Department & role management.
@@ -92,14 +93,15 @@ export default function DepartmentsPage() {
         subtitle="Which administrators belong where, and exactly what each department may do."
         actions={
           <div className="row row-wrap" style={{ gap: 10 }}>
-            <span className="badge badge-blue">
-              {rows.length} {rows.length === 1 ? 'department' : 'departments'}
-            </span>
+            <StatusBadge
+              tone="blue"
+              label={`${rows.length} ${rows.length === 1 ? 'department' : 'departments'}`}
+            />
             {canManage && (
-              <button type="button" className="btn btn-primary btn-sm" onClick={openCreate}>
+              <Button variant="primary" size="sm" onClick={openCreate}>
                 <Icon name="userPlus" size={15} />
                 Add department
-              </button>
+              </Button>
             )}
           </div>
         }
@@ -109,9 +111,9 @@ export default function DepartmentsPage() {
         <div className="alert alert-success" role="status">
           <Icon name="check" size={17} />
           <span className="grow">{notice}</span>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={() => setNotice(null)}>
+          <Button variant="secondary" size="sm" onClick={() => setNotice(null)}>
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
 
@@ -119,9 +121,9 @@ export default function DepartmentsPage() {
         <div className="alert alert-error" role="alert">
           <Icon name="info" size={17} />
           <span className="grow">{actionError}</span>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={() => setActionError(null)}>
+          <Button variant="secondary" size="sm" onClick={() => setActionError(null)}>
             Dismiss
-          </button>
+          </Button>
         </div>
       )}
 
@@ -189,29 +191,29 @@ export default function DepartmentsPage() {
                     </td>
                     <td data-label="Actions">
                       <div className="row-actions">
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-ghost"
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => setMatrixFor(department)}
                           disabled={busyId === department.id}
                         >
                           <Icon name="shield" size={14} />
                           Permissions
-                        </button>
+                        </Button>
                         {canManage && (
                           <>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-ghost"
+                            <Button
+                              variant="ghost"
+                              size="sm"
                               onClick={() => openEdit(department)}
                               disabled={busyId === department.id}
                             >
                               <Icon name="pencil" size={14} />
                               Edit
-                            </button>
-                            <button
-                              type="button"
-                              className={`btn btn-sm ${department.is_active ? 'btn-danger' : 'btn-secondary'}`}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={department.is_active ? 'danger' : 'secondary'}
                               onClick={() => toggleActive(department)}
                               disabled={busyId === department.id}
                             >
@@ -221,15 +223,15 @@ export default function DepartmentsPage() {
                                 <Icon name={department.is_active ? 'shield' : 'check'} size={14} />
                               )}
                               {department.is_active ? 'Deactivate' : 'Activate'}
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-danger"
+                            </Button>
+                            <Button
+                              variant="danger"
+                              size="sm"
                               onClick={() => remove(department)}
                               disabled={busyId === department.id}
                             >
                               Delete
-                            </button>
+                            </Button>
                           </>
                         )}
                       </div>

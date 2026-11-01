@@ -25,6 +25,10 @@ describe('NAVIGATION', () => {
         if (item.enabled === false) {
           // Placeholders must NOT pretend to be links.
           expect(item.to).toBeUndefined()
+        } else if (item.children) {
+          // A group is a toggle over its children, never a page of its own.
+          expect(item.to).toBeUndefined()
+          expect(item.children.length).toBeGreaterThan(0)
         } else {
           expect(item.to).toMatch(/^\//)
         }
@@ -67,11 +71,13 @@ describe('navForUser', () => {
   const adminWith = (permissions) => ({ role: 'admin', permissions })
 
   it('shows an administrator only the pages their permissions unlock', () => {
-    const tos = navForUser(adminWith(['users.view'])).map((i) => i.to)
-    expect(tos).toContain('/admin/users')
-    expect(tos).not.toContain('/admin/fees')
-    expect(tos).not.toContain('/admin/departments')
-    expect(tos).not.toContain('/admin/audit-logs')
+    const items = navForUser(adminWith(['users.view']))
+    expect(items.map((i) => i.to)).toContain('/admin/dashboard')
+    // Users is offered, but only as the container over the three directories.
+    expect(items.find((i) => i.label === 'Users')?.children).toHaveLength(3)
+    expect(items.map((i) => i.to)).not.toContain('/admin/fees')
+    expect(items.map((i) => i.to)).not.toContain('/admin/departments')
+    expect(items.map((i) => i.to)).not.toContain('/admin/audit-logs')
   })
 
   it('keeps Dashboard and Notifications visible for every administrator', () => {
@@ -160,7 +166,7 @@ describe('mobileItemsForRole', () => {
 
 describe('titleForPath', () => {
   it('matches the longest specific route', () => {
-    expect(titleForPath('/admin/users', 'admin')).toBe('Users')
+    expect(titleForPath('/admin/enrollment/overview', 'admin')).toBe('Overview')
     expect(titleForPath('/teacher/classes', 'teacher')).toBe('My Classes')
     expect(titleForPath('/student/requirements', 'student')).toBe(
       'My Requirements'
@@ -174,7 +180,16 @@ describe('titleForPath', () => {
   })
 
   it('matches a route prefix so nested paths still title correctly', () => {
-    expect(titleForPath('/admin/users/42/edit', 'admin')).toBe('Users')
+    expect(titleForPath('/admin/enrollment/applications/42', 'admin')).toBe(
+      'Applications'
+    )
+  })
+
+  it('falls back to Dashboard for a route that does not exist', () => {
+    // /admin/users never existed and /admin/enrollment is only a group, so the
+    // topbar will not invent a page name for either.
+    expect(titleForPath('/admin/users', 'admin')).toBe('Dashboard')
+    expect(titleForPath('/admin/enrollment', 'admin')).toBe('Dashboard')
   })
 
   it('handles the shared top-level routes', () => {
@@ -203,10 +218,11 @@ describe('titleForPath', () => {
 describe('trailForPath', () => {
   const home = (role) => ({ label: 'Dashboard', to: `/${role}/dashboard` })
 
-  it('puts the group between the dashboard and its child page', () => {
+  it('puts a group between the dashboard and its child page', () => {
     expect(trailForPath('/admin/students', 'admin')).toEqual([
       home('admin'),
-      { label: 'Users', to: '/admin/users' },
+      // Users is a container, so it names the section without a link.
+      { label: 'Users' },
       { label: 'Students', to: '/admin/students' },
     ])
   })
@@ -229,12 +245,13 @@ describe('trailForPath', () => {
   it('carries a deep route under the navigation entry it belongs to', () => {
     expect(trailForPath('/admin/enrollment/applications/123', 'admin')).toEqual([
       home('admin'),
-      { label: 'Enrollment', to: '/admin/enrollment' },
+      { label: 'Enrollment' },
       { label: 'Applications', to: '/admin/enrollment/applications' },
     ])
-    expect(trailForPath('/admin/users/42/edit', 'admin')).toEqual([
+    expect(trailForPath('/admin/students/42/edit', 'admin')).toEqual([
       home('admin'),
-      { label: 'Users', to: '/admin/users' },
+      { label: 'Users' },
+      { label: 'Students', to: '/admin/students' },
     ])
   })
 

@@ -1,6 +1,7 @@
 import { Component } from 'react'
 import { Link } from 'react-router-dom'
 import Icon from './Icon'
+import Button from '../components/Button'
 
 /**
  * Catches render-time crashes so a broken screen shows a readable message
@@ -51,13 +52,13 @@ export default class ErrorBoundary extends Component {
           </p>
           <pre className="page-error-detail">{String(error?.message || error)}</pre>
           <div className="page-error-actions">
-            <button type="button" className="btn btn-primary" onClick={this.handleReload}>
+            <Button variant="primary" onClick={this.handleReload}>
               <Icon name="refresh" size={15} />
               Reload the page
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={this.handleReset}>
+            </Button>
+            <Button variant="secondary" onClick={this.handleReset}>
               Try again
-            </button>
+            </Button>
             <Link to="/" className="btn btn-ghost">
               Go to home
             </Link>

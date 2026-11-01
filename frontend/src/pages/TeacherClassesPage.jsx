@@ -1,4 +1,5 @@
 import EmptyState from '../components/EmptyState'
+import StatusBadge from '../components/StatusBadge'
 import ErrorMessage from '../components/ErrorMessage'
 import TableSkeleton from '../components/loading/TableSkeleton'
 import PageHeader from '../components/PageHeader'
@@ -33,9 +34,10 @@ export default function TeacherClassesPage() {
         title="My Classes"
         subtitle="The subjects and sections assigned to you this school year."
         actions={
-          <span className="badge badge-blue">
-            {classes.length} {classes.length === 1 ? 'assignment' : 'assignments'}
-          </span>
+          <StatusBadge
+            tone="blue"
+            label={`${classes.length} ${classes.length === 1 ? 'assignment' : 'assignments'}`}
+          />
         }
       />
 

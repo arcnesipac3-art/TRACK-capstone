@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import api from '../../services/api'
 import { ENROLLMENT_TYPE_OPTIONS } from '../../utils/enrollment'
 import FieldError from '../../components/FieldError'
+import Button from '../../components/Button'
 
 const EMPTY = {
   period: '',
@@ -171,34 +172,35 @@ export default function RequirementFormModal({
       footer={
         <>
           {editing && !requirement.has_documents && !confirmDelete && (
-            <button
-              type="button"
-              className="btn btn-danger btn-sm"
+            <Button
+              variant="danger"
+              size="sm"
               onClick={() => setConfirmDelete(true)}
               disabled={busy}
             >
               <Icon name="trash" size={14} />
               Delete
-            </button>
+            </Button>
           )}
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={onClose}
             disabled={busy}
           >
             Cancel
-          </button>
+          </Button>
           {!confirmDelete && (
-            <button
+            <Button
               type="submit"
               form="requirement-form"
-              className="btn btn-primary btn-sm"
+              variant="primary"
+              size="sm"
               disabled={busy}
             >
               {busy && <ButtonLoader />}
               {busy ? 'Saving…' : editing ? 'Save changes' : 'Create requirement'}
-            </button>
+            </Button>
           )}
         </>
       }
@@ -210,23 +212,23 @@ export default function RequirementFormModal({
             refuse if any application already references this requirement.
           </p>
           <div className="row row-end gap-sm">
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setConfirmDelete(false)}
               disabled={busy}
             >
               Keep it
-            </button>
-            <button
-              type="button"
-              className="btn btn-danger btn-sm"
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
               onClick={remove}
               disabled={busy}
             >
               {busy && <ButtonLoader />}
               {busy ? 'Deleting…' : 'Delete requirement'}
-            </button>
+            </Button>
           </div>
         </div>
       ) : (

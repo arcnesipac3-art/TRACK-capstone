@@ -4052,6 +4052,13 @@
   .landing-nav { padding: 0 clamp(40px, 4.4vw, 84px); }
 }
 
+/* The shell's column widens on 1920+ panels (see tokens.css); the gutter
+   grows with it so a card edge is never flush against the viewport. App
+   shell only — the landing rules above stay where they are. */
+@media (min-width: 1920px) {
+  .app-content { padding: 36px 48px 64px; }
+}
+
 /* Tablet: collapsible sidebar becomes drawer */
 @media (max-width: 1023px) {
   .sidebar { display: none; }
@@ -4500,39 +4507,6 @@
 .seg-late .seg-input:checked + .seg-face::before { content: "\25F7"; }
 .seg-excused .seg-input:checked + .seg-face::before { content: "\2192"; }
 
-/* --- Attendance view tabs ------------------------------------------ */
-
-.att-tabs {
-  display: inline-flex;
-  gap: 4px;
-  padding: 4px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  align-self: flex-start;
-  max-width: 100%;
-  flex-wrap: wrap;
-}
-.att-tab {
-  padding: 7px 16px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  font: inherit;
-  font-size: 0.87rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background var(--ease), color var(--ease);
-}
-.att-tab:hover { background: var(--surface-alt); color: var(--text); }
-.att-tab:focus-visible { outline: 2px solid var(--blue-600); outline-offset: 1px; }
-.att-tab[aria-selected="true"] {
-  background: var(--navy-800);
-  color: #fff;
-}
-
 /* --- Attendance history -------------------------------------------- */
 
 .att-count {
@@ -4626,8 +4600,8 @@
 
   .att-history td.att-count { text-align: right; }
 
-  .att-tabs { width: 100%; }
-  .att-tab { flex: 1 1 auto; text-align: center; padding-left: 10px; padding-right: 10px; }
+  .tabs--pill { width: 100%; }
+  .tabs--pill .tab { flex: 1 1 auto; justify-content: center; padding-left: 10px; padding-right: 10px; }
 
   .att-pager { padding-left: 14px; padding-right: 14px; }
   .att-student-hit { padding-left: 14px; padding-right: 14px; }
@@ -4740,29 +4714,8 @@
 /* Loading buttons keep their label and show the shared indicator beside it —
    see Button.jsx and src/components/loading/loading.css. */
 
-/* ==========================================================================
-   Badges
-   ========================================================================== */
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  line-height: 1;
-  border-radius: 999px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.badge-success { background: var(--green-100); color: var(--green-700); }
-.badge-warning { background: var(--amber-100); color: var(--amber-700); }
-.badge-danger,
-.badge-error { background: var(--red-100); color: var(--red-700); }
-.badge-info { background: var(--blue-100); color: var(--blue-700); }
-.badge-secondary { background: var(--gray-100); color: var(--text-muted); }
-.badge-neutral { background: var(--gray-100); color: var(--text); }
+/* Badges live in index.css (the token layer) as `.badge` + `badge-{tone}` —
+   see src/components/StatusBadge.jsx, the only component that renders them. */
 
 /* ---------------------------------------------------------------------------
  * Fee receipt (printable)
@@ -4843,6 +4796,48 @@
   color: var(--navy-900);
   font-weight: 650;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+/* Pill variant — the floating chip strip the attendance views and the
+   registrar queue/trash switch share. Tabs stay put instead of stretching,
+   so a two-item strip reads as a control and not as a full-width bar. */
+.tabs--pill {
+  align-self: flex-start;
+  max-width: 100%;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+}
+
+.tabs--pill .tab {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-radius: var(--radius-pill);
+  font-size: 0.87rem;
+  font-weight: 600;
+}
+
+.tabs--pill .tab:hover {
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.tabs--pill .tab.active {
+  background: var(--navy-800);
+  color: #fff;
+  box-shadow: none;
+}
+
+/* Live record count sitting inside a tab label. */
+.tab-count {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---------------------------------------------------------------------------

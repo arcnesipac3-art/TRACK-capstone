@@ -5,6 +5,7 @@ import Modal from '../Modal'
 import api from '../../services/api'
 import { fieldsFor, nounFor, endpointFor } from '../../config/structure'
 import FieldError from '../FieldError'
+import Button from '../../components/Button'
 
 const EMPTY = {
   name: '',
@@ -171,18 +172,19 @@ export default function StructureFormModal({ open, kind, item, options = {}, onC
       width={520}
       footer={
         <>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} disabled={busy}>
+          <Button variant="secondary" size="sm" onClick={onClose} disabled={busy}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             form="structure-form"
-            className="btn btn-primary btn-sm"
+            variant="primary"
+            size="sm"
             disabled={busy}
           >
             {busy && <ButtonLoader />}
             {busy ? 'Saving…' : item ? 'Save changes' : `Add ${noun}`}
-          </button>
+          </Button>
         </>
       }
     >

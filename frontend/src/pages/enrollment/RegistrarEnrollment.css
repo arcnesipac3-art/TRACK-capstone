@@ -88,22 +88,6 @@
   color: var(--on-navy);
 }
 
-/* --------------------------- View tabs --------------------------- */
-
-/* Queue / Trash switch above the list — pill buttons pinned to a
-   baseline so they read as tabs, not as quick filters. */
-.enr-tabs {
-  display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--border);
-}
-
-.enr-tabs .enr-pill {
-  border-radius: 8px 8px 0 0;
-  border-bottom: none;
-  padding-bottom: 9px;
-}
-
 /* -------------------------- Clickable rows ----------------------- */
 
 /* The whole row opens the detail view for mouse users; the reference cell
@@ -149,51 +133,6 @@
   font-variant-numeric: tabular-nums;
   color: var(--text-muted);
   min-width: 36px;
-  text-align: right;
-}
-
-/* ------------------- Applications by grade level ------------------ */
-
-.grade-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.grade-row:last-child {
-  border-bottom: none;
-}
-
-.grade-row .grade-name {
-  min-width: 120px;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.grade-row .grade-track {
-  flex: 1;
-  height: 8px;
-  min-width: 40px;
-  background: var(--surface-2);
-  border-radius: 999px;
-  overflow: hidden;
-}
-
-.grade-row .grade-track > span {
-  display: block;
-  height: 100%;
-  background: var(--blue-600);
-  border-radius: 999px;
-}
-
-.grade-row .grade-total {
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  font-size: 0.88rem;
-  color: var(--navy-800);
-  min-width: 28px;
   text-align: right;
 }
 

@@ -8,6 +8,7 @@ import api from '../services/api'
 import useFetch from '../hooks/useFetch'
 import { NotificationsContext } from '../context/NotificationsContext'
 import { formatDateTime } from '../utils/format'
+import Button from '../components/Button'
 
 const TYPE_LABELS = {
   requirement_new: 'New requirement',
@@ -85,14 +86,14 @@ function NotificationsView({ data, loading, error, reload }) {
             : 'Everything is read.'
         }
         actions={
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={markAll}
             disabled={allBusy || unread === 0}
           >
             {allBusy ? 'Working…' : 'Mark all as read'}
-          </button>
+          </Button>
         }
       />
 
@@ -147,14 +148,14 @@ function NotificationsView({ data, loading, error, reload }) {
                     tone={item.is_read ? 'neutral' : 'blue'}
                   />
                   {!item.is_read && (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-secondary"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => markRead(item)}
                       disabled={busyId === item.id}
                     >
                       {busyId === item.id ? 'Saving…' : 'Mark read'}
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>

@@ -9,6 +9,7 @@ import { Link } from 'react-router-dom'
 import useFetch from '../../hooks/useFetch'
 import api from '../../services/api'
 import { formatDateTime } from '../../utils/format'
+import Button from '../../components/Button'
 import './RegistrarEnrollment.css'
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
@@ -147,15 +148,16 @@ export default function RegistrarEnrollmentsPage() {
         title="Confirmed Enrollments"
         subtitle="The permanent enrollment register created when the Registrar confirms an application."
         actions={
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm no-print"
+          <Button
+            variant="secondary"
+            size="sm"
+            className="no-print"
             onClick={list.reload}
             disabled={list.loading}
           >
             <Icon name="refresh" size={14} />
             Refresh
-          </button>
+          </Button>
         }
       />
 
@@ -227,13 +229,13 @@ export default function RegistrarEnrollmentsPage() {
             </div>
             {hasFilters && (
               <div className="filter-actions">
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={clearFilters}
                 >
                   Clear
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -273,13 +275,13 @@ export default function RegistrarEnrollmentsPage() {
             <div className="alert alert-error" role="alert">
               <Icon name="info" size={17} />
               <span className="grow">{list.error.message}</span>
-              <button
-                type="button"
-                className="btn btn-sm btn-secondary"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={list.reload}
               >
                 Try again
-              </button>
+              </Button>
             </div>
           </div>
         )}

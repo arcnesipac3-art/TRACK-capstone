@@ -9,7 +9,9 @@ import TableSkeleton from '../components/loading/TableSkeleton'
 import Modal from '../components/Modal'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
+import Tabs from '../components/Tabs'
 import AttendanceSummaryCard from '../components/dashboard/AttendanceSummaryCard'
+import Card from '../components/dashboard/Card'
 import api from '../services/api'
 import useFetch from '../hooks/useFetch'
 import {
@@ -18,6 +20,7 @@ import {
   formatRelative,
 } from '../utils/format'
 import { attendanceSummary } from '../utils/stats'
+import Button from '../components/Button'
 
 const STATUSES = ['present', 'absent', 'late', 'excused']
 
@@ -80,15 +83,13 @@ function RecordsView({ params, enabled = true }) {
 
   if (loading && !data) {
     return (
-      <section className="card">
-        <div className="card-body">
-          <TableSkeleton
-            headers={['Date', 'Class', 'Subject', 'Status', 'Notes']}
-            rows={6}
-            label="Loading attendance…"
-          />
-        </div>
-      </section>
+      <Card>
+        <TableSkeleton
+          headers={['Date', 'Class', 'Subject', 'Status', 'Notes']}
+          rows={6}
+          label="Loading attendance…"
+        />
+      </Card>
     )
   }
   if (error) {
@@ -106,85 +107,83 @@ function RecordsView({ params, enabled = true }) {
 
   return (
     <div className="two-col">
-      <section className="card">
-        {/* Filter controls */}
-        <div className="card-header" style={{ borderBottom: '1px solid var(--border)' }}>
-          <div className="stack stack-xs" style={{ width: '100%' }}>
-            <h3 style={{ margin: 0, fontSize: '1rem' }}>Filter Records</h3>
-            <div className="row row-wrap" style={{ gap: '8px' }}>
-              <div className="field" style={{ margin: 0, minWidth: '140px' }}>
-                <label htmlFor="start-date" className="sr-only">From date</label>
-                <input
-                  id="start-date"
-                  type="date"
-                  className="input input-sm"
-                  placeholder="From date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  aria-label="Filter from date"
-                />
-              </div>
-              <div className="field" style={{ margin: 0, minWidth: '140px' }}>
-                <label htmlFor="end-date" className="sr-only">To date</label>
-                <input
-                  id="end-date"
-                  type="date"
-                  className="input input-sm"
-                  placeholder="To date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  aria-label="Filter to date"
-                />
-              </div>
-              <div className="field" style={{ margin: 0, minWidth: '140px' }}>
-                <label htmlFor="status-filter" className="sr-only">Status</label>
-                <select
-                  id="status-filter"
-                  className="select select-sm"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  aria-label="Filter by status"
-                >
-                  <option value="">All statuses</option>
-                  <option value="present">Present</option>
-                  <option value="absent">Absent</option>
-                  <option value="late">Late</option>
-                  <option value="excused">Excused</option>
-                </select>
-              </div>
-              {hasFilters && (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => {
-                    setStartDate('')
-                    setEndDate('')
-                    setStatusFilter('')
-                  }}
-                  title="Clear filters"
-                >
-                  <Icon name="close" size={15} />
-                  Clear
-                </button>
-              )}
-            </div>
-            {hasFilters && (
-              <p className="subtle" style={{ fontSize: '0.85rem', margin: 0 }}>
-                Showing {records.length} of {totalRecords} records
-              </p>
-            )}
-          </div>
-        </div>
-
-        {records.length === 0 ? (
-          <div className="card-body">
-            <EmptyState
-              icon="calendar"
-              title={hasFilters ? "No records match filters" : "No attendance records"}
-              message={hasFilters ? "Try adjusting your filters." : "Nothing has been recorded for this selection yet."}
+      <div className="stack stack-md">
+        <div className="filter-bar">
+          <div className="field grow">
+            <label htmlFor="att-from">From</label>
+            <input
+              id="att-from"
+              type="date"
+              className="input"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
             />
           </div>
-        ) : (
+          <div className="field grow">
+            <label htmlFor="att-to">To</label>
+            <input
+              id="att-to"
+              type="date"
+              className="input"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+            />
+          </div>
+          <div className="field grow">
+            <label htmlFor="att-status">Status</label>
+            <select
+              id="att-status"
+              className="select"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">All statuses</option>
+              <option value="present">Present</option>
+              <option value="absent">Absent</option>
+              <option value="late">Late</option>
+              <option value="excused">Excused</option>
+            </select>
+          </div>
+          {hasFilters && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setStartDate('')
+                setEndDate('')
+                setStatusFilter('')
+              }}
+            >
+              <Icon name="undo" size={14} />
+              Clear
+            </Button>
+          )}
+        </div>
+
+        <Card
+          title="Attendance records"
+          action={
+            hasFilters ? (
+              <span className="subtle">
+                Showing {records.length} of {totalRecords} records
+              </span>
+            ) : null
+          }
+          empty={
+            records.length === 0 ? (
+              <EmptyState
+                icon="calendar"
+                title={hasFilters ? 'No records match filters' : 'No attendance records'}
+                message={
+                  hasFilters
+                    ? 'Try adjusting your filters.'
+                    : 'Nothing has been recorded for this selection yet.'
+                }
+              />
+            ) : null
+          }
+          flush={records.length > 0}
+        >
           <div className="table-wrap">
             <table className="table responsive-table">
               <thead>
@@ -218,14 +217,19 @@ function RecordsView({ params, enabled = true }) {
               </tbody>
             </table>
           </div>
+        </Card>
+
+        {/* The table above is capped; the caveat belongs beside it, not under
+            the summary the cap has nothing to do with. */}
+        {records.length > 100 && (
+          <p className="subtle">
+            Showing the first 100 of {records.length} records. Use filters to narrow results.
+          </p>
         )}
-      </section>
+      </div>
 
       <div className="stack stack-md">
         <AttendanceSummaryCard attendance={summary} />
-        {records.length > 100 && (
-          <p className="subtle">Showing the first 100 of {records.length} records. Use filters to narrow results.</p>
-        )}
       </div>
     </div>
   )
@@ -257,22 +261,22 @@ function ConfirmDialog({
       width={460}
       footer={
         <>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={onCancel}
             disabled={busy}
           >
             Cancel
-          </button>
-          <button
-            type="button"
-            className={`btn btn-sm ${danger ? 'btn-danger' : 'btn-primary'}`}
+          </Button>
+          <Button
+            size="sm"
+            variant={danger ? 'danger' : 'primary'}
             onClick={onConfirm}
             disabled={busy}
           >
             {confirmLabel}
-          </button>
+          </Button>
         </>
       }
     >
@@ -342,32 +346,32 @@ function EditSessionModal({ session, onClose, onUpdated, onDeleted }) {
       dismissible={!busy}
       footer={
         <>
-          <button
-            type="button"
-            className={`btn btn-sm ${confirmDelete ? 'btn-danger' : 'btn-ghost'}`}
+          <Button
+            size="sm"
+            variant={confirmDelete ? 'danger' : 'ghost'}
             onClick={handleDelete}
             disabled={busy}
           >
             {confirmDelete ? 'Confirm delete?' : 'Delete session'}
-          </button>
+          </Button>
           <span className="grow" />
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={onClose}
             disabled={busy}
           >
             Cancel
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
             onClick={submit}
             disabled={busy}
           >
             {busy && <ButtonLoader />}
             {busy ? 'Saving…' : 'Save changes'}
-          </button>
+          </Button>
         </>
       }
     >
@@ -483,9 +487,9 @@ function NotesDialog({ student, value, onApply, onClose, busy }) {
       width={480}
       footer={
         <>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => {
               setText('')
               onApply('')
@@ -493,24 +497,24 @@ function NotesDialog({ student, value, onApply, onClose, busy }) {
             disabled={busy}
           >
             Clear note
-          </button>
+          </Button>
           <span className="grow" />
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={onClose}
             disabled={busy}
           >
             Cancel
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
             onClick={() => onApply(text.trim())}
             disabled={busy}
           >
             Apply
-          </button>
+          </Button>
         </>
       }
     >
@@ -771,16 +775,16 @@ function AttendanceSheet({
 
   const headerLeft = (
     <div className="row row-wrap" style={{ gap: 12, minWidth: 0 }}>
-      <button
-        type="button"
-        className="btn btn-secondary btn-sm"
+      <Button
+        variant="secondary"
+        size="sm"
         onClick={requestBack}
         disabled={saving}
         aria-label={`Back to ${backLabel}`}
       >
         <Icon name="arrowLeft" size={15} />
         {backLabel === 'Attendance sessions' ? 'Sessions' : backLabel}
-      </button>
+      </Button>
       <div className="stack stack-xs" style={{ minWidth: 0 }}>
         <h2>{title}</h2>
         <span className="subtle text-truncate">
@@ -793,11 +797,7 @@ function AttendanceSheet({
 
   const headerRight = (
     <div className="row row-wrap" style={{ gap: 10 }}>
-      {session.notes && (
-        <span className="badge badge-neutral" title={session.notes}>
-          Session note
-        </span>
-      )}
+      {session.notes && <StatusBadge tone="neutral" label="Session note" title={session.notes} />}
       <span className="subtle">Created {formatRelative(session.created_at)}</span>
     </div>
   )
@@ -891,11 +891,11 @@ function AttendanceSheet({
       <div className="att-toolbar">
         <div className="att-summary" role="group" aria-label="Attendance summary">
           <span className="att-total">{roster.length} students</span>
-          <span className="badge badge-green">{counts.present} Present</span>
-          <span className="badge badge-red">{counts.absent} Absent</span>
-          <span className="badge badge-amber">{counts.late} Late</span>
-          <span className="badge badge-blue">{counts.excused} Excused</span>
-          <span className="badge badge-neutral">{counts.unmarked} Unmarked</span>
+          <StatusBadge tone="green" label={`${counts.present} Present`} />
+          <StatusBadge tone="red" label={`${counts.absent} Absent`} />
+          <StatusBadge tone="amber" label={`${counts.late} Late`} />
+          <StatusBadge tone="blue" label={`${counts.excused} Excused`} />
+          <StatusBadge tone="neutral" label={`${counts.unmarked} Unmarked`} />
           {query.trim() && (
             <span className="subtle">
               · showing {filtered.length} of {roster.length}
@@ -919,15 +919,15 @@ function AttendanceSheet({
               disabled={saving}
             />
           </div>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={markAllPresent}
             disabled={saving}
             title={`Mark all ${roster.length} students present`}
           >
             Mark all present
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -1020,16 +1020,17 @@ function AttendanceSheet({
                       )}
                     </td>
                     <td data-label="Notes" className="att-notes">
-                      <button
-                        type="button"
-                        className={`btn btn-ghost btn-xs att-note-btn${note ? ' has-note' : ''}`}
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        className={`att-note-btn${note ? ' has-note' : ''}`}
                         onClick={() => setNotesFor(student)}
                         disabled={saving}
                         title={note ? `Edit note: ${note}` : `Add a note for ${name}`}
                       >
                         <Icon name="pencil" size={13} />
                         <span className="att-note-text">{note || 'Add note'}</span>
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 )
@@ -1047,9 +1048,10 @@ function AttendanceSheet({
               Saving…
             </span>
           ) : isDirtyState ? (
-            <span className="badge badge-amber">
-              {dirtyCount} unsaved change{dirtyCount === 1 ? '' : 's'}
-            </span>
+            <StatusBadge
+              tone="amber"
+              label={`${dirtyCount} unsaved change${dirtyCount === 1 ? '' : 's'}`}
+            />
           ) : (
             <span className="att-saved">
               <Icon name="check" size={14} />
@@ -1058,23 +1060,23 @@ function AttendanceSheet({
           )}
         </div>
         <div className="row row-wrap" style={{ gap: 8 }}>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={() => setConfirmDiscard(true)}
             disabled={!isDirtyState || saving}
           >
             Discard
-          </button>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
             onClick={save}
             disabled={!isDirtyState || saving}
           >
             {saving && <ButtonLoader />}
             Save attendance
-          </button>
+          </Button>
         </div>
       </footer>
 
@@ -1128,7 +1130,7 @@ function CompletionCell({ completion }) {
       title={`${recordedCount} of ${totalCount} students marked`}
     >
       {isComplete ? (
-        <span className="badge badge-green">Complete</span>
+        <StatusBadge tone="green" label="Complete" />
       ) : (
         <span className="att-bar" aria-hidden="true">
           <span style={{ width: `${percentage}%` }} />
@@ -1169,28 +1171,12 @@ function completionInfo(session, assignments, students) {
 }
 
 /**
- * Pill tablist used to switch the teacher between the two attendance views.
- * Follows the same chip pattern as the parent child selector.
+ * Pill tablist used to switch the teacher between the attendance views.
+ * `idPrefix="att"` keeps the `att-tab-*` / `att-panel-*` ids the panels
+ * below already reference.
  */
-function ViewTabs({ value, onChange, views, label }) {
-  return (
-    <div className="att-tabs" role="tablist" aria-label={label}>
-      {views.map((view) => (
-        <button
-          key={view.id}
-          type="button"
-          role="tab"
-          id={`att-tab-${view.id}`}
-          aria-selected={value === view.id}
-          aria-controls={`att-panel-${view.id}`}
-          className="att-tab"
-          onClick={() => onChange(view.id)}
-        >
-          {view.label}
-        </button>
-      ))}
-    </div>
-  )
+function ViewTabs(props) {
+  return <Tabs idPrefix="att" className="tabs--pill" {...props} />
 }
 
 const HISTORY_PAGE_SIZE = 15
@@ -1310,9 +1296,9 @@ function SessionHistory({ sessions, assignments, students, loading, error, onRet
         </div>
 
         {hasFilters && (
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => {
               setFrom('')
               setTo('')
@@ -1324,7 +1310,7 @@ function SessionHistory({ sessions, assignments, students, loading, error, onRet
           >
             <Icon name="close" size={14} />
             Clear
-          </button>
+          </Button>
         )}
       </div>
 
@@ -1432,14 +1418,14 @@ function SessionHistory({ sessions, assignments, students, loading, error, onRet
                     </td>
                     <td data-label="Details">
                       <div className="row-actions">
-                        <button
-                          type="button"
-                          className="btn btn-secondary btn-sm"
+                        <Button
+                          variant="secondary"
+                          size="sm"
                           onClick={() => onOpen(session)}
                           aria-label={`View session details for ${session.section_name} on ${formatDate(session.date)}`}
                         >
                           Details
-                        </button>
+                        </Button>
                       </div>
                     </td>
                   </tr>
@@ -1458,25 +1444,25 @@ function SessionHistory({ sessions, assignments, students, loading, error, onRet
           </span>
           {pageCount > 1 && (
             <div className="row" style={{ gap: 8 }}>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
+              <Button
+                variant="secondary"
+                size="sm"
                 disabled={current <= 1}
                 onClick={() => setPage(current - 1)}
               >
                 <Icon name="arrowLeft" size={14} />
                 Previous
-              </button>
+              </Button>
               <span className="subtle">Page {current} of {pageCount}</span>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
+              <Button
+                variant="secondary"
+                size="sm"
                 disabled={current >= pageCount}
                 onClick={() => setPage(current + 1)}
               >
                 Next
                 <Icon name="arrowRight" size={14} />
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -1634,9 +1620,9 @@ function StudentHistory({ students, assignments, sessions, loading, error, onRet
             {selected.lrn || selected.user?.username || '—'}
           </span>
         </div>
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm"
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => {
             setSelectedId(null)
             setQuery('')
@@ -1644,7 +1630,7 @@ function StudentHistory({ students, assignments, sessions, loading, error, onRet
         >
           <Icon name="arrowLeft" size={15} />
           Another student
-        </button>
+        </Button>
       </header>
 
       <div className="att-toolbar">
@@ -1652,15 +1638,14 @@ function StudentHistory({ students, assignments, sessions, loading, error, onRet
           <span className="att-total">
             {summary.total_records} record{summary.total_records === 1 ? '' : 's'}
           </span>
-          <span className="badge badge-green">{summary.by_status.present} Present</span>
-          <span className="badge badge-red">{summary.by_status.absent} Absent</span>
-          <span className="badge badge-amber">{summary.by_status.late} Late</span>
-          <span className="badge badge-blue">{summary.by_status.excused} Excused</span>
-          <span className="badge badge-neutral">
-            {summary.present_rate !== null
-              ? `${summary.present_rate}% present`
-              : 'No records'}
-          </span>
+          <StatusBadge tone="green" label={`${summary.by_status.present} Present`} />
+          <StatusBadge tone="red" label={`${summary.by_status.absent} Absent`} />
+          <StatusBadge tone="amber" label={`${summary.by_status.late} Late`} />
+          <StatusBadge tone="blue" label={`${summary.by_status.excused} Excused`} />
+          <StatusBadge
+            tone="neutral"
+            label={summary.present_rate !== null ? `${summary.present_rate}% present` : 'No records'}
+          />
         </div>
       </div>
 
@@ -1739,14 +1724,14 @@ function StudentHistory({ students, assignments, sessions, loading, error, onRet
                           {record.notes || <span className="subtle">—</span>}
                         </span>
                         {session && (
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-xs"
+                          <Button
+                            variant="ghost"
+                            size="xs"
                             onClick={() => onOpenSession(session)}
                             aria-label={`View session of ${formatDate(record.session_detail?.date)}`}
                           >
                             View session
-                          </button>
+                          </Button>
                         )}
                       </span>
                     </td>
@@ -1926,7 +1911,7 @@ function TeacherAttendance() {
         value={view}
         onChange={setView}
         label="Attendance view"
-        views={[
+        tabs={[
           { id: 'take', label: 'Take attendance' },
           { id: 'history', label: 'Attendance history' },
         ]}
@@ -2013,9 +1998,9 @@ function TeacherAttendance() {
           </div>
 
           {hasFilters && (
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => {
                 setFilterClass('')
                 setFilterDate('')
@@ -2024,7 +2009,7 @@ function TeacherAttendance() {
             >
               <Icon name="close" size={14} />
               Clear
-            </button>
+            </Button>
           )}
 
           <span className="subtle att-filter-meta">
@@ -2131,7 +2116,7 @@ function TeacherAttendance() {
                           tone={
                             session.status === 'completed' ? 'green' :
                             session.status === 'in_progress' ? 'blue' :
-                            'gray'
+                            'neutral'
                           }
                         />
                       </td>
@@ -2149,23 +2134,23 @@ function TeacherAttendance() {
                       </td>
                       <td data-label="Actions">
                         <div className="row-actions">
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-xs"
+                          <Button
+                            variant="ghost"
+                            size="xs"
                             onClick={() => setEditingSession(session)}
                             title="Edit session"
                             aria-label={`Edit session on ${formatDate(session.date)}`}
                           >
                             <Icon name="pencil" size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-primary btn-sm"
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="sm"
                             onClick={() => openSheet(session, 'take')}
                             aria-label={`Take attendance for ${session.section_name}`}
                           >
                             Take attendance
-                          </button>
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -2226,7 +2211,7 @@ function TeacherAttendance() {
                       <td data-label="Status">
                         <StatusBadge
                           label={session.status_display || 'Not Started'}
-                          tone="gray"
+                          tone="neutral"
                         />
                       </td>
                       <td data-label="Notes" className="att-notes">
@@ -2240,23 +2225,23 @@ function TeacherAttendance() {
                       </td>
                       <td data-label="Actions">
                         <div className="row-actions">
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-xs"
+                          <Button
+                            variant="ghost"
+                            size="xs"
                             onClick={() => setEditingSession(session)}
                             title="Edit session"
                             aria-label={`Edit session on ${formatDate(session.date)}`}
                           >
                             <Icon name="pencil" size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
                             onClick={() => openSheet(session, 'take')}
                             aria-label={`View session for ${session.section_name} on ${formatDate(session.date)}`}
                           >
                             View
-                          </button>
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -2320,7 +2305,7 @@ function TeacherAttendance() {
                           tone={
                             session.status === 'completed' ? 'green' :
                             session.status === 'in_progress' ? 'blue' :
-                            'gray'
+                            'neutral'
                           }
                         />
                       </td>
@@ -2338,14 +2323,14 @@ function TeacherAttendance() {
                       </td>
                       <td data-label="Actions">
                         <div className="row-actions">
-                          <button
-                            type="button"
-                            className="btn btn-secondary btn-sm"
+                          <Button
+                            variant="secondary"
+                            size="sm"
                             onClick={() => openSheet(session, 'take')}
                             aria-label={`View session details for ${session.section_name} on ${formatDate(session.date)}`}
                           >
                             Details
-                          </button>
+                          </Button>
                         </div>
                       </td>
                     </tr>
@@ -2376,7 +2361,7 @@ function TeacherAttendance() {
             value={historyTab}
             onChange={setHistoryTab}
             label="Attendance history sections"
-            views={[
+            tabs={[
               { id: 'sessions', label: 'Sessions' },
               { id: 'students', label: 'Students' },
             ]}
@@ -2448,21 +2433,12 @@ function ParentAttendance() {
         </div>
         <div className="child-selector" aria-hidden="true">
           {[110, 132, 96].map((w) => (
-            <span
-              key={w}
-              className="skeleton"
-              style={{ width: w, height: 22, borderRadius: 999 }}
-            />
+            <span key={w} className="skeleton" style={{ width: w }} />
           ))}
         </div>
-        <section className="card" aria-hidden="true">
-          <div className="card-body">
-            <TableSkeleton
-              headers={['Date', 'Class', 'Subject', 'Status', 'Notes']}
-              rows={5}
-            />
-          </div>
-        </section>
+        <Card>
+          <TableSkeleton headers={['Date', 'Class', 'Subject', 'Status', 'Notes']} rows={5} />
+        </Card>
       </div>
     )
   }
@@ -2473,13 +2449,15 @@ function ParentAttendance() {
   }
   if (children.length === 0) {
     return (
-      <section className="card card-pad">
-        <EmptyState
-          icon="users"
-          title="No linked children"
-          message="Your account is not connected to a student record yet."
-        />
-      </section>
+      <Card
+        empty={
+          <EmptyState
+            icon="users"
+            title="No linked children"
+            message="Your account is not connected to a student record yet."
+          />
+        }
+      />
     )
   }
 

@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { api, ApiError } from '../services/api'
 import PageHeader from '../components/PageHeader'
 import StatCard from '../components/StatCard'
+import StatusBadge from '../components/StatusBadge'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
 import CardSkeleton from '../components/loading/CardSkeleton'
@@ -598,15 +599,10 @@ export default function AdminFeesPage() {
                   <td data-label="Collected">{formatCurrency(cat.collected)}</td>
                   <td data-label="Outstanding">{formatCurrency(cat.outstanding)}</td>
                   <td data-label="Rate">
-                    <span
-                      className={`badge ${
-                        cat.assessed > 0 && cat.collected / cat.assessed > 0.8
-                          ? 'badge-success'
-                          : 'badge-warning'
-                      }`}
-                    >
-                      {cat.assessed > 0 ? Math.round((cat.collected / cat.assessed) * 100) : 0}%
-                    </span>
+                    <StatusBadge
+                      tone={cat.assessed > 0 && cat.collected / cat.assessed > 0.8 ? 'green' : 'amber'}
+                      label={`${cat.assessed > 0 ? Math.round((cat.collected / cat.assessed) * 100) : 0}%`}
+                    />
                   </td>
                 </tr>
               ))}
@@ -655,7 +651,7 @@ export default function AdminFeesPage() {
                   <td data-label="Amount">{formatCurrency(p.amount)}</td>
                   <td data-label="Date">{formatDate(p.payment_date)}</td>
                   <td data-label="Method">
-                    <span className="badge">{p.payment_method}</span>
+                    <StatusBadge tone="neutral" label={p.payment_method} />
                   </td>
                   <td data-label="Receipt">
                     <code>{p.receipt_number}</code>
@@ -710,34 +706,31 @@ export default function AdminFeesPage() {
                   </small>
                 </td>
                 <td data-label="Type">
-                  <span
-                    className={`badge ${cat.fee_type === 'compulsory' ? 'badge-warning' : 'badge-info'}`}
-                  >
-                    {cat.fee_type === 'compulsory' ? 'Compulsory' : 'Voluntary'}
-                  </span>
+                  <StatusBadge
+                    tone={cat.fee_type === 'compulsory' ? 'amber' : 'blue'}
+                    label={cat.fee_type === 'compulsory' ? 'Compulsory' : 'Voluntary'}
+                  />
                 </td>
                 <td data-label="Status">
-                  <span className={`badge ${cat.is_active ? 'badge-success' : 'badge-secondary'}`}>
-                    {cat.is_active ? 'Active' : 'Inactive'}
-                  </span>
+                  <StatusBadge tone={cat.is_active ? 'green' : 'neutral'} label={cat.is_active ? 'Active' : 'Inactive'} />
                 </td>
                 <td data-label="Assessments">{cat.assessment_count}</td>
                 <td data-label="Actions">
                   <div className="row-actions">
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-ghost"
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       onClick={() => navigate(`/admin/fees/categories/${cat.id}`)}
                     >
                       <Icon name="pencil" size={14} /> Edit
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-danger"
+                    </Button>
+                    <Button
+                      variant="danger"
+                      size="sm"
                       onClick={() => handleDeleteCategory(cat.id)}
                     >
                       <Icon name="trash" size={14} /> Delete
-                    </button>
+                    </Button>
                   </div>
                 </td>
               </tr>
@@ -839,39 +832,32 @@ export default function AdminFeesPage() {
                   <td data-label="Due Date">{formatDate(a.due_date)}</td>
                   <td data-label="Scope">
                     <div className="row row-wrap" style={{ gap: 6 }}>
-                      {a.grade_level_name && <span className="badge badge-info">{a.grade_level_name}</span>}
-                      {a.section_name && <span className="badge badge-secondary">{a.section_name}</span>}
-                      {a.student_name && <span className="badge badge-blue">{a.student_name}</span>}
+                      {a.grade_level_name && <StatusBadge tone="blue" label={a.grade_level_name} />}
+                      {a.section_name && <StatusBadge tone="neutral" label={a.section_name} />}
+                      {a.student_name && <StatusBadge tone="blue" label={a.student_name} />}
                       {!a.grade_level_name && !a.section_name && !a.student_name && (
-                        <span className="badge badge-secondary">School-wide</span>
+                        <StatusBadge tone="neutral" label="School-wide" />
                       )}
                     </div>
                   </td>
                   <td data-label="Status">
-                    <span
-                      className={`badge ${
-                        a.status === 'published'
-                          ? 'badge-success'
-                          : a.status === 'archived'
-                            ? 'badge-secondary'
-                            : 'badge-warning'
-                      }`}
-                    >
-                      {a.status}
-                    </span>
+                    <StatusBadge
+                      tone={a.status === 'published' ? 'green' : a.status === 'archived' ? 'neutral' : 'amber'}
+                      label={a.status}
+                    />
                   </td>
                   <td data-label="Collected / Assessed">
                     {formatCurrency(a.total_collected)} / {formatCurrency(a.total_assessed)}
                   </td>
                   <td data-label="Actions">
                     <div className="row-actions">
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-ghost"
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => navigate(`/admin/fees/assessments/${a.id}`)}
                       >
                         <Icon name="pencil" size={14} /> Edit
-                      </button>
+                      </Button>
                       {a.status === 'published' && (
                         <Button
                           variant="primary"
@@ -985,55 +971,54 @@ export default function AdminFeesPage() {
                   <td data-label="Amount">{formatCurrency(p.amount)}</td>
                   <td data-label="Date">{formatDate(p.payment_date)}</td>
                   <td data-label="Method">
-                    <span className="badge">{p.payment_method}</span>
+                    <StatusBadge tone="neutral" label={p.payment_method} />
                   </td>
                   <td data-label="Receipt">
                     <code>{p.receipt_number}</code>
                   </td>
                   <td data-label="Status">
-                    <span
-                      className={`badge ${
+                    <StatusBadge
+                      tone={
                         p.status === 'completed'
-                          ? 'badge-success'
+                          ? 'green'
                           : p.status === 'voided'
-                            ? 'badge-error'
+                            ? 'red'
                             : p.status === 'refunded'
-                              ? 'badge-warning'
-                              : 'badge-secondary'
-                      }`}
-                    >
-                      {p.status}
-                    </span>
+                              ? 'amber'
+                              : 'neutral'
+                      }
+                      label={p.status}
+                    />
                   </td>
                   <td data-label="Recorded By">{p.recorded_by_name || '—'}</td>
                   <td data-label="Actions">
                     <div className="row-actions">
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-ghost"
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => openReceipt(p.id)}
                         title="View receipt"
                       >
                         <Icon name="eye" size={14} /> Receipt
-                      </button>
+                      </Button>
                       {p.status === 'completed' && (
                         <>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-ghost"
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => openVoid(p, 'voided')}
                             title="Void payment"
                           >
                             <Icon name="close" size={14} /> Void
-                          </button>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-ghost"
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
                             onClick={() => openVoid(p, 'refunded')}
                             title="Refund payment"
                           >
                             <Icon name="undo" size={14} /> Refund
-                          </button>
+                          </Button>
                         </>
                       )}
                     </div>
@@ -1144,11 +1129,10 @@ export default function AdminFeesPage() {
                   <td data-label="Collected">{formatCurrency(r.total_collected)}</td>
                   <td data-label="Outstanding">{formatCurrency(r.total_outstanding)}</td>
                   <td data-label="Rate">
-                    <span
-                      className={`badge ${r.collection_rate > 80 ? 'badge-success' : 'badge-warning'}`}
-                    >
-                      {r.collection_rate}%
-                    </span>
+                    <StatusBadge
+                      tone={r.collection_rate > 80 ? 'green' : 'amber'}
+                      label={`${r.collection_rate}%`}
+                    />
                   </td>
                   <td data-label="Paid / Partial / Unpaid">
                     {r.paid_count} / {r.partial_count} / {r.unpaid_count}
@@ -1213,17 +1197,16 @@ export default function AdminFeesPage() {
                   <td data-label="Outstanding">{formatCurrency(r.outstanding)}</td>
                   <td data-label="Due Date">{formatDate(r.due_date)}</td>
                   <td data-label="Status">
-                    <span
-                      className={`badge ${
+                    <StatusBadge
+                      tone={
                         r.payment_status === 'paid'
-                          ? 'badge-success'
+                          ? 'green'
                           : r.payment_status === 'partial'
-                            ? 'badge-warning'
-                            : 'badge-error'
-                      }`}
-                    >
-                      {r.payment_status}
-                    </span>
+                            ? 'amber'
+                            : 'red'
+                      }
+                      label={r.payment_status}
+                    />
                   </td>
                 </tr>
               ))}
@@ -1490,7 +1473,7 @@ export default function AdminFeesPage() {
                   <tr>
                     <td>Status</td>
                     <td>
-                      <span className="badge badge-warning">{receipt.status}</span>
+                      <StatusBadge tone="amber" label={receipt.status} />
                     </td>
                   </tr>
                 )}

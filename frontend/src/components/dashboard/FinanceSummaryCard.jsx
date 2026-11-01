@@ -1,5 +1,6 @@
 import Card from './Card'
 import EmptyState from '../EmptyState'
+import StatusBadge from '../StatusBadge'
 import { formatCurrency } from '../../utils/format'
 import './FinanceSummaryCard.css'
 
@@ -24,12 +25,11 @@ export default function FinanceSummaryCard({ fees, action }) {
       action={
         <span className="row row-wrap" style={{ gap: 6 }}>
           {rate !== null && (
-            <span
-              className={`badge ${rate === 100 ? 'badge-green' : 'badge-blue'}`}
+            <StatusBadge
+              tone={rate === 100 ? 'green' : 'blue'}
+              label={`${rate}% collected`}
               title="Share of assessed fees already collected"
-            >
-              {rate}% collected
-            </span>
+            />
           )}
           {action}
         </span>

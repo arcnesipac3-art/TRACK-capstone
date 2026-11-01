@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import Logo from '../Logo'
 import ButtonLoader from './ButtonLoader'
 import './loading.css'
+import Button from '../../components/Button'
 
 /**
  * Recovery screen shown when restoring the session fails for a reason other
@@ -32,16 +33,15 @@ export default function BootError({ message, onRetry }) {
         <h1>We couldn&rsquo;t restore your session</h1>
         <p>{message || 'TRACK could not reach the server. Check your connection and try again.'}</p>
         <div className="boot-error-actions">
-          <button
-            type="button"
-            className="btn btn-primary"
+          <Button
+            variant="primary"
             onClick={handleRetry}
             disabled={retrying}
             aria-busy={retrying}
           >
             {retrying && <ButtonLoader />}
             {retrying ? 'Trying again…' : 'Try again'}
-          </button>
+          </Button>
           <Link to="/login" className="btn btn-secondary">
             Go to sign in
           </Link>

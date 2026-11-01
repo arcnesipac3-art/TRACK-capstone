@@ -276,3 +276,20 @@
     padding: 0 16px;
   }
 }
+
+/* --- Wide desktop ---------------------------------------------------------
+   The app shell's column grows on 1680px+ panels (see tokens.css), which is
+   what dashboards and tables want. A form does not: two inputs on one row
+   would stretch to 800px each. The wizard keeps a readable measure and is
+   centred in the wider lane instead.
+
+   `.enr-public-container` already caps the account-less flow at 960px, so
+   this never binds on the public /enroll screens — only inside `.app-shell`.
+   -------------------------------------------------------------------------- */
+@media (min-width: 1680px) {
+  .enr-wizard {
+    width: 100%;
+    max-width: min(1240px, 100%);
+    margin-inline: auto;
+  }
+}

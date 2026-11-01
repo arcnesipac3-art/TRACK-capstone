@@ -1,5 +1,6 @@
 import ButtonLoader from '../components/loading/ButtonLoader'
 import { useState } from 'react'
+import Card from '../components/dashboard/Card'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
 import Icon from '../components/Icon'
@@ -9,6 +10,7 @@ import StatusBadge from '../components/StatusBadge'
 import TableSkeleton from '../components/loading/TableSkeleton'
 import api from '../services/api'
 import useFetch from '../hooks/useFetch'
+import Button from '../components/Button'
 import {
   formatDateTime,
   formatRelative,
@@ -34,14 +36,16 @@ function StudentSubmissions() {
   const items = data || []
 
   if (loading && !data) {
+    // The table placeholder already owns a `.table-wrap`, so the card stays
+    // flush around it exactly as the finished list does.
     return (
-      <section className="card">
+      <Card flush>
         <TableSkeleton
           headers={['Requirement', 'Submitted', 'Status', 'Teacher feedback', 'Work']}
           rows={5}
           label="Loading your submissions…"
         />
-      </section>
+      </Card>
     )
   }
   if (error) {
@@ -55,18 +59,20 @@ function StudentSubmissions() {
   }
   if (items.length === 0) {
     return (
-      <section className="card card-pad">
-        <EmptyState
-          icon="file"
-          title="No submissions yet"
-          message="Work you submit from My Requirements will be listed here with its verification status."
-        />
-      </section>
+      <Card
+        empty={
+          <EmptyState
+            icon="file"
+            title="No submissions yet"
+            message="Work you submit from My Requirements will be listed here with its verification status."
+          />
+        }
+      />
     )
   }
 
   return (
-    <section className="card">
+    <Card flush>
       <div className="table-wrap">
         <table className="table responsive-table">
           <thead>
@@ -118,7 +124,7 @@ function StudentSubmissions() {
           </tbody>
         </table>
       </div>
-    </section>
+    </Card>
   )
 }
 
@@ -175,9 +181,9 @@ function ReviewRow({ submission, onDone }) {
           />
           {submission.status === 'submitted' && (
             <>
-              <button
-                type="button"
-                className="btn btn-sm btn-primary"
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={() => act('verified')}
                 disabled={busy}
               >
@@ -185,16 +191,16 @@ function ReviewRow({ submission, onDone }) {
                   <ButtonLoader />
                 )}
                 Verify
-              </button>
-              <button
-                type="button"
-                className="btn btn-sm btn-secondary"
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setMode(mode === 'return' ? null : 'return')}
                 disabled={busy}
                 aria-expanded={mode === 'return'}
               >
                 Return
-              </button>
+              </Button>
             </>
           )}
         </div>
@@ -223,17 +229,17 @@ function ReviewRow({ submission, onDone }) {
             </div>
           )}
           <div className="row row-end">
-            <button
-              type="button"
-              className="btn btn-sm btn-ghost"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setMode(null)}
               disabled={busy}
             >
               Cancel
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm btn-danger"
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
               onClick={() => {
                 if (!feedback.trim()) {
                   setError('Add feedback before returning the work.')
@@ -244,7 +250,7 @@ function ReviewRow({ submission, onDone }) {
               disabled={busy}
             >
               Return for revision
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -286,9 +292,7 @@ function TeacherReview() {
             ))}
           </select>
         </div>
-        <span className="badge badge-amber" style={{ marginBottom: 2 }}>
-          {pending} awaiting verification
-        </span>
+        <StatusBadge tone="amber" label={`${pending} awaiting verification`} />
       </div>
 
       <section className="card">

@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import ChildSelector from '../components/ChildSelector'
+import Card from '../components/dashboard/Card'
+import CardSkeleton from '../components/loading/CardSkeleton'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
 import PageHeader from '../components/PageHeader'
@@ -49,20 +51,27 @@ export default function RequirementsPage({ scope }) {
   }
 
   if (scope === 'parent' && summary.loading && !summary.data) {
-    return <div className="skeleton skeleton-block" aria-hidden="true" />
+    return (
+      <div className="stack stack-md">
+        <PageHeader title={copy.title} subtitle={copy.subtitle} />
+        <CardSkeleton lines={0} blockHeight={260} label="Loading your children…" />
+      </div>
+    )
   }
 
   if (scope === 'parent' && children.length === 0) {
     return (
       <div className="stack stack-md">
         <PageHeader title={copy.title} subtitle={copy.subtitle} />
-        <section className="card card-pad">
-          <EmptyState
-            icon="users"
-            title="No linked children"
-            message="Your account is not connected to a student record yet."
-          />
-        </section>
+        <Card
+          empty={
+            <EmptyState
+              icon="users"
+              title="No linked children"
+              message="Your account is not connected to a student record yet."
+            />
+          }
+        />
       </div>
     )
   }
@@ -94,14 +103,14 @@ export default function RequirementsPage({ scope }) {
         />
       )}
 
-      <section className="card card-pad">
+      <Card>
         <RequirementsExplorer
           scope={scope}
           params={params}
           showFilter
           refreshKey={refreshKey}
         />
-      </section>
+      </Card>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import Skeleton from '../loading/Skeleton'
+import Button from '../../components/Button'
 
 /** Horizontal progress rows: label · value · bar (used for status overviews). */
 export function SummaryRows({ rows }) {
@@ -61,13 +62,13 @@ export default function Card({
           <div className="alert alert-error" role="alert">
             <span className="grow">{error.message || String(error)}</span>
             {onRetry && (
-              <button
-                type="button"
-                className="btn btn-sm btn-secondary"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={onRetry}
               >
                 Retry
-              </button>
+              </Button>
             )}
           </div>
         )}

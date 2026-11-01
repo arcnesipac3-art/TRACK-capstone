@@ -1,6 +1,7 @@
 import ButtonLoader from '../components/loading/ButtonLoader'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import EmptyState from '../components/EmptyState'
+import StatusBadge from '../components/StatusBadge'
 import ErrorMessage from '../components/ErrorMessage'
 import Icon from '../components/Icon'
 import Modal from '../components/Modal'
@@ -18,6 +19,7 @@ import {
   timeToMinutes,
 } from '../utils/schedules'
 import './SchedulesPage.css'
+import Button from '../components/Button'
 
 function getSubjectColor(subjectName) {
   const colorMap = {
@@ -453,9 +455,9 @@ function ConflictPanel({ conflicts, onScheduleClick, onClose }) {
           </h3>
         </div>
         {onClose && (
-          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose} aria-label="Close conflict panel">
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close conflict panel">
             <Icon name="close" size={14} />
-          </button>
+          </Button>
         )}
       </header>
       <div className="sched-conflict-list">
@@ -535,7 +537,7 @@ function ConflictPanel({ conflicts, onScheduleClick, onClose }) {
 function ScheduleDetailPanel({ schedule, onClose, onEdit, onDelete }) {
   if (!schedule) return null
   const detail = schedule.teacher_assignment_detail
-  return (<Modal open title="Schedule Details" onClose={onClose} width={500} footer={<><button type="button" className="btn btn-danger btn-sm" onClick={() => onDelete(schedule)}><Icon name="trash" size={14} />Delete</button><span className="grow" /><button type="button" className="btn btn-secondary btn-sm" onClick={onClose}>Close</button><button type="button" className="btn btn-primary btn-sm" onClick={() => onEdit(schedule)}><Icon name="pencil" size={14} />Edit</button></>}><div className="stack stack-sm"><div><div className="label">Subject</div><div className="value"><strong>{detail?.subject_name}</strong></div></div><div><div className="label">Class / Section</div><div className="value">{detail?.section_name}</div></div><div className="row row-wrap" style={{ gap: 16 }}><div style={{ flex: 1, minWidth: '120px' }}><div className="label">Day</div><div className="value">{schedule.day_of_week_display}</div></div><div style={{ flex: 1, minWidth: '120px' }}><div className="label">Time</div><div className="value">{normTime(schedule.start_time)} - {normTime(schedule.end_time)}</div></div></div><div><div className="label">Room</div><div className="value">{schedule.room || <span className="subtle">Not specified</span>}</div></div></div></Modal>)
+  return (<Modal open title="Schedule Details" onClose={onClose} width={500} footer={<><Button variant="danger" size="sm" onClick={() => onDelete(schedule)}><Icon name="trash" size={14} />Delete</Button><span className="grow" /><Button  variant="secondary" size="sm" onClick={onClose}>Close</Button><Button  variant="primary" size="sm" onClick={() => onEdit(schedule)}><Icon name="pencil" size={14} />Edit</Button></>}><div className="stack stack-sm"><div><div className="label">Subject</div><div className="value"><strong>{detail?.subject_name}</strong></div></div><div><div className="label">Class / Section</div><div className="value">{detail?.section_name}</div></div><div className="row row-wrap" style={{ gap: 16 }}><div style={{ flex: 1, minWidth: '120px' }}><div className="label">Day</div><div className="value">{schedule.day_of_week_display}</div></div><div style={{ flex: 1, minWidth: '120px' }}><div className="label">Time</div><div className="value">{normTime(schedule.start_time)} - {normTime(schedule.end_time)}</div></div></div><div><div className="label">Room</div><div className="value">{schedule.room || <span className="subtle">Not specified</span>}</div></div></div></Modal>)
 }
 
 function ScheduleFormModal({ schedule, onClose, onSaved, existingSchedules = [] }) {
@@ -574,11 +576,11 @@ function ScheduleFormModal({ schedule, onClose, onSaved, existingSchedules = [] 
       width={560}
       footer={
         <>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} disabled={busy}>Cancel</button>
-          <button type="button" className="btn btn-primary btn-sm" onClick={handleSubmit} disabled={busy || hasErrors} title={hasErrors ? 'Resolve conflicts before saving' : ''}>
+          <Button variant="secondary" size="sm" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="primary" size="sm" onClick={handleSubmit} disabled={busy || hasErrors} title={hasErrors ? 'Resolve conflicts before saving' : ''}>
             {busy && <ButtonLoader />}
             {busy ? 'Saving…' : isEdit ? 'Save Changes' : 'Add Schedule'}
-          </button>
+          </Button>
         </>
       }
     >
@@ -674,11 +676,11 @@ function ConfirmDeleteModal({ schedule, onClose, onDeleted, busy }) {
       width={460}
       footer={
         <>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={onClose} disabled={busy}>Cancel</button>
-          <button type="button" className="btn btn-danger btn-sm" onClick={onDeleted} disabled={busy}>
+          <Button variant="secondary" size="sm" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="danger" size="sm" onClick={onDeleted} disabled={busy}>
             {busy && <ButtonLoader />}
             {busy ? 'Deleting…' : 'Delete Schedule'}
-          </button>
+          </Button>
         </>
       }
     >
@@ -725,9 +727,9 @@ function UndoToast({ toast, onUndo, onDismiss }) {
             {schedule.room ? ` · ${schedule.room}` : ''}
           </div>
         </div>
-        <button
-          type="button"
-          className="btn btn-primary btn-sm"
+        <Button
+          variant="primary"
+          size="sm"
           onClick={() => {
             if (timeoutId) clearTimeout(timeoutId)
             onUndo()
@@ -736,10 +738,10 @@ function UndoToast({ toast, onUndo, onDismiss }) {
         >
           <Icon name="rotateCcw" size={14} style={{ marginRight: 4 }} />
           Undo
-        </button>
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={() => {
             if (timeoutId) clearTimeout(timeoutId)
             onDismiss()
@@ -748,7 +750,7 @@ function UndoToast({ toast, onUndo, onDismiss }) {
           aria-label="Dismiss"
         >
           <Icon name="close" size={14} />
-        </button>
+        </Button>
       </div>
     </div>
   )
@@ -966,45 +968,44 @@ export default function SchedulesPage() {
               <span>This week</span>
               <span className="subtle">· {weekLabel}</span>
             </div>
-            <span
-              className="badge badge-neutral"
+            <StatusBadge
+              tone="neutral"
+              label="Recurring"
               title="The timetable shows recurring weekly classes — not one-off events"
-            >
-              Recurring
-            </span>
+            />
           </div>
 
           <div className="sched-toolbar-right">
             <div className="btn-group" role="group" aria-label="View mode">
-              <button
-                type="button"
-                className={`btn btn-sm ${view === 'timetable' ? 'btn-primary' : 'btn-secondary'}`}
+              <Button
+                size="sm"
+                variant={view === 'timetable' ? 'primary' : 'secondary'}
                 onClick={() => setView('timetable')}
                 aria-pressed={view === 'timetable'}
               >
                 <Icon name="grid" size={14} />
                 Timetable
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${view === 'list' ? 'btn-primary' : 'btn-secondary'}`}
+              </Button>
+              <Button
+                size="sm"
+                variant={view === 'list' ? 'primary' : 'secondary'}
                 onClick={() => setView('list')}
                 aria-pressed={view === 'list'}
               >
                 <Icon name="list" size={14} />
                 List
-              </button>
+              </Button>
             </div>
 
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => setFormOpen(true)}
               disabled={schedules.loading}
             >
               <Icon name="plus" size={15} />
               Add Schedule
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -1082,9 +1083,9 @@ export default function SchedulesPage() {
           </div>
 
           {hasFilters && (
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => {
                 setFilterTeacher('')
                 setFilterSection('')
@@ -1094,7 +1095,7 @@ export default function SchedulesPage() {
             >
               <Icon name="close" size={14} />
               Clear
-            </button>
+            </Button>
           )}
         </div>
 
@@ -1205,23 +1206,23 @@ export default function SchedulesPage() {
                               </td>
                               <td data-label="Actions">
                                 <div className="row-actions">
-                                  <button
-                                    type="button"
-                                    className="btn btn-ghost btn-xs"
+                                  <Button
+                                    variant="ghost"
+                                    size="xs"
                                     onClick={() => handleEdit(schedule)}
                                     title="Edit schedule"
                                   >
                                     <Icon name="pencil" size={14} />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="btn btn-ghost btn-xs"
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="xs"
                                     onClick={() => setDeletingSchedule(schedule)}
                                     title="Delete schedule"
                                     style={{ color: 'var(--red-700)' }}
                                   >
                                     <Icon name="trash" size={14} />
-                                  </button>
+                                  </Button>
                                 </div>
                               </td>
                             </tr>

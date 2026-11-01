@@ -1,3 +1,5 @@
+import Button from '../../components/Button'
+import Card from '../../components/dashboard/Card'
 import EmptyState from '../../components/EmptyState'
 import ErrorMessage from '../../components/ErrorMessage'
 import Icon from '../../components/Icon'
@@ -6,7 +8,6 @@ import PageHeader from '../../components/PageHeader'
 import StatusBadge from '../../components/StatusBadge'
 import useFetch from '../../hooks/useFetch'
 import { formatDate } from '../../utils/format'
-import './EnrollmentPages.css'
 
 /** Confirmed enrollment rows → badge labels (kept local: applicant-side only).
  *  Mirrors Enrollment.Status: active | dropped | withdrawn. */
@@ -38,20 +39,25 @@ export default function MyEnrollmentsPage() {
         subtitle="Enrollments the Registrar has confirmed for this account."
       />
 
-      <section className="card">
-        <header className="card-header">
-          <h2>Confirmed enrollments</h2>
-          <button
-            type="button"
-            className="btn btn-ghost btn-xs"
-            onClick={reload}
-            disabled={loading}
-          >
+      <Card
+        title="Confirmed enrollments"
+        action={
+          <Button variant="ghost" size="xs" onClick={reload} disabled={loading}>
             <Icon name="refresh" size={13} />
             Refresh
-          </button>
-        </header>
-
+          </Button>
+        }
+        flush={rows.length > 0}
+        empty={
+          !loading && !error && rows.length === 0 ? (
+            <EmptyState
+              icon="gradCap"
+              title="No confirmed enrollments yet"
+              message="Once the Registrar confirms your enrollment, the record will appear here."
+            />
+          ) : null
+        }
+      >
         {loading && !data && (
           <TableSkeleton
             headers={['School year', 'Grade level', 'Section', 'Status', 'Confirmed']}
@@ -61,23 +67,11 @@ export default function MyEnrollmentsPage() {
         )}
 
         {!loading && error && (
-          <div className="card-body">
-            <ErrorMessage
-              error={error}
-              title="Could not load your enrollments"
-              onRetry={reload}
-            />
-          </div>
-        )}
-
-        {!loading && !error && rows.length === 0 && (
-          <div className="card-body">
-            <EmptyState
-              icon="gradCap"
-              title="No confirmed enrollments yet"
-              message="Once the Registrar confirms your enrollment, the record will appear here."
-            />
-          </div>
+          <ErrorMessage
+            error={error}
+            title="Could not load your enrollments"
+            onRetry={reload}
+          />
         )}
 
         {!loading && !error && rows.length > 0 && (
@@ -121,7 +115,7 @@ export default function MyEnrollmentsPage() {
             </table>
           </div>
         )}
-      </section>
+      </Card>
     </div>
   )
 }

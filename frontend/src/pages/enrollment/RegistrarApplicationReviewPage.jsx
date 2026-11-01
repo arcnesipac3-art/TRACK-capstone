@@ -17,6 +17,7 @@ import {
   downloadAuthorizedFile,
 } from '../../utils/enrollment'
 import { formatDate, formatDateTime, formatNumber } from '../../utils/format'
+import Button from '../../components/Button'
 import './RegistrarEnrollment.css'
 
 /**
@@ -407,9 +408,9 @@ export default function RegistrarApplicationReviewPage() {
             <strong className="alert-title">Could not load this application</strong>
             <span>{detailError?.message || 'The application could not be found.'}</span>
             <div>
-              <button
-                type="button"
-                className="btn btn-sm btn-secondary"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => {
                   loadDetail()
                   loadRecs()
@@ -417,7 +418,7 @@ export default function RegistrarApplicationReviewPage() {
               >
                 <Icon name="refresh" size={14} />
                 Try again
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -455,13 +456,13 @@ export default function RegistrarApplicationReviewPage() {
       >
         <Icon name={alert.kind === 'error' ? 'info' : 'checkCircle'} size={17} />
         <span className="grow">{alert.text}</span>
-        <button
-          type="button"
-          className="btn btn-sm btn-secondary"
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => setAlert(null)}
         >
           Dismiss
-        </button>
+        </Button>
       </div>
     )
   }
@@ -492,9 +493,10 @@ export default function RegistrarApplicationReviewPage() {
               <Icon name="arrowLeft" size={14} />
               Back
             </Link>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm no-print"
+            <Button
+              variant="secondary"
+              size="sm"
+              className="no-print"
               onClick={() => {
                 loadDetail()
                 loadRecs()
@@ -503,25 +505,26 @@ export default function RegistrarApplicationReviewPage() {
             >
               <Icon name="refresh" size={14} />
               Refresh
-            </button>
+            </Button>
           </>
         }
       >
         <div className="row row-wrap gap-xs">
           <StatusBadge label={detail.status_display || status.label} tone={status.tone} />
-          <span className="badge badge-blue">
-            {ENROLLMENT_TYPES[detail.enrollment_type] || detail.enrollment_type}
-          </span>
+          <StatusBadge
+            tone="blue"
+            label={ENROLLMENT_TYPES[detail.enrollment_type] || detail.enrollment_type}
+          />
           {(detail.missing_documents || []).length > 0 && (
-            <span className="badge badge-amber">
-              {detail.missing_documents.length} document
-              {detail.missing_documents.length === 1 ? '' : 's'} missing
-            </span>
+            <StatusBadge
+              tone="amber"
+              label={`${detail.missing_documents.length} document${
+                detail.missing_documents.length === 1 ? '' : 's'
+              } missing`}
+            />
           )}
           {detail.assigned_section_name && (
-            <span className="badge badge-green">
-              Section: {detail.assigned_section_name}
-            </span>
+            <StatusBadge tone="green" label={`Section: ${detail.assigned_section_name}`} />
           )}
         </div>
       </PageHeader>
@@ -637,7 +640,7 @@ export default function RegistrarApplicationReviewPage() {
                 <span className="eyebrow">Student record</span>
                 {detail.student ? (
                   <div className="row row-wrap gap-xs">
-                    <span className="badge badge-green">Already linked</span>
+                    <StatusBadge tone="green" label="Already linked" />
                     <span>
                       {linkedName || `Student record #${detail.student}`}
                     </span>
@@ -664,16 +667,16 @@ export default function RegistrarApplicationReviewPage() {
                         <span className="subtle">{match.reason}</span>
                         {canManage && (
                           <div>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-secondary"
+                            <Button
+                              variant="secondary"
+                              size="sm"
                               disabled={Boolean(busy)}
                               onClick={() =>
                                 openModal({ type: 'link', match })
                               }
                             >
                               Link this student
-                            </button>
+                            </Button>
                           </div>
                         )}
                       </div>
@@ -702,13 +705,12 @@ export default function RegistrarApplicationReviewPage() {
                         <div className="doc-head">
                           <span className="doc-name">{doc.name}</span>
                           <span className="row row-wrap gap-xs">
-                            <span
-                              className={`badge ${doc.is_required ? 'badge-amber' : 'badge-neutral'}`}
-                            >
-                              {doc.is_required ? 'Required' : 'Optional'}
-                            </span>
+                            <StatusBadge
+                              tone={doc.is_required ? 'amber' : 'neutral'}
+                              label={doc.is_required ? 'Required' : 'Optional'}
+                            />
                             {doc.requires_verification && (
-                              <span className="badge badge-blue">Verification</span>
+                              <StatusBadge tone="blue" label="Verification" />
                             )}
                             <StatusBadge
                               label={doc.status_display || docStatus.label}
@@ -734,43 +736,43 @@ export default function RegistrarApplicationReviewPage() {
                         {canManage && (
                           <div className="doc-actions">
                             {hasFile && (
-                              <button
-                                type="button"
-                                className="btn btn-xs btn-secondary"
+                              <Button
+                                variant="secondary"
+                                size="xs"
                                 disabled={Boolean(busy)}
                                 onClick={() => downloadDocument(doc)}
                               >
                                 <Icon name="download" size={13} />
                                 {busy === `download-${doc.id}` ? 'Downloading…' : 'Download'}
-                              </button>
+                              </Button>
                             )}
                             {hasFile && (
-                              <button
-                                type="button"
-                                className="btn btn-xs btn-primary"
+                              <Button
+                                variant="primary"
+                                size="xs"
                                 disabled={Boolean(busy)}
                                 onClick={() => verifyDocument(doc)}
                               >
                                 {busy === 'verify' ? <ButtonLoader /> : <Icon name="check" size={13} />}
                                 Verify
-                              </button>
+                              </Button>
                             )}
-                            <button
-                              type="button"
-                              className="btn btn-xs btn-secondary"
+                            <Button
+                              variant="secondary"
+                              size="xs"
                               disabled={Boolean(busy)}
                               onClick={() => openModal({ type: 'returnDoc', docId: doc.id })}
                             >
                               Return
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-xs btn-ghost"
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="xs"
                               disabled={Boolean(busy)}
                               onClick={() => openModal({ type: 'waiveDoc', docId: doc.id })}
                             >
                               Waive
-                            </button>
+                            </Button>
                           </div>
                         )}
                       </article>
@@ -862,12 +864,10 @@ export default function RegistrarApplicationReviewPage() {
                       action === 'start_review' || action === 'accept'
                     const danger = DANGER_ACTIONS.has(action)
                     return (
-                      <button
+                      <Button
                         key={action}
-                        type="button"
-                        className={`btn btn-sm ${
-                          danger ? 'btn-danger' : primary ? 'btn-primary' : 'btn-secondary'
-                        }`}
+                        size="sm"
+                        variant={danger ? 'danger' : primary ? 'primary' : 'secondary'}
                         disabled={Boolean(busy)}
                         onClick={() => {
                           if (action === 'start_review') {
@@ -881,7 +881,7 @@ export default function RegistrarApplicationReviewPage() {
                           <ButtonLoader />
                         ) : null}
                         {ACTION_LABELS[action]}
-                      </button>
+                      </Button>
                     )
                   })}
                 </div>
@@ -892,16 +892,17 @@ export default function RegistrarApplicationReviewPage() {
           <section className="card">
             <div className="card-header">
               <h2>Section assignment</h2>
-              <button
-                type="button"
-                className="btn btn-xs btn-ghost no-print"
+              <Button
+                variant="ghost"
+                size="xs"
+                className="no-print"
                 onClick={loadRecs}
                 disabled={recsLoading}
                 aria-label="Refresh section recommendations"
               >
                 <Icon name="refresh" size={13} />
                 Refresh
-              </button>
+              </Button>
             </div>
             <div className="card-body">
               {recsLoading && !recs && (
@@ -922,13 +923,13 @@ export default function RegistrarApplicationReviewPage() {
                   <div className="alert alert-error" role="alert">
                     <Icon name="info" size={16} />
                     <span className="grow">{recsError.message}</span>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-secondary"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={loadRecs}
                     >
                       Retry
-                    </button>
+                    </Button>
                   </div>
                 )
               )}
@@ -964,7 +965,7 @@ export default function RegistrarApplicationReviewPage() {
                               <span className="row gap-xs">
                                 {row.name}
                                 {row.currently_assigned && (
-                                  <span className="badge badge-green">Approved</span>
+                                  <StatusBadge tone="green" label="Approved" />
                                 )}
                               </span>
                             </td>
@@ -983,18 +984,18 @@ export default function RegistrarApplicationReviewPage() {
                               {row.currently_assigned ? (
                                 <span className="subtle">Current section</span>
                               ) : eligible && canManage ? (
-                                <button
-                                  type="button"
-                                  className="btn btn-xs btn-secondary"
+                                <Button
+                                  variant="secondary"
+                                  size="xs"
                                   disabled={Boolean(busy)}
                                   onClick={() =>
                                     openModal({ type: 'assign', section: row })
                                   }
                                 >
                                   Assign
-                                </button>
+                                </Button>
                               ) : (
-                                <span className="badge badge-red">Full</span>
+                                <StatusBadge tone="red" label="Full" />
                               )}
                             </td>
                           </tr>
@@ -1054,14 +1055,13 @@ export default function RegistrarApplicationReviewPage() {
               </div>
 
               {confirmReady ? (
-                <button
-                  type="button"
-                  className="btn btn-primary"
+                <Button
+                  variant="primary"
                   disabled={Boolean(busy)}
                   onClick={() => openModal({ type: 'confirm' })}
                 >
                   Confirm enrollment
-                </button>
+                </Button>
               ) : (
                 <p className="subtle">
                   {!canConfirm
@@ -1083,22 +1083,21 @@ export default function RegistrarApplicationReviewPage() {
         dismissible={!busy}
         footer={
           <>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={closeModal}
               disabled={Boolean(busy)}
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               form="review-action-form"
-              className={`btn btn-sm ${
-                modal?.type === 'reject' || modal?.type === 'cancel'
-                  ? 'btn-danger'
-                  : 'btn-primary'
-              }`}
+              size="sm"
+              variant={
+                modal?.type === 'reject' || modal?.type === 'cancel' ? 'danger' : 'primary'
+              }
               disabled={Boolean(busy)}
             >
               {busy && <ButtonLoader />}
@@ -1115,7 +1114,7 @@ export default function RegistrarApplicationReviewPage() {
                         : modal?.type === 'link'
                           ? 'Link student'
                           : 'Confirm'}
-            </button>
+            </Button>
           </>
         }
       >

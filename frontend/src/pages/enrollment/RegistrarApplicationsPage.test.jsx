@@ -107,9 +107,9 @@ function mockOptions() {
   })
 }
 
-function renderPage() {
+function renderPage(initialEntry = '/applications') {
   return render(
-    <MemoryRouter initialEntries={['/applications']}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <RegistrarApplicationsPage />
     </MemoryRouter>
   )
@@ -154,6 +154,37 @@ describe('RegistrarApplicationsPage', () => {
 
     await waitFor(() => expect(sawParam('status', 'under_review')).toBe(true))
     expect(sawParam('status', 'draft')).toBe(false)
+  })
+
+  it('opens already scoped when the link carries a filter', async () => {
+    api.get.mockResolvedValue({ count: 1, results: [ROW] })
+    renderPage('/applications?status=under_review&school_year=1')
+
+    const statusSelect = await screen.findByLabelText(/^status$/i)
+    await waitFor(() => expect(statusSelect).toHaveValue('under_review'))
+    expect(await screen.findByLabelText(/school year/i)).toHaveValue('1')
+    expect(sawParam('status', 'under_review')).toBe(true)
+  })
+
+  it('ignores a status the queue cannot filter to', async () => {
+    api.get.mockResolvedValue({ count: 1, results: [ROW] })
+    renderPage('/applications?status=not_a_status')
+
+    expect(await screen.findByText('ENR-2026-0009')).toBeInTheDocument()
+    expect(await screen.findByLabelText(/^status$/i)).toHaveValue('')
+    expect(sawParam('status', 'not_a_status')).toBe(false)
+  })
+
+  it('clearing filters also clears the scope the link brought', async () => {
+    api.get.mockResolvedValue({ count: 1, results: [ROW] })
+    const user = userEvent.setup()
+    renderPage('/applications?status=under_review')
+
+    const clear = await screen.findByRole('button', { name: /^clear$/i })
+    await user.click(clear)
+
+    expect(await screen.findByLabelText(/^status$/i)).toHaveValue('')
+    expect(screen.queryByRole('button', { name: /^clear$/i })).not.toBeInTheDocument()
   })
 
   it('sends the submitted-from date filter to the API', async () => {

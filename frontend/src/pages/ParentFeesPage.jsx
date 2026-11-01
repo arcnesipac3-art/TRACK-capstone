@@ -6,6 +6,7 @@ import ErrorMessage from '../components/ErrorMessage'
 import CardSkeleton from '../components/loading/CardSkeleton'
 import StatCard from '../components/StatCard'
 import Card from '../components/dashboard/Card'
+import StatusBadge from '../components/StatusBadge'
 import { formatCurrency, formatDate } from '../utils/format'
 
 /**
@@ -79,7 +80,7 @@ export default function ParentFeesPage() {
 
       {schoolYears.length > 1 && (
         <div className="filter-bar">
-          <div className="field" style={{ minWidth: 240 }}>
+          <div className="field grow">
             <label htmlFor="school_year">School Year</label>
             <select
               id="school_year"
@@ -96,101 +97,123 @@ export default function ParentFeesPage() {
       )}
 
       {summaries.length === 0 ? (
-        <EmptyState
-          icon="users"
-          title="No fee data"
-          message="Your children's fee assessments will appear here once published."
+        <Card
+          empty={
+            <EmptyState
+              icon="users"
+              title="No fee data"
+              message="Your children's fee assessments will appear here once published."
+            />
+          }
         />
       ) : (
         summaries.map((summary) => (
-          <Card key={summary.id} title={summary.user?.full_name || 'Student'} flush>
-            <div className="stack stack-md" style={{ padding: '16px 20px' }}>
-              <p className="muted" style={{ margin: 0, fontSize: '0.88rem' }}>
-                {summary.section_name || 'No section'} · LRN: {summary.lrn || 'N/A'}
-              </p>
-
-              <div className="grid grid-3">
-                <StatCard label="Assessed" value={formatCurrency(summary.total_assessed)} />
-                <StatCard label="Paid" value={formatCurrency(summary.total_paid)} tone="green" />
-                <StatCard label="Outstanding" value={formatCurrency(summary.total_outstanding)} tone="amber" />
-              </div>
-            </div>
-
-            {summary.assessments.length === 0 ? (
-              <EmptyState
-                icon="inbox"
-                title="No assessments"
-                message="No fee assessments published for this period."
-              />
-            ) : (
-              <div className="table-wrap">
-                <table className="table responsive-table">
-                  <thead>
-                    <tr>
-                      <th>Category</th>
-                      <th>Type</th>
-                      <th>Due Date</th>
-                      <th>Assessed</th>
-                      <th>Paid</th>
-                      <th>Balance</th>
-                      <th>Status</th>
-                      <th>Receipt</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sort(summary.assessments).map((a) => (
-                      <tr key={a.id}>
-                        <td data-label="Category" className="cell-main">
-                          <strong>{a.category}</strong>
-                          {a.description && (
-                            <>
-                              <br />
-                              <small className="muted">{a.description}</small>
-                            </>
-                          )}
-                        </td>
-                        <td data-label="Type">
-                          <span className={`badge ${a.category_fee_type === 'voluntary' ? 'badge-info' : 'badge-warning'}`}>
-                            {a.category_fee_type === 'voluntary' ? 'Voluntary' : 'Required'}
-                          </span>
-                        </td>
-                        <td data-label="Due Date">{formatDate(a.due_date)}</td>
-                        <td data-label="Assessed">{formatCurrency(a.amount)}</td>
-                        <td data-label="Paid">{formatCurrency(a.paid_amount)}</td>
-                        <td data-label="Balance">
-                          {a.outstanding > 0 ? (
-                            <strong>{formatCurrency(a.outstanding)}</strong>
-                          ) : (
-                            formatCurrency(a.outstanding)
-                          )}
-                        </td>
-                        <td data-label="Status">
-                          <span className={`badge ${
-                            a.payment_status === 'paid'
-                              ? 'badge-success'
-                              : a.payment_status === 'partial'
-                                ? 'badge-warning'
-                                : 'badge-error'
-                          }`}>
-                            {a.payment_status}
-                          </span>
-                        </td>
-                        <td data-label="Receipt">
-                          {a.receipt_number ? (
-                            <code>{a.receipt_number}</code>
-                          ) : (
-                            <span className="muted">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
+          <ChildFeeCard key={summary.id} summary={summary} sort={sort} />
         ))
       )}
     </div>
+  )
+}
+
+/** One child: the totals above their assessment table, or why there is none. */
+function ChildFeeCard({ summary, sort }) {
+  const rows = summary.assessments || []
+  return (
+    <Card
+      title={summary.user?.full_name || 'Student'}
+      // The table runs to the card's edge, but an empty state below the
+      // totals needs the body padding, so flush follows the rows.
+      flush={rows.length > 0}
+    >
+      {/* In a flush body the summary block carries its own padding. */}
+      <div className={rows.length > 0 ? 'stack stack-md card-pad' : 'stack stack-md'}>
+        <p className="subtle">
+          {summary.section_name || 'No section'} · LRN: {summary.lrn || 'N/A'}
+        </p>
+
+        <div className="grid grid-3">
+          <StatCard label="Assessed" value={formatCurrency(summary.total_assessed)} icon="file" />
+          <StatCard label="Paid" value={formatCurrency(summary.total_paid)} tone="green" icon="checkCircle" />
+          <StatCard label="Outstanding" value={formatCurrency(summary.total_outstanding)} tone="amber" icon="clock" />
+        </div>
+
+        {rows.length === 0 && (
+          <EmptyState
+            icon="inbox"
+            title="No assessments"
+            message="No fee assessments published for this period."
+          />
+        )}
+      </div>
+
+      {rows.length > 0 && (
+        <div className="table-wrap">
+          <table className="table responsive-table">
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Type</th>
+                <th>Due Date</th>
+                <th>Assessed</th>
+                <th>Paid</th>
+                <th>Balance</th>
+                <th>Status</th>
+                <th>Receipt</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sort(rows).map((a) => (
+                <tr key={a.id}>
+                  <td data-label="Category" className="cell-main">
+                    <strong>{a.category}</strong>
+                    {a.description && (
+                      <>
+                        <br />
+                        <small className="muted">{a.description}</small>
+                      </>
+                    )}
+                  </td>
+                  <td data-label="Type">
+                    <StatusBadge
+                      tone={a.category_fee_type === 'voluntary' ? 'blue' : 'amber'}
+                      label={a.category_fee_type === 'voluntary' ? 'Voluntary' : 'Required'}
+                    />
+                  </td>
+                  <td data-label="Due Date">{formatDate(a.due_date)}</td>
+                  <td data-label="Assessed">{formatCurrency(a.amount)}</td>
+                  <td data-label="Paid">{formatCurrency(a.paid_amount)}</td>
+                  <td data-label="Balance">
+                    {a.outstanding > 0 ? (
+                      <strong>{formatCurrency(a.outstanding)}</strong>
+                    ) : (
+                      formatCurrency(a.outstanding)
+                    )}
+                  </td>
+                  <td data-label="Status">
+                    <StatusBadge
+                      tone={
+                        a.payment_status === 'paid'
+                          ? 'green'
+                          : a.payment_status === 'partial'
+                            ? 'amber'
+                            : 'red'
+                      }
+                      label={a.payment_status}
+                    />
+                  </td>
+                  <td data-label="Receipt">
+                    {a.receipt_number ? (
+                      <code>{a.receipt_number}</code>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Card>
   )
 }

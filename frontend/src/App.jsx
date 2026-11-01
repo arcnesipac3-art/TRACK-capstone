@@ -147,7 +147,6 @@ export default function App() {
           <Route element={<ProtectedRoute roles={['admin']} />}>
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route element={<ProtectedRoute permission="users.view" />}>
-              <Route path="/admin/users" element={<UsersPage role="all" />} />
               <Route path="/admin/students" element={<UsersPage role="student" />} />
               <Route path="/admin/teachers" element={<UsersPage role="teacher" />} />
               <Route path="/admin/parents" element={<UsersPage role="parent" />} />
@@ -158,7 +157,7 @@ export default function App() {
               <Route path="/admin/schedules" element={<SchedulesPage />} />
             </Route>
             <Route element={<ProtectedRoute permission="enrollment.view" />}>
-              <Route path="/admin/enrollment" element={<RegistrarDashboard />} />
+              <Route path="/admin/enrollment/overview" element={<RegistrarDashboard />} />
               <Route path="/admin/enrollment/applications" element={<RegistrarApplicationsPage />} />
               <Route path="/admin/enrollment/applications/:id" element={<RegistrarApplicationReviewPage />} />
               <Route path="/admin/enrollment/enrollments" element={<RegistrarEnrollmentsPage />} />

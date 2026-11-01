@@ -6,6 +6,7 @@ import StatCard from '../../components/StatCard'
 import StatusBadge from '../../components/StatusBadge'
 import AttendanceSummaryCard from '../../components/dashboard/AttendanceSummaryCard'
 import Card from '../../components/dashboard/Card'
+import ChildSelector from '../../components/ChildSelector'
 import CardSkeleton from '../../components/loading/CardSkeleton'
 import StatCardSkeleton from '../../components/loading/StatCardSkeleton'
 import NotificationsCard from '../../components/dashboard/NotificationsCard'
@@ -93,81 +94,59 @@ export default function ParentDashboard() {
         subtitle={`Track your ${children.length === 1 ? 'child' : 'children'}'s requirements and attendance · ${TODAY_LABEL}`}
       />
 
-      {children.length > 1 && (
-        <div
-          className="child-selector"
-          role="tablist"
-          aria-label="Select child"
-        >
-          {children.map((child) => (
-            <button
-              key={child.student_id}
-              type="button"
-              role="tab"
-              aria-selected={activeChild?.student_id === child.student_id}
-              className={`child-chip${
-                activeChild?.student_id === child.student_id ? ' active' : ''
-              }`}
-              onClick={() => setSelectedId(child.student_id)}
-            >
-              {child.name}
-              {child.section && (
-                <span className="chip-section">{child.section}</span>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="stack stack-xs">
+        <ChildSelector
+          items={children}
+          selectedId={activeChild?.student_id}
+          onSelect={setSelectedId}
+        />
 
-      {children.length === 1 && (
-        <p className="muted" style={{ marginTop: -8 }}>
-          Showing records for <strong>{children[0].name}</strong>
-          {children[0].section ? ` · ${children[0].section}` : ''}.
-        </p>
-      )}
+        {children.length === 1 && (
+          <p className="muted">
+            Showing records for <strong>{children[0].name}</strong>
+            {children[0].section ? ` · ${children[0].section}` : ''}.
+          </p>
+        )}
+      </div>
 
       <div className="grid grid-4">
         <StatCard
           label="Requirements"
           value={activeChild?.total_requirements ?? '—'}
           hint={activeChild?.section || 'Assigned to this section'}
+          icon="clipboard"
         />
         <StatCard
           label="Overdue"
           value={activeChild?.overdue ?? '—'}
           tone={activeChild?.overdue > 0 ? 'red' : 'default'}
           hint="Past deadline, not submitted"
+          icon="clock"
         />
         <StatCard
           label="Awaiting check"
           value={activeChild?.awaiting_verification ?? '—'}
           tone="amber"
           hint="Waiting for the teacher"
+          icon="inbox"
         />
         <StatCard
           label="Verified"
           value={activeChild?.verified ?? '—'}
           tone="green"
           hint="Accepted by the teacher"
+          icon="checkSquare"
         />
       </div>
 
       <div className="two-col">
         <div className="stack stack-md">
-          <section className="card">
-            <header className="card-header">
-              <h2>
-                Requirements
-                {activeChild ? ` · ${activeChild.name}` : ''}
-              </h2>
-            </header>
-            <div className="card-body">
-              <RequirementsExplorer
-                scope="parent"
-                params={activeChild ? { child: activeChild.student_id } : {}}
-              />
-            </div>
-          </section>
+          <Card title={`Requirements${activeChild ? ` · ${activeChild.name}` : ''}`}>
+            <RequirementsExplorer
+              scope="parent"
+              params={activeChild ? { child: activeChild.student_id } : {}}
+            />
+          </Card>
 
           <Card
             title={`Recent attendance${activeChild ? ` · ${activeChild.name}` : ''}`}
@@ -183,7 +162,7 @@ export default function ParentDashboard() {
                 />
               ) : null
             }
-            flush
+            flush={recentRecords.length > 0}
           >
             <div className="table-wrap">
               <table className="table responsive-table">
@@ -230,6 +209,9 @@ export default function ParentDashboard() {
             loading={announcements.loading}
             error={announcements.error}
             onRetry={announcements.reload}
+            // Edge-to-edge only once there are rows: an empty state needs the
+            // body padding back, and `.activity-item` draws its own dividers.
+            flush={(announcements.data || []).length > 0}
             empty={
               !announcements.loading &&
               (announcements.data || []).length === 0 ? (
@@ -241,23 +223,19 @@ export default function ParentDashboard() {
               ) : null
             }
           >
-            <div className="stack stack-md">
+            <div className="activity-list">
               {(announcements.data || []).slice(0, 3).map((item) => (
-                <div key={item.id}>
-                  <div className="row row-wrap" style={{ gap: 8 }}>
-                    <strong style={{ fontSize: '0.92rem' }}>{item.title}</strong>
-                    {item.is_pinned && (
-                      <span className="badge badge-blue">Pinned</span>
-                    )}
+                <div className="activity-item" key={item.id}>
+                  <div className="grow">
+                    <div className="ai-title">{item.title}</div>
+                    <div className="ai-body">
+                      {item.body.length > 160
+                        ? `${item.body.slice(0, 160)}…`
+                        : item.body}
+                    </div>
+                    <div className="ai-meta">{formatRelative(item.published_at)}</div>
                   </div>
-                  <p className="muted" style={{ fontSize: '0.86rem', marginTop: 4 }}>
-                    {item.body.length > 160
-                      ? `${item.body.slice(0, 160)}…`
-                      : item.body}
-                  </p>
-                  <p className="subtle" style={{ marginTop: 4 }}>
-                    {formatRelative(item.published_at)}
-                  </p>
+                  {item.is_pinned && <StatusBadge tone="blue" label="Pinned" />}
                 </div>
               ))}
             </div>
