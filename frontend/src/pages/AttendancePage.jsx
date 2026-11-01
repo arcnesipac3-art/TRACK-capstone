@@ -1951,9 +1951,12 @@ function TeacherAttendance() {
         )}
         
         {schedules.error && (
-          <div className="alert alert-error" role="alert" style={{ margin: '12px 16px' }}>
-            <Icon name="info" size={15} />
-            <span>Error loading schedules: {schedules.error}</span>
+          <div style={{ margin: '12px 16px' }}>
+            <ErrorMessage
+              error={schedules.error}
+              title="Could not load your class schedules"
+              onRetry={schedules.reload}
+            />
           </div>
         )}
 
