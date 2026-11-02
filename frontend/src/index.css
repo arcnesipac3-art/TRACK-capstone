@@ -445,6 +445,27 @@ img, svg { display: block; }
   outline-offset: 2px;
 }
 
+/* A metric that opens something on the same screen rather than navigating.
+   Same quiet hover as the linked card — the figure never changes colour, so a
+   clickable metric does not read as more urgent than the numbers beside it. */
+.stat-card.stat-card-button {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--ease), box-shadow var(--ease),
+    transform var(--ease);
+}
+.stat-card.stat-card-button:hover {
+  border-color: var(--blue-200);
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+.stat-card.stat-card-button:focus-visible {
+  outline: 2px solid var(--blue-600);
+  outline-offset: 2px;
+}
+
 /* ---------------------------------------------------------------------
    Status badges
    --------------------------------------------------------------------- */

@@ -255,6 +255,26 @@ const PATHS = {
       <path d="M16 13c3 0 5-2 5-5 0-2-2-4-5-4s-5 2-5 4c0 3 2 5 5 5z" />
     </>
   ),
+  alertTriangle: (
+    <>
+      <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+    </>
+  ),
+  list: (
+    <>
+      <path d="M8 6h13M8 12h13M8 18h13" />
+      <path d="M3 6h.01M3 12h.01M3 18h.01" />
+    </>
+  ),
+  moreVertical: (
+    <>
+      <circle cx="12" cy="5" r="1" />
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="12" cy="19" r="1" />
+    </>
+  ),
 }
 
 export default function Icon({ name, size = 18, className }) {

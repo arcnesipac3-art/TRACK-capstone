@@ -8,7 +8,8 @@ import Icon from './Icon'
  * the icon treatment are unchanged. Long values (formatted currency like
  * "₱1,234,567.89") drop to a smaller size so they never overflow the card.
  * `to` turns the whole card into a link; callers pass it only when the metric
- * has a real destination screen.
+ * has a real destination screen. `onClick` turns it into a button instead, for
+ * a metric that opens a panel on the same screen rather than navigating away.
  */
 export default function StatCard({
   label,
@@ -17,13 +18,16 @@ export default function StatCard({
   tone = 'default',
   icon,
   to,
+  onClick,
   className = '',
+  ...rest
 }) {
   const longValue = typeof value === 'string' && value.length > 11
   const classes = [
     'stat-card',
     tone !== 'default' && `tone-${tone}`,
     to && 'stat-card-link',
+    onClick && 'stat-card-button',
     className,
   ].filter(Boolean).join(' ')
 
@@ -46,10 +50,21 @@ export default function StatCard({
 
   if (to) {
     return (
-      <Link className={classes} to={to}>
+      <Link className={classes} to={to} {...rest}>
         {body}
       </Link>
     )
   }
-  return <div className={classes}>{body}</div>
+  if (onClick) {
+    return (
+      <button type="button" className={classes} onClick={onClick} {...rest}>
+        {body}
+      </button>
+    )
+  }
+  return (
+    <div className={classes} {...rest}>
+      {body}
+    </div>
+  )
 }

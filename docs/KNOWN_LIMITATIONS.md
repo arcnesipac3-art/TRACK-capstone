@@ -2,7 +2,7 @@
 
 This document describes all known incomplete features, external service dependencies, unresolved defects, native testing gaps, and deployment restrictions. Do not claim something works if it appears in this file without a resolution note.
 
-Last verified against the code: **2026-11-02** (backend 475 tests, frontend 882 tests, `oxlint` clean over 232 files).
+Last verified against the code: **2026-11-02** (backend 475 tests, frontend 953 tests across 68 files, `oxlint` clean over 242 files).
 
 ---
 
@@ -187,6 +187,7 @@ Last verified against the code: **2026-11-02** (backend 475 tests, frontend 882 
 - **Description:** The board's *Filter by class* and *Filter by subject* selects are built from `/teacher-assignments/` and `/schedules/?page_size=100`, one bounded read per mount, while every list of sessions and records is server-paged.
 - **Impact:** Correct for any realistic teacher (a teacher does not hold more than 100 subject assignments). Beyond that the option list is truncated — the filters themselves still work, because they send ids to the server.
 - **Fix:** Replace the two selects with the shared search-select pattern if the school ever outgrows 100 rows.
+- **Note (2026-11-02):** The schedules portal no longer shares this pattern. Its four selects are derived from the week it already loaded (`frontend/src/utils/schedules.js` → `filterOptions`), so opening `/admin/schedules` sends one `/schedules/` read and no `/teacher-assignments/` crawl; the class list is fetched only when the add/edit dialog mounts (`components/schedules/ScheduleFormModal.jsx:35`). The attendance board keeps its own reads and this entry stays open for it.
 
 ### L-027: `POST /attendance/generate/` runs once per attendance mount
 - **Severity:** Low
@@ -207,12 +208,19 @@ Last verified against the code: **2026-11-02** (backend 475 tests, frontend 882 
 
 ### L-029: Off-scale type and spacing literals survive in the portal
 - **Severity:** Low
-- **Description:** The cross-portal polish pass replaced every inline `gap`, `padding` and `margin` whose value a spacing token computes to identically (`4/8/12/16/24/32px` → `var(--space-1..4, --space-6, --space-8)`, or the existing `.gap-xs` / `.gap-sm` classes) and the two `font-size` literals the scale already owns (`1rem` → `var(--text-lg)`). What is left has no matching token. Type: `0.85rem` (5 sites), `0.82rem` (5), `0.9rem` (3), `0.92rem` (3), `0.87rem` (1) and `1.1rem` (1) — in `AnnouncementsPage.jsx`, `SchedulesPage.jsx`, `AdminFeesPage.jsx`, `AdminFeeAssessmentDetailPage.jsx`, `NotificationsPage.jsx` and the two admin modals; the scale runs `0.6875 / 0.75 / 0.8125 / 0.875 / 0.9375 / 1 / 1.0625 / 1.1875rem`, so each of those sits between two steps. Geometry: `width: '42%'` (`pages/attendance/SessionsBoard.jsx:383`), `maxHeight: 170` (`components/admin/UserFormModal.jsx:473`), and the `minWidth: 150/180/200/220` column floors. The public enrollment pages (`pages/enrollment/`, including `ApplicationWizardPage.jsx:1113`'s `0.75rem`) keep their literals by the standing guardrail.
+- **Description:** The cross-portal polish pass replaced every inline `gap`, `padding` and `margin` whose value a spacing token computes to identically (`4/8/12/16/24/32px` → `var(--space-1..4, --space-6, --space-8)`, or the existing `.gap-xs` / `.gap-sm` classes) and the two `font-size` literals the scale already owns (`1rem` → `var(--text-lg)`). What is left has no matching token. Type: `0.85rem` (4 sites), `0.82rem` (4), `0.92rem` (2), `0.87rem` (1) and `1.1rem` (1) — in `AnnouncementsPage.jsx`, `AdminFeesPage.jsx`, `AdminFeeAssessmentDetailPage.jsx`, `NotificationsPage.jsx` and the two admin modals; the scale runs `0.6875 / 0.75 / 0.8125 / 0.875 / 0.9375 / 1 / 1.0625 / 1.1875rem`, so each of those sits between two steps. Geometry: `width: '42%'` (`pages/attendance/SessionsBoard.jsx:383`), `maxHeight: 170` (`components/admin/UserFormModal.jsx:473`), and the `minWidth: 150/180/200/220` column floors. The public enrollment pages (`pages/enrollment/`, including `ApplicationWizardPage.jsx:1113`'s `0.75rem`) keep their literals by the standing guardrail.
 - **Impact:** Text on those screens renders a fraction of a pixel away from the intended step — invisible next to the rest of the app, but it is why a `0.85rem` label and a `--text-md` label in the same card do not share a size exactly. Nothing is unreadable and no state is missing; this is scale debt, not a defect.
 - **Fix required:** Decide whether the scale should absorb these (snap `0.82 → --text-sm`, `0.85/0.87 → --text-md`, `0.9/0.92 → --text-base`, `1.1 → --text-xl`) and make the change as one pass with a before/after screenshot review, because it shifts text sizes on screens that have already been approved. Deliberately not done in this pass.
+- **Note (2026-11-02):** `SchedulesPage.jsx` has left this list. The schedules rebuild moved its six remaining literals (three `0.9rem`, one each `0.82 / 0.85 / 0.92rem`) and its inline-styled summary cards into `.kpi-grid` / `StatCard` plus a token-only `pages/SchedulesPage.css`; `grep` finds no `rem`, numeric `font-size` or inline `gap`/`padding` literal anywhere in `pages/SchedulesPage.jsx` or `components/schedules/` — the only inline `style` left is `--tt-cols: <day count>`, which is data, not decoration.
 
 ### L-030: The confirmation dialog needs the provider, and page tests must mount it
 - **Severity:** Low (development only)
 - **Description:** `useConfirm()` (`frontend/src/context/ConfirmContext.js:26`) throws rather than falling back to `window.confirm`, and the provider is installed once in `main.jsx`. A screen that calls it and is rendered in a bare test harness — `AuthContext.Provider` only, no `ConfirmProvider` — fails on mount.
 - **Impact:** Three suites (`UsersPage`, `SectionsPage`, `App`) had to move to `renderConfirmed()` from `frontend/src/test/confirm.jsx` before their dialogs could be driven. Any new page that guards a write needs the same wrapper, and a future page rendered under a second `<ConfirmProvider>` would show two independent dialogs.
 - **Fix required:** None planned. A silent `window.confirm` fallback was rejected on purpose: it would let a missing provider ship as a browser-chrome dialog that the design system explicitly retired.
+
+### L-031: The weekly timetable needs every period in the browser
+- **Severity:** Low
+- **Description:** `/admin/schedules` reads the whole recurring timetable through `api.list('/schedules/')` (`frontend/src/pages/SchedulesPage.jsx:56`), which asks for `page_size=100` and follows up to ten pages. It does that on purpose: the grid, the conflict panel and all four filter selects are computed from the full set in `utils/schedules.js` (`schedulesOverlap`, `detectConflicts`, `filterOptions`), because the server validates `end_time > start_time` and `(assignment, day, start_time)` uniqueness but has no rule that stops the same teacher, section or room being booked twice.
+- **Impact:** Up to 1,000 weekly periods load and stay in memory — one request per visit, and one today. Past that ceiling the option lists and the double-booking warning are derived from a truncated set, so a real conflict could exist server-side and go unlabelled on this screen (the save itself would still be accepted, since the server has no overlap rule).
+- **Fix:** If the school outgrows the ceiling, move overlap detection into the schedule serializer so the refusal names the clash at save time, and page the grid by day or week. That is a backend change and was deliberately left out of a frontend phase.

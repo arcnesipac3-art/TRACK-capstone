@@ -6,7 +6,10 @@
 
 > This is a point-in-time audit record and is not updated in place. Re-run on
 > 2026-11-01: backend 324 tests and frontend 368 tests all passing, `oxlint`
-> clean (0 warnings), production build succeeding. Enrollment coverage is
+> clean (0 warnings), production build succeeding. Re-run on 2026-11-02: frontend
+> 953 tests across 68 files passing, `oxlint` clean over 242 files, production
+> build succeeding — see the design-system sections at the end of this file for
+> what each pass covered. Enrollment coverage is
 > tracked separately in `docs/ENROLLMENT.md`.
 
 ---
@@ -765,6 +768,140 @@ instead of relying on fall-through.
 4. `useConfirm()` throws outside `<ConfirmProvider>`, which is why three page
    suites had to be wrapped; any future screen rendered in a bare test harness
    needs `renderConfirmed()` from `src/test/confirm.jsx`.
+
+---
+
+### Schedules portal rebuild — 2026-11-02
+
+The last Phase-3 holdout. `/admin/schedules` was 1,305 lines in one file with
+inline-styled summary cards, its own delete confirmation, off-scale type
+literals, a filter dropdown fed by a second crawl on every visit, and a
+five-day week that silently dropped Saturday and Sunday rows the model already
+allowed. It is now a 346-line container over nine `components/schedules`
+modules, the shared primitives, and 99 tests where it previously had 28
+(all of them duplicates of the util specs).
+
+#### Files changed
+
+| File | Change |
+|---|---|
+| `pages/SchedulesPage.jsx` | 1,305 → **346** lines: state, fetch, save/delete orchestration only — no markup for the grid, filters, panels or modals left in the page |
+| `components/schedules/` (new, 9 files) | `TimetableGrid.jsx` 326 (+ `TimetableSkeleton`), `ScheduleFormModal.jsx` 340, `ScheduleList.jsx` 101, `ConflictPanel.jsx` 126, `ScheduleSummary.jsx` 84, `ScheduleFilters.jsx` 64, `UndoToast.jsx` 40, `ScheduleDetailModal.jsx` 54, `subjectColors.js` 42 |
+| `utils/schedules.js` | 140 → **409** lines: seven-day `DAYS_OF_WEEK`, `timetableDays` (Mon–Fri always, a weekend day once used), `todayWeekday` pinned to Asia/Manila, `filterOptions`, `detectConflicts` with named reasons, `groupConflicts`, `reasonsBySchedule`, `scheduleSummary` |
+| `pages/SchedulesPage.css` | rewritten, 810 → 1,118 lines, **token-only**: no `rem`, no numeric `font-size`, no raw hex; sticky headers on `thead th` with hairlines carried in `box-shadow`; the permanent `sched-pulse` keyframe deleted; 1023/767/479 breakpoints, `prefers-reduced-motion`, and `@media print` |
+| `pages/SchedulesPage.test.jsx` | 428 → 716 lines; **28 duplicated util tests → 37 page/component tests** |
+| `utils/schedules.test.js` (new) | 798 lines, **62 tests** over the overlap, labelling, grouping and filter helpers |
+| `components/Icon.jsx`, `components/StatCard.jsx`, `index.css` | additive: `alertTriangle` / `list` / `moreVertical`; `StatCard onClick` → `stat-card-button`; one token-layer rule for that button |
+
+No endpoint, serializer, model, migration or route changed, and no backend file
+was touched — the weekend gap was purely a frontend constant (`DAYS_OF_WEEK`
+stopped at 5 while the model allows 1–7).
+
+#### Functionality preserved
+
+- Every existing behaviour moved rather than changed: add / edit / detail /
+  delete, the browser-side double-booking block, the softer 20-minute and
+  shared-room warnings that do not block, room suggestions, the timetable/list
+  toggle, the week label, and the delete-and-undo round trip.
+- The delete gate is the shared `useConfirm()` dialog now, with the same
+  refusal semantics (a declined dialog runs nothing), and the old inline
+  confirm plus its `.sched-summary-card` styles are gone — `sched-summary*`,
+  `sched-empty-row` and `btn-group` have zero references repo-wide.
+- Admin-only access, the `/admin/schedules` route and every request path are
+  unchanged. `.sched-*` / `.timetable-*` namespacing kept the screen
+  self-contained, so no page wrapper was needed.
+- Figures that cannot be derived show an em dash, never a `0` — the failure
+  state keeps all four cards and their "Could not be counted" hints.
+
+#### Tests actually run
+
+| Check | Command | Result |
+|---|---|---|
+| Schedules page | `npx vitest run src/pages/SchedulesPage.test.jsx` | PASS — 37 tests in 9.0s |
+| Schedules utils | `npx vitest run src/utils/schedules.test.js` | PASS — 62 tests in 2.7s |
+| Frontend suite | `npx vitest run` | PASS — **953 tests across 68 files** (35.5s); the baseline before this phase was 67 files / 882 tests |
+| Frontend lint | `npx oxlint src` | PASS — 0 warnings, 0 errors on 242 files |
+| Frontend build | `npm run build` | PASS — exit 0; `SchedulesPage-DxOeKULg.js` 27.45 kB (7.53 kB gzip), `index` 382.78 kB (111.30 kB gzip) |
+| Dead CSS | class-by-class `grep` of every `.sched-*` / `.timetable-*` selector against the JSX | 0 unused rules |
+| Backend suite | not re-run | **not verified this pass** — no file outside `frontend/src` and `docs/` was modified |
+
+#### Live measurements (`admin` on the dev server, `/admin/schedules`)
+
+The browser surface still cannot screenshot or deliver trusted input
+(`NATIVE_BROWSER_VIEWPORT_UNAVAILABLE`), so this is DOM, computed-style and
+network-log evidence read from the running app; dialogs were driven with DOM
+clicks.
+
+| Surface | Measured |
+|---|---|
+| Requests on entry | exactly one `GET /api/schedules/?page_size=100` and **no** `/api/teacher-assignments/` — the crawl the old page ran on every visit is gone; the two assignment GETs later in the log came from the Add and Edit dialog mounts (`ScheduleFormModal.jsx:35`) |
+| Write safety | the whole probe's fetch/xhr log is GET-only; the delete confirm was opened and cancelled and the single live row stayed (`timetable-card` count 1 → 1) |
+| Add dialog exits | Cancel: `dialogs 1 → 0`, route unchanged. `Close dialog` ×: same. Escape: same, via a `document` `keydown` — a *trusted* `press_key Escape` never reached the page, the same input limitation as pointer clicks |
+| Dialog state after each exit | `body.style.overflow` back to default (scroll lock released), no stray `[role=dialog]`, no `iframe` left from earlier width probes |
+| Delete confirm | `Delete Schedule?` · "Remove Mathematics · Grade 7 — Sampaguita (2026-2027) · Monday 07:30–08:30 from the weekly timetable?" · footer `[Cancel] [Delete Schedule]` — the shared `ConfirmDialog`, not page markup |
+| Card menu | `.timetable-card-menu-trigger` → `[Edit] [Delete]`; Edit opens `Edit Class Schedule` with `Save Changes`, Cancel closes it and PATCHes nothing |
+| Filter selects | 4 fields, each `LABEL+SELECT`; teacher `Teresa Reyes`, section `Grade 7 — Sampaguita (2026-2027)`, subject `Mathematics`, and the day select lists **all seven days** |
+| Narrow + clear | Friday → 0 blocks and the `No matching schedules` empty state; Clear reset all four selects and restored the grid (1 card, 6 header cells = time column + Mon–Fri) |
+| Headline figures | `Scheduled periods = 1`, `Classes today = 1`, `Teachers scheduled = 1`, `Scheduling conflicts = 0` — with zero conflicts the fourth card is not a button (`stat-card-button` count 0) |
+| Column maths (forced) | `.timetable-table` `min-width` 828 / 976 / 1,124 px at `--tt-cols` 5 / 6 / 7 — a weekend row widens the grid instead of vanishing |
+| Narrow viewports (same-origin frames) | 767 and 390 px: toolbar stacks, filter field 690 px wide, `.sched-view-toggle .btn` 40 px tall, KPI grid 2-col then 1-col, table scrolls inside its own container, `documentElement.scrollWidth === clientWidth` |
+| Console | 3 messages, all vite/React-DevTools chatter — no React warning, no runtime error |
+
+#### Six latent defects this pass surfaced
+
+1. **`ScheduleFilters` crashed on mount** — `TypeError: Cannot read properties
+   of undefined (reading 'map')`: the component indexed `options['teacher']`
+   while `filterOptions()` returns plural keys. It blank-screened the portal;
+   the new page tests found it on their first run.
+2. **The teacher filter keyed on the wrong id.** The selects were built from
+   assignment-row ids, so "filter by teacher" matched nothing. Narrowing is now
+   keyed on the person (`applyFilters` + `filterOptions` in `utils/schedules.js`).
+3. **The dialog's double-booking warning could never fire.** The old inline
+   check compared `d1?.teacher_id === d2?.teacher_id`, but the two sides are not
+   the same shape: `teacher_assignment_detail` on a schedule serializes
+   `teacher_id` / `section_id` (`backend/core/serializers.py:836-839`) while the
+   `/teacher-assignments/` row the dialog looked up serializes `teacher` /
+   `section` (`:585-588`). Left-hand side permanently `undefined`, so the
+   comparison was always false and an admin could save a teacher or a section
+   into two overlapping classes with no warning — the server has no overlap rule
+   either. `ScheduleFormModal` now normalises the assignment row into the
+   schedule shape before comparing, and guards both sides for truthiness, and
+   the same ids feed `detectConflicts` for the grid.
+4. **Five icons rendered nothing** — `alertTriangle`, `moreVertical` and `list`
+   were never in `Icon.jsx`, and the page used `x` / `rotateCcw` where the set
+   has `close` / `undo`. The card menu trigger and the conflict badge were
+   invisible in practice.
+5. **The Add dialog could not be closed** — `onClose={() => openForm(null)}`
+   set `formOpen` back to `true`, so Cancel stacked another dialog (the probe
+   showed three open at once with the footer `[Cancel] [Add Schedule]`). Fixed
+   with an explicit `closeForm()` that clears both halves of the dialog's
+   identity, and pinned by two regression specs.
+6. **A refresh blanked the week** — `loaded` was gated on `!loading`, so the
+   grid and the figures disappeared on every background re-read. Now
+   `loaded = !failed && data !== null` and only the *first* read shows the
+   skeleton, so the previous week stays legible until the new one lands.
+
+#### Remaining issues
+
+1. **No live weekend row.** Saturday/Sunday can now be created, are counted,
+   and get their own column — but the dev database holds one Monday period and
+   the rule for this project is not to create or destroy records unasked. The
+   weekend column and the "conflict names Saturday" behaviour are proven by
+   specs and by the forced `--tt-cols` measurement, not by a live row.
+2. **Not driven live:** the conflict panel opening from its KPI card and the
+   delete → undo toast round trip, for the same reason — one needs a
+   double-booked pair, the other a real DELETE. Both are covered by their
+   specs.
+3. **Trusted keyboard input is unavailable in this probe surface**, so Escape is
+   verified against the shared trap in tests (`ConfirmProvider.test.jsx`) rather
+   than by a real key press here.
+4. **One unexplained navigation mid-probe**: the tab moved itself to
+   `/admin/dashboard` between two read-only inspections. Re-running the whole
+   dialog sequence with a route check after every step kept it on
+   `/admin/schedules`, so nothing in this feature navigates — recorded as a
+   probe artifact, not a defect claim.
+
+---
 
 ---
 
