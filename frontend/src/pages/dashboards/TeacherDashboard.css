@@ -1,0 +1,536 @@
+/* ==========================================================================
+   Teacher dashboard — 12-column workspace grid.
+
+   Everything is scoped under .dash-teacher: this stylesheet is a lazy route
+   chunk, and `.card`, `.quick-actions`, `.kpi-grid` and `.empty-state` belong
+   to the global layer every other screen shares. The hero chips repeat the
+   admin header's rules rather than importing them — AdminDashboard.css only
+   reaches the browser once the admin route has been visited.
+   ========================================================================== */
+
+/* ------------------------------ Hero -------------------------------- */
+
+.dash-teacher .dash-hero {
+  align-items: flex-start;
+  margin-bottom: 2px;
+}
+
+.dash-teacher .dash-hero .page-title {
+  font-size: var(--text-3xl);
+  letter-spacing: -0.015em;
+}
+
+.dash-teacher .dash-hero .page-subtitle {
+  margin-top: 3px;
+  max-width: 82ch;
+  font-size: var(--text-md);
+}
+
+.dash-teacher .dash-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.dash-teacher .role-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--navy-700);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.02em;
+}
+
+.dash-teacher .dash-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.dash-teacher .dash-meta-item svg {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
+}
+
+/* --------------------------- Quick actions --------------------------- */
+
+/* Four shortcuts, so the global five-column bar would leave a hole. */
+.dash-teacher .quick-actions {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dash-teacher .quick-action.is-primary {
+  border-color: var(--navy-800);
+  background: var(--navy-800);
+  color: var(--on-navy);
+}
+
+.dash-teacher .quick-action.is-primary .qa-icon {
+  background: var(--navy-hover);
+  color: var(--on-navy);
+}
+
+.dash-teacher .quick-action.is-primary:hover {
+  border-color: var(--navy-900);
+  background: var(--navy-900);
+}
+
+.dash-teacher .quick-action.is-primary:hover .qa-icon {
+  background: var(--navy-hover);
+  color: var(--on-navy);
+}
+
+/* ------------------------------ Grid ------------------------------- */
+
+.dash-teacher .dt-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-4);
+  /* Widgets keep the height their content needs — an empty panel must not
+     stretch to match the tall one beside it. */
+  align-items: start;
+}
+
+.dash-teacher .dt-7 { grid-column: span 7; }
+.dash-teacher .dt-5 { grid-column: span 5; }
+.dash-teacher .dt-12 { grid-column: span 12; }
+
+/* A right-hand column that carries a card plus a footnote or an error. */
+.dash-teacher .dt-grid > .dt-5 {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* --------------------------- Schedule slots -------------------------- */
+
+.dash-teacher .dt-slots {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.dash-teacher .dt-slot {
+  display: grid;
+  grid-template-columns: 172px minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: center;
+  padding: 10px var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  transition: border-color var(--ease), background var(--ease);
+}
+
+.dash-teacher .dt-slot:hover {
+  border-color: var(--border-strong);
+  background: var(--surface);
+}
+
+/* A finished class with nothing marked yet is the one outstanding debt. */
+.dash-teacher .dt-slot.is-attention {
+  border-color: var(--amber-200);
+  background: var(--amber-100);
+}
+
+.dash-teacher .dt-slot-when {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+}
+
+.dash-teacher .dt-slot-time {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--navy-700);
+}
+
+.dash-teacher .dt-slot-class {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.dash-teacher .dt-slot-section {
+  font-size: var(--text-md);
+  color: var(--text-muted);
+}
+
+.dash-teacher .dt-slot-meta {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+
+.dash-teacher .dt-slot-action {
+  justify-self: end;
+}
+
+.dash-teacher .dt-sub-label {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+.dash-teacher .dt-next {
+  display: grid;
+  gap: 2px;
+}
+
+.dash-teacher .dt-next-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: 7px var(--space-3);
+  border-radius: var(--radius-sm);
+}
+
+.dash-teacher .dt-next-row:nth-child(odd) {
+  background: var(--surface-alt);
+}
+
+.dash-teacher .dt-next-when {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--navy-700);
+}
+
+.dash-teacher .dt-next-when svg {
+  flex: 0 0 auto;
+  color: var(--text-subtle);
+}
+
+.dash-teacher .dt-next-class {
+  font-size: var(--text-md);
+  overflow-wrap: anywhere;
+}
+
+.dash-teacher .dt-next-time {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* --------------------------- Queue / feed rows ------------------------ */
+
+.dash-teacher .dt-queue,
+.dash-teacher .dt-deadlines {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.dash-teacher .dt-queue-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 10px var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  transition: border-color var(--ease), background var(--ease);
+}
+
+.dash-teacher .dt-row-title {
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.dash-teacher .dt-row-sub {
+  font-size: var(--text-md);
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.dash-teacher .dt-row-meta {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+
+.dash-teacher .dt-row-side {
+  display: flex;
+  align-items: center;
+  justify-self: end;
+  gap: var(--space-2);
+}
+
+.dash-teacher .dt-avatar {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--navy-100);
+  color: var(--navy-700);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+}
+
+.dash-teacher .dt-more {
+  padding: var(--space-2) var(--space-2) 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+/* Hover and attention land after the base rule so they win. */
+.dash-teacher .dt-queue-row:hover {
+  border-color: var(--border);
+  background: var(--surface-alt);
+}
+
+.dash-teacher .dt-queue-row.is-attention {
+  border-color: #f4cbc7;
+  background: var(--red-100);
+}
+
+/* ------------------------- Submission overview ------------------------ */
+
+.dash-teacher .dt-total {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.dash-teacher .dt-total-value {
+  font-size: var(--text-4xl);
+  font-weight: var(--weight-bold);
+  color: var(--navy-800);
+  font-variant-numeric: tabular-nums;
+}
+
+.dash-teacher .dt-total-label {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.dash-teacher .dt-stack {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--gray-100);
+  overflow: hidden;
+}
+
+.dash-teacher .dt-seg {
+  min-width: 8px;
+  height: 100%;
+  border-radius: var(--radius-xs);
+}
+
+.dash-teacher .dt-seg-amber { background: var(--amber-700); }
+.dash-teacher .dt-seg-green { background: var(--green-700); }
+.dash-teacher .dt-seg-red { background: var(--red-600); }
+
+.dash-teacher .dt-note {
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+}
+
+/* ----------------------------- Deadlines ------------------------------ */
+
+.dash-teacher .dt-deadline {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 10px var(--space-2);
+  border: 1px solid transparent;
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.dash-teacher .dt-deadline.is-amber {
+  border-left-color: var(--amber-700);
+  background: var(--amber-100);
+}
+
+.dash-teacher .dt-deadline.is-red {
+  border-left-color: var(--red-600);
+  background: var(--red-100);
+}
+
+.dash-teacher .dt-deadline:hover {
+  border-color: var(--border);
+  border-left-color: var(--navy-700);
+  background: var(--surface-alt);
+}
+
+/* ---------------------------- Activity feed --------------------------- */
+
+.dash-teacher .dt-feed {
+  display: grid;
+}
+
+.dash-teacher .dt-feed-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.dash-teacher .dt-feed-row:last-child {
+  border-bottom: none;
+}
+
+.dash-teacher .dt-act-icon {
+  width: 28px;
+  height: 28px;
+  margin-top: 1px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--navy-700);
+}
+
+.dash-teacher .dt-act-icon.amber { background: var(--amber-100); color: var(--amber-700); }
+.dash-teacher .dt-act-icon.green { background: var(--green-100); color: var(--green-700); }
+.dash-teacher .dt-act-icon.red { background: var(--red-100); color: var(--red-700); }
+
+/* --------------------------- Empty states ---------------------------- */
+
+/* The global placeholder is page-sized; inside a dashboard panel it must not
+   push the row taller than the message it carries. */
+.dash-teacher .empty-state {
+  gap: var(--space-1);
+  padding: var(--space-5) var(--space-4);
+}
+
+.dash-teacher .empty-state .empty-icon {
+  width: 34px;
+  height: 34px;
+}
+
+.dash-teacher .empty-state h2,
+.dash-teacher .empty-state h3 {
+  font-size: var(--text-base);
+}
+
+.dash-teacher .empty-state p {
+  font-size: var(--text-sm);
+  max-width: 44ch;
+}
+
+.dash-teacher .empty-state .btn {
+  margin-top: var(--space-1);
+}
+
+/* ------------------------------ Footnotes ----------------------------- */
+
+.dash-teacher .dt-footnote {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+
+.dash-teacher .dt-source-note {
+  max-width: 96ch;
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+
+/* ---------------------------- Loading shell --------------------------- */
+
+.dash-teacher .dt-skeleton-hero {
+  height: 88px;
+  border-radius: var(--radius);
+}
+
+.dash-teacher .dt-skeleton-action {
+  min-height: 58px;
+  border-radius: var(--radius);
+}
+
+/* ----------------------------- Responsive ----------------------------- */
+
+/* Laptop and tablet: the narrow column can no longer hold a slot row, so the
+   pair splits evenly instead of keeping the 7/5 proportion. */
+@media (max-width: 1279px) {
+  .dash-teacher .dt-7,
+  .dash-teacher .dt-5 { grid-column: span 6; }
+}
+
+@media (max-width: 1023px) {
+  .dash-teacher .dt-slot { grid-template-columns: 140px minmax(0, 1fr) auto; }
+  .dash-teacher .dt-next-row { grid-template-columns: 126px minmax(0, 1fr) auto; }
+}
+
+/* Phone: one column, in the order the day is worked — schedule, attendance,
+   the verification queue, then everything else. */
+@media (max-width: 767px) {
+  .dash-teacher .dt-grid > * { grid-column: span 12; }
+  .dash-teacher .quick-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .dash-teacher .dt-slot {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .dash-teacher .dt-slot-when {
+    grid-column: 1;
+    grid-row: 1;
+    justify-items: start;
+  }
+
+  .dash-teacher .dt-slot-main { grid-column: 1; grid-row: 2; }
+
+  .dash-teacher .dt-slot-action {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+
+  .dash-teacher .dt-next-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-1) var(--space-3);
+  }
+
+  .dash-teacher .dt-next-class { grid-column: 1; }
+
+  .dash-teacher .dt-queue-row { grid-template-columns: auto minmax(0, 1fr); }
+
+  .dash-teacher .dt-row-side,
+  .dash-teacher .dt-deadline .dt-row-side {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .dash-teacher .dt-deadline {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  /* Full-width actions, and every control keeps the 42px phone target. */
+  .dash-teacher .dt-slot-action .btn,
+  .dash-teacher .dt-row-side .btn {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-teacher .dt-slot,
+  .dash-teacher .dt-queue-row,
+  .dash-teacher .quick-action {
+    transition: none;
+  }
+}

@@ -46,10 +46,11 @@ export default function Card({
   onRetry,
   empty,
   flush = false,
+  className = '',
   ...rest
 }) {
   return (
-    <section className="card" {...rest}>
+    <section className={`card${className ? ` ${className}` : ''}`} {...rest}>
       {(title || action) && (
         <header className="card-header">
           <h2>{title}</h2>

@@ -8,17 +8,23 @@ import StatusBadge from '../StatusBadge'
  *
  * Zero records is an honest "not recorded yet" state — never zero absences
  * or a fabricated perfect rate (the backend sends `present_rate: null`).
- * `emptyAction` lets callers add a permission-aware shortcut.
  *
- * `today` (optional, same shape, date-scoped by the backend) renders a
- * "Today" strip above the summary — the morning-check figures — including
- * an honest "nothing recorded today yet" line when the day is still bare.
+ * `today` (optional, same shape) renders a "Today" strip above the summary —
+ * the morning-check figures — including an honest "nothing recorded today yet"
+ * line when the day is still bare. The administrator gets it date-scoped by the
+ * backend; a teacher derives it from that day's sessions.
+ * `emptyAction` lets callers add a permission-aware shortcut, and
+ * `emptyTitle`/`emptyMessage` let a screen that belongs to the teacher who does
+ * the recording say so in the teacher's own words.
+ *
  * `link` is the caller's permission-aware route to the attendance screen.
  */
 export default function AttendanceSummaryCard({
   attendance,
   title = 'Attendance summary',
   emptyAction,
+  emptyTitle = 'No attendance recorded yet',
+  emptyMessage = 'Attendance information will appear here after teachers record it in class.',
   today,
   link,
 }) {
@@ -27,8 +33,8 @@ export default function AttendanceSummaryCard({
       <Card title={title} action={link}>
         <EmptyState
           icon="calendar"
-          title="No attendance recorded yet"
-          message="Attendance information will appear here after teachers record it in class."
+          title={emptyTitle}
+          message={emptyMessage}
           action={emptyAction}
         />
       </Card>
