@@ -11,6 +11,7 @@ import PageHeader from '../../components/PageHeader'
 import StatCard from '../../components/StatCard'
 import StatusBadge from '../../components/StatusBadge'
 import CardSkeleton from '../../components/loading/CardSkeleton'
+import InlineLoader from '../../components/loading/InlineLoader'
 import StatCardSkeleton from '../../components/loading/StatCardSkeleton'
 import { useAuth } from '../../context/AuthContext'
 import useFetch from '../../hooks/useFetch'
@@ -673,7 +674,9 @@ export default function TeacherDashboard() {
             }
           />
           {sessions.loading && !sessions.data && (
-            <p className="subtle dt-footnote">Loading today’s attendance marks…</p>
+            <p className="subtle dt-footnote">
+              <InlineLoader label="Loading today’s attendance marks…" />
+            </p>
           )}
           {sessions.error && (
             <ErrorMessage

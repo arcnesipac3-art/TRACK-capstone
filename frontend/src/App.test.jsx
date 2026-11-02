@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import App from './App'
+import { ConfirmProvider } from './context/ConfirmProvider'
 
 /**
  * Route-level integration test for the code-split build.
@@ -55,7 +56,9 @@ vi.mock('./services/api', () => {
 function renderApp(path) {
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <App />
+      <ConfirmProvider>
+        <App />
+      </ConfirmProvider>
     </MemoryRouter>,
   )
 }

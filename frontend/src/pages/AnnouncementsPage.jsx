@@ -8,6 +8,7 @@ import PageHeader from '../components/PageHeader'
 import Pagination from '../components/Pagination'
 import StatusBadge from '../components/StatusBadge'
 import { useAuth } from '../context/AuthContext'
+import { useConfirm } from '../context/ConfirmContext'
 import api from '../services/api'
 import { AUDIENCE_LABELS, formatDateTime, formatRelative } from '../utils/format'
 import './AnnouncementsPage.css'
@@ -82,6 +83,7 @@ function AnnouncementFormModal({
   onSubmit,
   initialData = null,
 }) {
+  const confirm = useConfirm()
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
   const [audience, setAudience] = useState('all')
@@ -104,10 +106,19 @@ function AnnouncementFormModal({
     setError(null)
   }
 
-  function handleCancel() {
+  async function handleCancel() {
     if (busy) return
     const hasChanges = title.trim() || body.trim() || audience !== 'all' || pinned
-    if (hasChanges && !window.confirm('Discard unsaved changes?')) return
+    if (
+      hasChanges &&
+      !(await confirm({
+        title: 'Discard unsaved changes?',
+        message: 'The announcement you have typed will be lost.',
+        confirmLabel: 'Discard',
+      }))
+    ) {
+      return
+    }
     onClose()
   }
 
@@ -198,7 +209,7 @@ function AnnouncementFormModal({
           />
         </div>
 
-        <div className="row row-wrap" style={{ gap: 12 }}>
+        <div className="row row-wrap" style={{ gap: 'var(--space-3)' }}>
           <div className="field grow" style={{ flex: 1, minWidth: '200px' }}>
             <label htmlFor="ann-audience">Audience</label>
             <select
@@ -357,7 +368,7 @@ function AnnouncementDetailModal({ announcement, onClose }) {
       <div className="stack stack-md">
         <div className="stack stack-xs">
           <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{title}</h3>
-          <div className="row row-wrap" style={{ gap: 8 }}>
+          <div className="row row-wrap" style={{ gap: 'var(--space-2)' }}>
             <StatusBadge
               label={AUDIENCE_LABELS[audience] || audience}
               tone="neutral"
@@ -366,11 +377,11 @@ function AnnouncementDetailModal({ announcement, onClose }) {
           </div>
         </div>
 
-        <div style={{ paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+        <div style={{ paddingTop: 'var(--space-2)', borderTop: '1px solid var(--border)' }}>
           <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{body}</p>
         </div>
 
-        <div className="row row-wrap" style={{ gap: 16, paddingTop: 8, fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+        <div className="row row-wrap" style={{ gap: 'var(--space-4)', paddingTop: 'var(--space-2)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
           <span>Author: {author_name || 'School'}</span>
           <span>Published: {formatDateTime(published_at)}</span>
           <span>{formatRelative(published_at)}</span>
@@ -392,6 +403,7 @@ function usePaginatedAnnouncements() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [actionError, setActionError] = useState(null)
   const [totalCount, setTotalCount] = useState(0)
 
   const abortRef = useRef(null)
@@ -470,6 +482,8 @@ function usePaginatedAnnouncements() {
     data,
     loading,
     error,
+    actionError,
+    clearActionError: () => setActionError(null),
     totalCount,
     totalPages,
     page: clampedPage,
@@ -498,6 +512,8 @@ export default function AnnouncementsPage() {
     data: announcements,
     loading,
     error,
+    actionError,
+    clearActionError,
     totalCount,
     totalPages,
     page,
@@ -543,7 +559,7 @@ export default function AnnouncementsPage() {
       })
       reload()
     } catch (err) {
-      alert(err.message)
+      setActionError(err.message)
     } finally {
       setLoadingActionId(null)
     }
@@ -558,7 +574,7 @@ export default function AnnouncementsPage() {
       setDeletingAnnouncement(null)
       reload()
     } catch (err) {
-      alert(err.message)
+      setActionError(err.message)
     } finally {
       setLoadingActionId(null)
     }
@@ -588,7 +604,7 @@ export default function AnnouncementsPage() {
         actions={
           <>
             {totalCount > 0 && (
-              <div className="announcements-summary" style={{ display: 'flex', alignItems: 'center', gap: 12, marginRight: 12 }}>
+              <div className="announcements-summary" style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginRight: 'var(--space-3)' }}>
                 <span className="subtle" style={{ whiteSpace: 'nowrap' }}>
                   {totalCount} announcement{totalCount !== 1 ? 's' : ''}
                 </span>
@@ -715,6 +731,21 @@ export default function AnnouncementsPage() {
 
       {/* Announcements List */}
       <section className="card announcements-list-card">
+        {/* A pin or delete that the server refused stays on the page that
+            asked for it — a browser alert disappears the moment it is
+            dismissed and leaves the row looking unchanged with no reason. */}
+        {actionError && (
+          <div className="card-body">
+            <div className="alert alert-error" role="alert">
+              <Icon name="info" size={17} />
+              <span className="grow">{actionError}</span>
+              <Button variant="secondary" size="sm" onClick={clearActionError}>
+                Dismiss
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Loading state — rows match the announcement cards below */}
         {loading && announcements === null && (
           <div className="loading-slot">

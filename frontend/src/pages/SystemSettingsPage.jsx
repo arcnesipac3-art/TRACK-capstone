@@ -8,6 +8,7 @@ import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
 import api from '../services/api'
 import useFetch from '../hooks/useFetch'
+import { useConfirm } from '../context/ConfirmContext'
 import { formatDate } from '../utils/format'
 import Button from '../components/Button'
 
@@ -20,6 +21,7 @@ import Button from '../components/Button'
  * subjects and class assignments live on the School Structure screen.
  */
 export default function SystemSettingsPage() {
+  const confirm = useConfirm()
   const years = useFetch('/school-years/', { list: true })
   const health = useFetch('/health/')
 
@@ -44,8 +46,17 @@ export default function SystemSettingsPage() {
 
   /** Make one year active — Django deactivates the rest in the same save. */
   async function activate(year) {
-    // eslint-disable-next-line no-alert
-    if (!window.confirm(`Set ${year.label} as the active school year?`)) return
+    if (
+      !(await confirm({
+        title: `Set ${year.label} as the active school year?`,
+        message:
+          'Every other year is deactivated in the same save. Requirements, sections and fee assessments that read the current year will follow this one.',
+        confirmLabel: 'Make active',
+        tone: 'primary',
+      }))
+    ) {
+      return
+    }
     setBusyId(year.id)
     setActionError(null)
     try {
@@ -184,7 +195,7 @@ export default function SystemSettingsPage() {
       >
         {health.data ? (
           <div className="stack stack-sm">
-            <div className="row" style={{ gap: 8 }}>
+            <div className="row" style={{ gap: 'var(--space-2)' }}>
               <StatusBadge
                 label={health.data.status === 'success' ? 'API reachable' : 'Unexpected response'}
                 tone={health.data.status === 'success' ? 'green' : 'amber'}

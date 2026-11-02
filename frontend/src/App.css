@@ -945,6 +945,11 @@
 .progress-fill.amber { background: var(--amber-700); }
 .progress-fill.red { background: var(--red-700); }
 .progress-fill.blue { background: var(--blue-600); }
+/* Named rather than left to the base rule: the dashboard asks for a navy row
+   ('Administrators', the not-submitted segment), and relying on an unknown
+   class falling through to the default colour is how a tone silently changes
+   when the base is restyled. */
+.progress-fill.navy { background: var(--navy-800); }
 
 /* "Today" strip inside the attendance summary card (date-scoped figures). */
 .att-today {
@@ -4369,16 +4374,11 @@
   border-color: var(--navy-600);
 }
 
-/* Dense control for table rows and toolbars. The geometry lives in index.css
-   too, but this file's `.btn` is later in the cascade, so the size has to be
-   repeated here or its padding, type and icon gap are silently lost. */
-.btn-xs {
-  height: 28px;
-  padding: 0 10px;
-  font-size: var(--text-sm);
-  gap: 6px;
-}
-
+/* `.btn-xs` deliberately has no twin here: its geometry lives once in the
+   token layer, on `.btn.btn-xs`, which outbids the `.btn` base above.
+   `.btn-sm` still needs its value here because 0.8rem is what every `sm`
+   control on the public pages computes to today; moving it to a token would
+   restyle the landing and enrollment pages. */
 .btn-sm {
   height: 32px;
   padding: 0 12px;

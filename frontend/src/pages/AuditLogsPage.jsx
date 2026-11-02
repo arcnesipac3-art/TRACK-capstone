@@ -75,7 +75,7 @@ export default function AuditLogsPage() {
 
       <section className="card">
         <div className="card-body">
-          <div className="row row-wrap" style={{ gap: 12, alignItems: 'flex-end' }}>
+          <div className="row row-wrap" style={{ gap: 'var(--space-3)', alignItems: 'flex-end' }}>
             <div className="field grow" style={{ minWidth: 200 }}>
               <label htmlFor="audit-search">Search</label>
               <input
@@ -160,7 +160,7 @@ export default function AuditLogsPage() {
         )}
 
         {!loading && !error && entries.length > 0 && (
-          <div className="table-wrap">
+          <div className="table-wrap table-wrap--pin">
             <table className="table responsive-table">
               <thead>
                 <tr>

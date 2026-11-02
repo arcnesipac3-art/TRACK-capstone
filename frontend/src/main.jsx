@@ -5,13 +5,16 @@ import './index.css'
 import App from './App.jsx'
 import ErrorBoundary from './components/ErrorBoundary'
 import { AuthProvider } from './context/AuthProvider'
+import { ConfirmProvider } from './context/ConfirmProvider'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>
       <ErrorBoundary>
         <AuthProvider>
-          <App />
+          <ConfirmProvider>
+            <App />
+          </ConfirmProvider>
         </AuthProvider>
       </ErrorBoundary>
     </BrowserRouter>

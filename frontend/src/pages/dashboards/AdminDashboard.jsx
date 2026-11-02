@@ -318,7 +318,7 @@ export default function AdminDashboard() {
         key="submissions"
         title="Requirements overview"
         action={
-          <span className="row row-wrap" style={{ gap: 6 }}>
+          <span className="row row-wrap gap-xs">
             {/* The metric tile reports completion; the deadline status the old
                 "Active requirements" card carried stays visible here. */}
             <StatusBadge
@@ -435,7 +435,7 @@ export default function AdminDashboard() {
         key="announcements"
         title="Latest announcements"
         action={
-          <span className="row row-wrap" style={{ gap: 6 }}>
+          <span className="row row-wrap gap-xs">
             <StatusBadge tone="neutral" label={`${formatNumber(announcements.total)} published`} />
             <Link className="btn btn-sm btn-ghost" to="/announcements">
               View all

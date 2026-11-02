@@ -167,8 +167,22 @@ img, svg { display: block; }
 .btn-danger:hover:not(:disabled) { background: var(--red-100); }
 
 .btn-sm { min-height: 32px; padding: 0 var(--space-3); font-size: var(--text-md); }
-/* Dense control for table rows and toolbars (status controls, row actions). */
-.btn-xs { min-height: 28px; padding: 0 10px; font-size: var(--text-sm); gap: 6px; }
+/* Dense control for table rows and toolbars (status controls, row actions).
+   The compound selector is load-order insurance, not a restyle: App.css
+   restyles `.btn` later in the cascade, so a single-class size rule can be
+   outbid there and the size silently lost. */
+.btn-xs,
+.btn.btn-xs { min-height: 28px; height: 28px; padding: 0 10px; font-size: var(--text-sm); gap: 6px; }
+/* …but the same insurance would beat the phone block in App.css, which lifts
+   every `.btn` to a 42px touch target below 768px. Measured before this rule
+   existed: the row-action buttons came back 28px wide-screen *and* 28px on a
+   phone, i.e. the touch target had silently gone back to the pre-Phase-6
+   behaviour. Restated here at the same specificity, so `min-height` — not
+   `height` — decides the phone size. */
+@media (max-width: 767px) {
+  .btn-xs,
+  .btn.btn-xs { min-height: 42px; }
+}
 .btn-block { width: 100%; }
 
 .btn-icon {
@@ -545,6 +559,23 @@ img, svg { display: block; }
 }
 
 /* ---------------------------------------------------------------------
+   Dialog copy
+   --------------------------------------------------------------------- */
+
+/* The question in a ConfirmDialog is the thing to read; the detail line is
+   the consequence, kept quieter so a decline is never the harder read. */
+.confirm-message {
+  font-size: var(--text-base);
+  color: var(--text);
+}
+
+.confirm-detail {
+  margin-top: var(--space-2);
+  font-size: var(--text-md);
+  color: var(--text-muted);
+}
+
+/* ---------------------------------------------------------------------
    Tables
    --------------------------------------------------------------------- */
 
@@ -552,6 +583,24 @@ img, svg { display: block; }
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Pinned column headers for the long tables that are not paginated (the
+   account lists, the audit trail). `overflow-x: auto` already computes
+   `overflow-y` to `auto`, but with no height the wrapper never becomes a
+   scrollport, so a bare `position: sticky` header silently does nothing —
+   the bounded height below is what makes the pin work. Mobile is unaffected:
+   `.responsive-table` renders each row as a block and hides the thead. */
+.table-wrap--pin {
+  max-height: min(68vh, 680px);
+}
+
+.table-wrap--pin thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-alt);
+  box-shadow: inset 0 -1px 0 var(--border);
 }
 
 .table {

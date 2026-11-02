@@ -676,15 +676,25 @@
 
 /* Phone: full-width actions, no horizontal page scroll from the tab strip. */
 @media (max-width: 767px) {
+  /* Six activities never fit one row on a phone, and a strip you swipe
+     sideways to see half of hides where you are. Below the tablet break the
+     rail becomes a grid: every activity is on screen at once, so the count
+     badges stay comparable. It stops sticking too — two rows of chrome parked
+     at the top of the viewport is worse than the scroll it saves. */
   .class-workspace .tabs {
-    top: 0;
+    position: static;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow-x: visible;
     padding: 3px;
   }
 
   .class-workspace .tab {
     min-height: 40px;
-    padding: 8px 12px;
+    padding: 8px 8px;
     font-size: var(--text-sm);
+    justify-content: center;
+    min-width: 0;
   }
 
   .class-workspace .cw-attention-item {
@@ -705,6 +715,14 @@
 
   .class-workspace .cw-req-counts {
     flex: 1 1 100%;
+  }
+}
+
+/* Very small phones: three columns squeeze a word like "Requirements" against
+   its own count badge, so the rail goes two wide and three deep instead. */
+@media (max-width: 479px) {
+  .class-workspace .tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

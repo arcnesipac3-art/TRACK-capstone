@@ -87,7 +87,7 @@ function renderDashboard() {
 
 /** Text of the stat-value inside the card whose label matches. */
 function statValue(label) {
-  const card = [...document.querySelectorAll('.enr-stat-grid .stat-card')].find(
+  const card = [...document.querySelectorAll('.kpi-grid .stat-card')].find(
     (el) => el.querySelector('.stat-label')?.textContent === label
   )
   return card?.querySelector('.stat-value')?.textContent
@@ -184,7 +184,7 @@ describe('RegistrarDashboard', () => {
       screen.getByRole('button', { name: /try again/i })
     ).toBeInTheDocument()
     // Never fabricate zeros while the request has failed.
-    expect(document.querySelector('.enr-stat-grid')).toBeNull()
+    expect(document.querySelector('.kpi-grid')).toBeNull()
     expect(screen.queryByText('0')).not.toBeInTheDocument()
   })
 

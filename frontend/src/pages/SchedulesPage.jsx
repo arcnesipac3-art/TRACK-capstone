@@ -447,9 +447,9 @@ function ConflictPanel({ conflicts, onScheduleClick, onClose }) {
   return (
     <section className="sched-conflict-panel">
       <header>
-        <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+        <div className="row" style={{ gap: 'var(--space-2)', alignItems: 'center' }}>
           <Icon name="alertTriangle" size={18} style={{ color: 'var(--red-700)' }} />
-          <h3 style={{ margin: 0, fontSize: '1rem' }}>
+          <h3 style={{ margin: 0, fontSize: 'var(--text-lg)' }}>
             {totalPairs} Scheduling Conflict{totalPairs === 1 ? '' : 's'} across {grouped.length} time slot{grouped.length === 1 ? '' : 's'}
           </h3>
         </div>
@@ -536,7 +536,7 @@ function ConflictPanel({ conflicts, onScheduleClick, onClose }) {
 function ScheduleDetailPanel({ schedule, onClose, onEdit, onDelete }) {
   if (!schedule) return null
   const detail = schedule.teacher_assignment_detail
-  return (<Modal open title="Schedule Details" onClose={onClose} width={500} footer={<><Button variant="danger" size="sm" onClick={() => onDelete(schedule)}><Icon name="trash" size={14} />Delete</Button><span className="grow" /><Button  variant="secondary" size="sm" onClick={onClose}>Close</Button><Button  variant="primary" size="sm" onClick={() => onEdit(schedule)}><Icon name="pencil" size={14} />Edit</Button></>}><div className="stack stack-sm"><div><div className="label">Subject</div><div className="value"><strong>{detail?.subject_name}</strong></div></div><div><div className="label">Class / Section</div><div className="value">{detail?.section_name}</div></div><div className="row row-wrap" style={{ gap: 16 }}><div style={{ flex: 1, minWidth: '120px' }}><div className="label">Day</div><div className="value">{schedule.day_of_week_display}</div></div><div style={{ flex: 1, minWidth: '120px' }}><div className="label">Time</div><div className="value">{normTime(schedule.start_time)} - {normTime(schedule.end_time)}</div></div></div><div><div className="label">Room</div><div className="value">{schedule.room || <span className="subtle">Not specified</span>}</div></div></div></Modal>)
+  return (<Modal open title="Schedule Details" onClose={onClose} width={500} footer={<><Button variant="danger" size="sm" onClick={() => onDelete(schedule)}><Icon name="trash" size={14} />Delete</Button><span className="grow" /><Button  variant="secondary" size="sm" onClick={onClose}>Close</Button><Button  variant="primary" size="sm" onClick={() => onEdit(schedule)}><Icon name="pencil" size={14} />Edit</Button></>}><div className="stack stack-sm"><div><div className="label">Subject</div><div className="value"><strong>{detail?.subject_name}</strong></div></div><div><div className="label">Class / Section</div><div className="value">{detail?.section_name}</div></div><div className="row row-wrap" style={{ gap: 'var(--space-4)' }}><div style={{ flex: 1, minWidth: '120px' }}><div className="label">Day</div><div className="value">{schedule.day_of_week_display}</div></div><div style={{ flex: 1, minWidth: '120px' }}><div className="label">Time</div><div className="value">{normTime(schedule.start_time)} - {normTime(schedule.end_time)}</div></div></div><div><div className="label">Room</div><div className="value">{schedule.room || <span className="subtle">Not specified</span>}</div></div></div></Modal>)
 }
 
 function ScheduleFormModal({ schedule, onClose, onSaved, existingSchedules = [] }) {
@@ -601,7 +601,7 @@ function ScheduleFormModal({ schedule, onClose, onSaved, existingSchedules = [] 
             ))}
           </select>
         </div>
-        <div className="row row-wrap" style={{ gap: 12 }}>
+        <div className="row row-wrap" style={{ gap: 'var(--space-3)' }}>
           <div className="field" style={{ flex: 1, minWidth: '140px' }}>
             <label htmlFor="schedule-start">Start Time <span style={{ color: 'var(--red-700)' }}>*</span></label>
             <input id="schedule-start" className="input" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} disabled={busy} required />
@@ -681,7 +681,7 @@ function ConfirmDeleteModal({ schedule, onClose, onDeleted, busy }) {
         </>
       }
     >
-      <p className="muted" style={{ fontSize: '0.92rem', marginBottom: '12px' }}>
+      <p className="muted" style={{ fontSize: '0.92rem', marginBottom: 'var(--space-3)' }}>
         Are you sure you want to delete this class schedule?
       </p>
       <div className="card" style={{ background: 'var(--surface-2)' }}>
@@ -698,7 +698,7 @@ function ConfirmDeleteModal({ schedule, onClose, onDeleted, busy }) {
           </p>
         </div>
       </div>
-      <p className="muted" style={{ fontSize: '0.85rem', marginTop: '12px' }}>
+      <p className="muted" style={{ fontSize: '0.85rem', marginTop: 'var(--space-3)' }}>
         Past attendance sessions will be preserved, but new sessions will no longer
         be generated for this time slot.
       </p>
@@ -1100,7 +1100,7 @@ export default function SchedulesPage() {
           {schedules.loading && !schedules.data && <TimetableSkeleton />}
 
           {schedules.error && (
-            <div style={{ padding: 24 }}>
+            <div style={{ padding: 'var(--space-6)' }}>
               <ErrorMessage
                 error={schedules.error}
                 title="Could not load schedules"
@@ -1110,7 +1110,7 @@ export default function SchedulesPage() {
           )}
 
           {!schedules.loading && !schedules.error && allSchedules.length === 0 && (
-            <div style={{ padding: 32 }}>
+            <div style={{ padding: 'var(--space-8)' }}>
               <EmptyState
                 icon="calendar"
                 title="No schedules configured"
@@ -1123,7 +1123,7 @@ export default function SchedulesPage() {
             !schedules.error &&
             allSchedules.length > 0 &&
             filteredSchedules.length === 0 && (
-              <div style={{ padding: 32 }}>
+              <div style={{ padding: 'var(--space-8)' }}>
                 <EmptyState
                   icon="search"
                   title="No matching schedules"
@@ -1161,13 +1161,13 @@ export default function SchedulesPage() {
                       padding: '16px',
                     }}
                   >
-                    <div style={{ marginBottom: '12px' }}>
+                    <div style={{ marginBottom: 'var(--space-3)' }}>
                       <h3
                         style={{
-                          fontSize: '1rem',
+                          fontSize: 'var(--text-lg)',
                           fontWeight: 600,
                           margin: 0,
-                          marginBottom: '4px',
+                          marginBottom: 'var(--space-1)',
                         }}
                       >
                         {group.assignment.subject_name}
@@ -1178,7 +1178,7 @@ export default function SchedulesPage() {
                     </div>
 
                     <div className="table-wrap">
-                      <table className="table">
+                      <table className="table responsive-table">
                         <thead>
                           <tr>
                             <th style={{ width: '20%' }}>Day</th>

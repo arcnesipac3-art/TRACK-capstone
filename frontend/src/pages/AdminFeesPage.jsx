@@ -13,6 +13,7 @@ import Button from '../components/Button'
 import Modal from '../components/Modal'
 import Card from '../components/dashboard/Card'
 import Tabs from '../components/Tabs'
+import { useConfirm } from '../context/ConfirmContext'
 import { formatCurrency, formatDate } from '../utils/format'
 
 const TABS = ['dashboard', 'categories', 'assessments', 'payments', 'reports']
@@ -62,7 +63,7 @@ function ReceiptSkeleton() {
       <span className="sr-only" role="status" aria-live="polite">
         Loading receipt…
       </span>
-      <div aria-hidden="true" style={{ textAlign: 'center', marginBottom: '1rem' }}>
+      <div aria-hidden="true" style={{ textAlign: 'center', marginBottom: 'var(--space-4)' }}>
         <Skeleton width="60%" height={16} style={{ margin: '0 auto' }} />
         <Skeleton width="45%" height={12} style={{ margin: '6px auto 0' }} />
       </div>
@@ -92,6 +93,7 @@ function ReceiptSkeleton() {
  */
 export default function AdminFeesPage() {
   const navigate = useNavigate()
+  const confirm = useConfirm()
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get('tab')
   const activeTab = TABS.includes(tabParam) ? tabParam : 'dashboard'
@@ -99,6 +101,8 @@ export default function AdminFeesPage() {
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  // A category the server refused to delete: shown on the table it belongs to.
+  const [categoryError, setCategoryError] = useState(null)
 
   // Data
   const [categories, setCategories] = useState([])
@@ -392,12 +396,23 @@ export default function AdminFeesPage() {
   }
 
   const handleDeleteCategory = async (id) => {
-    if (!window.confirm('Delete this fee category?')) return
+    if (
+      !(await confirm({
+        title: 'Delete this fee category?',
+        message: 'This cannot be undone. Categories with assessments on record are refused.',
+        confirmLabel: 'Delete',
+      }))
+    ) {
+      return
+    }
     try {
       await api.delete(`/fee-categories/${id}/`)
       setCategories((prev) => prev.filter((c) => c.id !== id))
+      setCategoryError(null)
     } catch (err) {
-      alert(err instanceof ApiError ? err.message : 'Could not delete category.')
+      setCategoryError(
+        err instanceof ApiError ? err.message : 'Could not delete category.'
+      )
     }
   }
 
@@ -669,6 +684,7 @@ export default function AdminFeesPage() {
     <Card
       title="Fee Categories"
       flush
+      error={categoryError ? { message: categoryError } : null}
       empty={
         categories.length === 0 ? (
           <EmptyState
@@ -831,7 +847,7 @@ export default function AdminFeesPage() {
                   <td data-label="Amount">{formatCurrency(a.amount)}</td>
                   <td data-label="Due Date">{formatDate(a.due_date)}</td>
                   <td data-label="Scope">
-                    <div className="row row-wrap" style={{ gap: 6 }}>
+                    <div className="row row-wrap gap-xs">
                       {a.grade_level_name && <StatusBadge tone="blue" label={a.grade_level_name} />}
                       {a.section_name && <StatusBadge tone="neutral" label={a.section_name} />}
                       {a.student_name && <StatusBadge tone="blue" label={a.student_name} />}
@@ -1270,7 +1286,7 @@ export default function AdminFeesPage() {
         <form onSubmit={handlePaymentSubmit} className="stack stack-sm">
           {paymentError && <ErrorMessage error={paymentError} compact />}
 
-          <div className="row row-wrap" style={{ gap: 12 }}>
+          <div className="row row-wrap" style={{ gap: 'var(--space-3)' }}>
             <div className="field grow" style={{ minWidth: '240px' }}>
               <label htmlFor="pm_assessment">Assessment {REQUIRED}</label>
               <select
@@ -1315,7 +1331,7 @@ export default function AdminFeesPage() {
             </div>
           </div>
 
-          <div className="row row-wrap" style={{ gap: 12 }}>
+          <div className="row row-wrap" style={{ gap: 'var(--space-3)' }}>
             <div className="field" style={{ minWidth: '180px' }}>
               <label htmlFor="pm_amount">Amount (PHP) {REQUIRED}</label>
               <input
@@ -1343,7 +1359,7 @@ export default function AdminFeesPage() {
             </div>
           </div>
 
-          <div className="row row-wrap" style={{ gap: 12 }}>
+          <div className="row row-wrap" style={{ gap: 'var(--space-3)' }}>
             <div className="field" style={{ minWidth: '180px' }}>
               <label htmlFor="pm_method">Payment Method</label>
               <select
@@ -1409,9 +1425,9 @@ export default function AdminFeesPage() {
         {receiptError && <ErrorMessage error={receiptError} compact />}
         {receipt && (
           <div className="receipt-print">
-            <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+            <div style={{ textAlign: 'center', marginBottom: 'var(--space-4)' }}>
               <h3 style={{ margin: 0 }}>Kiwalan National High School</h3>
-              <p className="muted" style={{ margin: '0.25rem 0', fontSize: '0.85rem' }}>
+              <p className="muted" style={{ margin: 'var(--space-1) 0', fontSize: '0.85rem' }}>
                 Official Payment Receipt
               </p>
             </div>

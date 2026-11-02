@@ -196,11 +196,6 @@
   justify-content: center;
 }
 
-.announcement-actions .btn-xs {
-  padding: 0 10px;
-  gap: 6px;
-}
-
 /* Modal form adjustments */
 .modal-panel form .field {
   margin-bottom: 0;

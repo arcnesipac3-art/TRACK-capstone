@@ -188,7 +188,7 @@ export default function RegistrarDashboard() {
       </PageHeader>
 
       {loading && !stats && (
-        <div className="enr-stat-grid" aria-hidden="true">
+        <div className="kpi-grid" aria-hidden="true">
           {STATS.map((s) => (
             <StatCardSkeleton key={s.key} />
           ))}
@@ -205,7 +205,7 @@ export default function RegistrarDashboard() {
 
       {!loading && !error && stats && (
         <>
-          <section className="enr-stat-grid">
+          <section className="kpi-grid">
             {STATS.map((s) => (
               <StatCard
                 key={s.key}

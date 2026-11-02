@@ -1,9 +1,10 @@
-import { render, screen, within } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import UsersPage from './UsersPage'
 import AuthContext from '../context/AuthContext'
 import api from '../services/api'
+import { acceptConfirm, declineConfirm, renderConfirmed } from '../test/confirm'
 
 vi.mock('../services/api', () => {
   const api = {
@@ -73,7 +74,7 @@ function mockUsers(users = DIRECTORY, failure = null) {
 function renderPage({ role = 'teacher', permissions = [], users, failure } = {}) {
   mockUsers(users, failure)
   const can = vi.fn((key) => permissions.includes(key))
-  render(
+  renderConfirmed(
     <AuthContext.Provider value={{ user: ME, can, signOut: vi.fn() }}>
       <UsersPage role={role} />
     </AuthContext.Provider>
@@ -86,15 +87,8 @@ const MANAGE = ['users.manage', 'students.manage', 'users.manage_admins']
 /** Rows arrive with the fetch, so every lookup waits for its directory. */
 const row = (name) => screen.findByRole('row', { name: new RegExp(name, 'i') })
 
-let confirm
-
 beforeEach(() => {
   vi.clearAllMocks()
-  confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
-})
-
-afterEach(() => {
-  confirm.mockRestore()
 })
 
 describe('UsersPage', () => {
@@ -116,7 +110,7 @@ describe('UsersPage', () => {
 
   it('announces the wait before the first row arrives', () => {
     api.list.mockReturnValue(new Promise(() => {}))
-    render(
+    renderConfirmed(
       <AuthContext.Provider value={{ user: ME, can: vi.fn(() => true), signOut: vi.fn() }}>
         <UsersPage role="teacher" />
       </AuthContext.Provider>
@@ -231,7 +225,13 @@ describe('UsersPage', () => {
     const teacher = await row('Tina Teacher')
     await user.click(within(teacher).getByRole('button', { name: /Deactivate/ }))
 
-    expect(confirm).toHaveBeenCalledWith('Deactivate Tina Teacher?')
+    // The app's own dialog, not window.confirm: the question is on screen and
+    // the write waits for the answer.
+    expect(
+      await screen.findByRole('dialog', { name: 'Deactivate Tina Teacher?' })
+    ).toHaveTextContent('will not be able to sign in until the account is reactivated')
+    await acceptConfirm(user, { title: 'Deactivate Tina Teacher?', label: 'Deactivate' })
+
     await vi.waitFor(() =>
       expect(api.patch).toHaveBeenCalledWith('/users/7/', { is_active: false })
     )
@@ -242,14 +242,15 @@ describe('UsersPage', () => {
 
   it('does nothing when the administrator backs out of the confirm', async () => {
     const user = userEvent.setup()
-    confirm.mockReturnValue(false)
     renderPage({ permissions: MANAGE })
 
     const teacher = await row('Tina Teacher')
     await user.click(within(teacher).getByRole('button', { name: /Deactivate/ }))
 
-    expect(confirm).toHaveBeenCalled()
+    await declineConfirm(user, { title: 'Deactivate Tina Teacher?' })
+
     expect(api.patch).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
@@ -262,6 +263,7 @@ describe('UsersPage', () => {
 
     const teacher = await row('Tina Teacher')
     await user.click(within(teacher).getByRole('button', { name: /Deactivate/ }))
+    await acceptConfirm(user, { title: 'Deactivate Tina Teacher?', label: 'Deactivate' })
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('This account holds the only registrar role.')

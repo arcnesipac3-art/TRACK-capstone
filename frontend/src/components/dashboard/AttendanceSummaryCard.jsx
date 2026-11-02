@@ -52,7 +52,7 @@ export default function AttendanceSummaryCard({
     <Card
       title={title}
       action={
-        <span className="row row-wrap" style={{ gap: 6 }}>
+        <span className="row row-wrap gap-xs">
           <StatusBadge
             tone="blue"
             title="Share of records marked present"

@@ -2,7 +2,7 @@
 
 This document describes all known incomplete features, external service dependencies, unresolved defects, native testing gaps, and deployment restrictions. Do not claim something works if it appears in this file without a resolution note.
 
-Last verified against the code: **2026-11-02** (backend 475 tests, frontend 875 tests, `oxlint` clean over 227 files).
+Last verified against the code: **2026-11-02** (backend 475 tests, frontend 882 tests, `oxlint` clean over 232 files).
 
 ---
 
@@ -201,3 +201,18 @@ Last verified against the code: **2026-11-02** (backend 475 tests, frontend 875 
   2. **Stale cookies.** A request that arrives carrying `sessionid`/`csrftoken` — left behind by an earlier session-cookie login or a visit to `/admin/` — is CSRF-enforced in full, and the SPA never sends a token: it authenticates with the `Authorization: Token …` header and its CSRF prefetch is an explicit no-op (`frontend/src/services/api.js:254`, `src/services/api.js:7`). The same POST on a trusted origin then answers `403 CSRF token missing`, and after deleting only `csrftoken` it answers `CSRF cookie not set`.
 - **Impact:** The login screen reports "Your browser blocked the sign-in request" even though the credentials are correct. Requests with an already-issued API token are unaffected, which is why a probe on a non-standard port can read and write normally but cannot sign a new account in — the documented workaround is to clear the site's cookies, or to write a token into `sessionStorage['track.auth.token']`.
 - **Fix:** Sign in from `http://localhost:5173`, and clear the site cookies when a previous session left Django's own cookies behind. Extending `CSRF_TRUSTED_ORIGINS` is a code edit in `settings.py`, not an env var; neither is done here because both are security-relevant settings and production is unaffected (the Vite proxy makes the deployed app same-origin).
+---
+
+## Portal presentation
+
+### L-029: Off-scale type and spacing literals survive in the portal
+- **Severity:** Low
+- **Description:** The cross-portal polish pass replaced every inline `gap`, `padding` and `margin` whose value a spacing token computes to identically (`4/8/12/16/24/32px` → `var(--space-1..4, --space-6, --space-8)`, or the existing `.gap-xs` / `.gap-sm` classes) and the two `font-size` literals the scale already owns (`1rem` → `var(--text-lg)`). What is left has no matching token. Type: `0.85rem` (5 sites), `0.82rem` (5), `0.9rem` (3), `0.92rem` (3), `0.87rem` (1) and `1.1rem` (1) — in `AnnouncementsPage.jsx`, `SchedulesPage.jsx`, `AdminFeesPage.jsx`, `AdminFeeAssessmentDetailPage.jsx`, `NotificationsPage.jsx` and the two admin modals; the scale runs `0.6875 / 0.75 / 0.8125 / 0.875 / 0.9375 / 1 / 1.0625 / 1.1875rem`, so each of those sits between two steps. Geometry: `width: '42%'` (`pages/attendance/SessionsBoard.jsx:383`), `maxHeight: 170` (`components/admin/UserFormModal.jsx:473`), and the `minWidth: 150/180/200/220` column floors. The public enrollment pages (`pages/enrollment/`, including `ApplicationWizardPage.jsx:1113`'s `0.75rem`) keep their literals by the standing guardrail.
+- **Impact:** Text on those screens renders a fraction of a pixel away from the intended step — invisible next to the rest of the app, but it is why a `0.85rem` label and a `--text-md` label in the same card do not share a size exactly. Nothing is unreadable and no state is missing; this is scale debt, not a defect.
+- **Fix required:** Decide whether the scale should absorb these (snap `0.82 → --text-sm`, `0.85/0.87 → --text-md`, `0.9/0.92 → --text-base`, `1.1 → --text-xl`) and make the change as one pass with a before/after screenshot review, because it shifts text sizes on screens that have already been approved. Deliberately not done in this pass.
+
+### L-030: The confirmation dialog needs the provider, and page tests must mount it
+- **Severity:** Low (development only)
+- **Description:** `useConfirm()` (`frontend/src/context/ConfirmContext.js:26`) throws rather than falling back to `window.confirm`, and the provider is installed once in `main.jsx`. A screen that calls it and is rendered in a bare test harness — `AuthContext.Provider` only, no `ConfirmProvider` — fails on mount.
+- **Impact:** Three suites (`UsersPage`, `SectionsPage`, `App`) had to move to `renderConfirmed()` from `frontend/src/test/confirm.jsx` before their dialogs could be driven. Any new page that guards a write needs the same wrapper, and a future page rendered under a second `<ConfirmProvider>` would show two independent dialogs.
+- **Fix required:** None planned. A silent `window.confirm` fallback was rejected on purpose: it would let a missing provider ship as a browser-chrome dialog that the design system explicitly retired.

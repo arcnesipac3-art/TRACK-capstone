@@ -637,6 +637,137 @@ gone from this module's network trace.
 
 ---
 
+### Cross-portal polish pass — 2026-11-02
+
+One sweep over the four authenticated shells (admin, teacher, student, parent)
+and the registrar's enrollment screens, driven by the items the earlier
+design-system phases had deferred. No model, endpoint, migration or public page
+changed: this is the confirmation primitive, the loading/empty/error states, the
+type and spacing cascade, long-table headers and the phone-width tab rail.
+
+#### Files changed
+
+| File | Change |
+|---|---|
+| `components/ConfirmDialog.jsx`, `context/ConfirmContext.js`, `context/ConfirmProvider.jsx` | new — the app's own yes/no dialog, one provider-owned instance, `confirm(request) -> Promise<boolean>` |
+| `main.jsx` | `<ConfirmProvider>` installed between `AuthProvider` and `App` |
+| `pages/UsersPage.jsx`, `DepartmentsPage.jsx`, `SectionsPage.jsx`, `AssignmentsPage.jsx`, `SystemSettingsPage.jsx`, `AnnouncementsPage.jsx`, `AdminFeesPage.jsx`, `AdminFeeCategoryDetailPage.jsx`, `AdminFeeAssessmentDetailPage.jsx` | ten `window.confirm` gates → `await confirm({...})`; five failure `alert()`s → in-page error surfaces |
+| `index.css`, `App.css`, `AnnouncementsPage.css` | `.btn-xs`/`.btn.btn-xs` geometry in one token-layer rule (legacy twin deleted), `.table-wrap--pin`, `.confirm-message`/`.confirm-detail`, `.progress-fill.navy` made explicit, redundant `.announcement-actions .btn-xs` removed |
+| `pages/SchedulesPage.jsx`, `pages/dashboards/TeacherDashboard.jsx`, `pages/enrollment/RegistrarDashboard.jsx` + `RegistrarEnrollment.css`, `pages/TeacherClassWorkspace.css` | `responsive-table` on the schedule grid, live `InlineLoader` on the dashboard footnote, `enr-stat-grid` → shared `kpi-grid`, phone tab rail as a grid |
+| Fifteen admin/enrollment/dashboard JSX files | inline `gap`/`padding`/`margin`/`font-size` literals → the spacing and type tokens that compute identically |
+| `UsersPage.test.jsx`, `SectionsPage.test.jsx`, `App.test.jsx`, `test/confirm.jsx`, `context/ConfirmProvider.test.jsx`, `enrollment/RegistrarDashboard.test.jsx` | specs drive the real dialog instead of stubbing `window.confirm`; 7 new primitive tests |
+
+#### Functionality preserved
+
+- Every guarded write keeps its old shape: the call still sits in front of the
+  request and a declined dialog still runs nothing. The row button, the busy
+  state, the reload after a write and the server's own refusal copy are
+  untouched — only the question moved from a browser chrome into the page.
+- Failure copy that used to disappear into an `alert()` now stays next to the
+  rows that caused it (`actionError` banner on Announcements, `saveError` on the
+  two fee detail pages, a `categoryError` on the Fee Categories card).
+- No new endpoint, no new dependency, no route or navigation change; the public
+  landing, public track and `/enroll` wizard were left alone, including their
+  inline styles.
+
+#### Tests actually run
+
+| Check | Command | Result |
+|---|---|---|
+| Frontend suite | `npx vitest run` | PASS — 882 tests across 67 files, three consecutive green runs during and at the close of this pass (29.5s, then 35.7s) |
+| New primitive | `src/context/ConfirmProvider.test.jsx` | PASS — 7 tests (labels, accept, decline, Escape, replaced request, string form, provider-less throw) |
+| Dialog specs | `UsersPage.test.jsx` / `SectionsPage.test.jsx` | PASS — 15 / 16 tests, both now clicking the real dialog |
+| Frontend lint | `npx oxlint src` | PASS — 0 warnings, 0 errors on 232 files |
+| Frontend build | `npm run build` | PASS — exit 0; `index` 382.76 kB (111.28 kB gzip), `UsersPage` 20.04 kB, `SectionsPage` 21.64 kB |
+| Backend suite | not re-run | **not verified this pass** — `git status` confirms no file outside `frontend/src` changed, so the 475-test baseline recorded in the attendance section still stands |
+
+#### Live measurements (`admin`, `teacher1` on the dev server)
+
+The browser surface here still cannot screenshot or resize
+(`NATIVE_BROWSER_VIEWPORT_UNAVAILABLE`), so this is DOM and computed-style
+evidence, read from the running app and from same-origin frames.
+
+| Surface | Measured |
+|---|---|
+| `/admin/teachers` header | `.table-wrap--pin` `overflow-x: auto`, `max-height: 546.04px`, `thead th` `position: sticky; top: 0px` over 2 rows |
+| `/admin/audit-logs` header | 172 rows in a scrollable wrapper; after `scrollTop = 240` the header's top sits **0 px** from the wrapper's top with its inset bottom rule painted — the sticky header is real, not declared |
+| Deactivate dialog | `aria-label="Deactivate Marco Dizon?"`, body *"…will not be able to sign in until the account is reactivated. No record of theirs is deleted."*, footer `[Cancel] [Deactivate]` (`btn btn-danger btn-sm`), panel `max-width: 460px`; **Escape** closed it and restored `body` scroll |
+| Discard dialog | Typed a title, pressed Cancel → a second panel `Discard unsaved changes?` opened over the form (both labelled, no `window.confirm`); confirming closed both, posted nothing, and the page returned to the list |
+| Announcements row actions (desktop) | 8 `.btn-xs`, all exactly **28 px** tall, `font-size: 13px`, `padding: 0 10px`, `gap: 6px`; `.btn-sm` still 32 px — the consolidated rule computes what the deleted legacy pair did |
+| Announcements row actions (415 px) | `.btn-xs` **42 px** (`min-height: 42px`), `.btn-sm` 42 px — the phone touch target survives the consolidation |
+| Registrar KPI row | `.kpi-grid` (was `.enr-stat-grid`): `display: grid`, `grid-template-columns: 240px 240px 240px`, `gap: 16px`, 8 `.stat-card`s from the live dashboard payload |
+| Class rail, 415 px | `display: grid`, `grid-template-columns: 180px 180px`, `overflow-x: visible`, tabs **40 px** tall, document `scrollWidth` 400 → **no horizontal overflow** (was a 856 px scrolling strip) |
+| Class rail, 520 / 700 px | 3 columns (153.7 px / 213.7 px), 40 px tabs, no overflow; 1100 px is unchanged: `display: flex`, `overflow-x: auto`, `position: sticky` |
+| Phone buttons in the 415 px frame | `.btn-sm` measures **42 px** — the legacy touch-target rule still wins below 768 px, which is why `min-height` was left one class deep |
+
+#### Why the earlier sticky headers did nothing
+
+`position: sticky` on a `thead` needs a real scrollport. `.table-wrap` sets
+`overflow-x: auto`, and CSS resolves the paired `overflow-y` from `visible` to
+`auto` — so with no height bound the wrapper never actually becomes scrollable
+and a bare sticky header silently does nothing. `.table-wrap--pin` therefore
+bounds the wrapper (`max-height: min(68vh, 680px)`) **and** styles the header;
+only the three genuinely unbounded tables took the modifier, so ordinary paged
+tables keep their natural height.
+
+#### One defect this pass introduced and its own probe caught
+
+Consolidating `.btn-xs` into a single token-layer rule wrote the geometry onto
+`.btn-xs, .btn.btn-xs` together. The compound selector was needed so App.css's
+later `.btn { height: 40px }` cannot outbid the size — but the same (0,2,0) also
+outbid the phone block's `.btn { min-height: 42px }`, so at 415 px the row-action
+buttons measured **28 px**, undoing the touch target Phase 6 added. Found by
+measuring the 415 px frame rather than trusting the desktop number: the
+`min-height` lift is now restated at the same specificity inside
+`@media (max-width: 767px)` (`index.css:176-184`), and both widths are in the
+table above.
+
+#### A test that only passed when the machine was idle
+
+`TeacherClassWorkspace.test.jsx` "opens each reused module scoped to this class"
+failed twice in this session's full runs and passed on every isolated run. The
+cause is in the test, not the app: the three reused modules are `lazy()` imports
+(`TeacherClassWorkspace.jsx:21-23`), so asserting with `getByTestId` on the line
+after a tab click only works if Vite has already resolved that chunk — under
+contention it has not. The three assertions are now `await findByTestId(...)`,
+which waits for the Suspense boundary like the browser does. Two consecutive
+full runs after the change: 67 files / 882 tests green both times.
+
+#### Two reported defects were stale
+
+Open-issues items 2 (`btn-xs` not 28 px) and 8 (`StatCard` navy/blue tones)
+were re-measured before being "fixed": every `btn-xs` in the app computes 28 px
+on desktop and 42 px on a phone, and all five `StatCard` tones already resolve to
+their own token. `.progress-fill` was already `--navy-800` by default — the
+`navy` tone was never broken, it just had no rule of its own, so it now has one
+instead of relying on fall-through.
+
+#### Remaining issues
+
+1. **Off-scale type literals stay.** The pass normalised only where a token
+   computes the identical value. `0.85 / 0.82 / 0.9 / 0.92 / 0.87 / 1.1rem` have
+   no matching token in the scale, so ~15 inline font sizes (and the 6 px /
+   10 px gaps that only exist as `.gap-xs`/`.gap-sm`, plus `width: 42%`,
+   `maxHeight: 340px`, `top: -8px`) are still literals. Converting them would
+   shift text sizes on already-approved screens.
+2. **The public side keeps its own literals.** `pages/enrollment/` — the wizard,
+   landing and requirements pages — still uses inline `gap: 6 / 8` and
+   `fontSize: '0.75rem'`. Those pages are outside this pass by the standing
+   guardrail, and `.gap-xs`/`.gap-sm` already give them the same values; no
+   native dialog survives anywhere in the frontend (the mobile app never had
+   one).
+3. **Not driven live:** the fee screens' new `saveError` / `categoryError`
+   banners and the Announcements pin/unpin failure banner. Nothing was deleted,
+   archived or pinned against the dev database in this session — the deliberate
+   rule is not to create or destroy records unasked — so those three paths are
+   covered by their specs and by the same `ErrorMessage` component the pages
+   already rendered for their own save failures.
+4. `useConfirm()` throws outside `<ConfirmProvider>`, which is why three page
+   suites had to be wrapped; any future screen rendered in a bare test harness
+   needs `renderConfirmed()` from `src/test/confirm.jsx`.
+
+---
+
 ## Blocked tests
 
 ### BT-001: Gunicorn production server boot

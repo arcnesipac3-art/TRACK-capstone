@@ -8,6 +8,7 @@ import Card from '../components/dashboard/Card'
 import AssignmentFormModal from '../components/admin/AssignmentFormModal'
 import api from '../services/api'
 import useFetch from '../hooks/useFetch'
+import { useConfirm } from '../context/ConfirmContext'
 import Button from '../components/Button'
 
 /**
@@ -17,6 +18,7 @@ import Button from '../components/Button'
  * take attendance, so it is surfaced as its own screen rather than buried.
  */
 export default function AssignmentsPage() {
+  const confirm = useConfirm()
   const assignments = useFetch('/teacher-assignments/', { list: true })
   const teachers = useFetch('/users/', { list: true, params: { role: 'teacher' } })
   const sections = useFetch('/sections/', { list: true })
@@ -31,11 +33,13 @@ export default function AssignmentsPage() {
   /** Removing an assignment revokes that teacher's access to the class. */
   async function remove(row) {
     const label = `${row.teacher_name} — ${row.subject_name}`
-    // eslint-disable-next-line no-alert
     if (
-      !window.confirm(
-        `Remove ${label} from ${row.section_name}?\n\nThe teacher will no longer be able to post requirements or take attendance for this class. Existing records are kept.`
-      )
+      !(await confirm({
+        title: `Remove ${label} from ${row.section_name}?`,
+        message:
+          'The teacher will no longer be able to post requirements or take attendance for this class. Existing records are kept.',
+        confirmLabel: 'Remove',
+      }))
     ) {
       return
     }
@@ -57,7 +61,7 @@ export default function AssignmentsPage() {
         title="Class Assignments"
         subtitle="Which teacher teaches which subject in which section."
         actions={
-          <div className="row row-wrap" style={{ gap: 10 }}>
+          <div className="row row-wrap">
             <StatusBadge
               tone="blue"
               label={`${rows.length} ${rows.length === 1 ? 'assignment' : 'assignments'}`}
@@ -114,7 +118,7 @@ export default function AssignmentsPage() {
         }
         flush
       >
-        <div className="table-wrap">
+        <div className="table-wrap table-wrap--pin">
           <table className="table responsive-table">
             <thead>
               <tr>

@@ -11,26 +11,42 @@ import Tabs from '../components/Tabs'
 import { endpointFor, nounFor, KINDS } from '../config/structure'
 import api from '../services/api'
 import useFetch from '../hooks/useFetch'
+import { useConfirm } from '../context/ConfirmContext'
 import { formatDate } from '../utils/format'
 import './SectionsPage.css'
 import Button from '../components/Button'
 
 /**
- * Delete confirmation messages per kind.
+ * Delete confirmation copy per kind, in the shape ConfirmDialog reads: the
+ * question it takes as its heading and the consequence as the quieter line
+ * under it. What the server refuses to delete is stated here rather than
+ * discovered after a click.
  */
 const CONFIRM = {
-  section: (item) =>
-    `Delete section ${item.name}?\n\nThis cannot be undone. The server will refuse if students are still enrolled or a teacher is still assigned.`,
-  subject: (item) =>
-    `Delete subject ${item.name}?\n\nThis cannot be undone. The server will refuse if a teacher is still assigned to it.`,
-  schoolYear: (item) =>
-    `Delete school year ${item.label}?\n\nThis cannot be undone, and it will also delete every section and subject in it — which removes the class assignments, requirements, submissions and attendance records tied to those sections.\n\nThe server will refuse while any section or subject still belongs to this year.${
-      item.is_active
-        ? '\n\nThis is the current school year. Deleting it leaves no current year until you mark another one.'
-        : ''
-    }`,
-  gradeLevel: (item) =>
-    `Delete ${item.name}?\n\nThis cannot be undone. The server will refuse while any section or subject still uses this grade level.`,
+  section: (item) => ({
+    title: `Delete section ${item.name}?`,
+    detail:
+      'This cannot be undone. The server will refuse if students are still enrolled or a teacher is still assigned.',
+  }),
+  subject: (item) => ({
+    title: `Delete subject ${item.name}?`,
+    detail:
+      'This cannot be undone. The server will refuse if a teacher is still assigned to it.',
+  }),
+  schoolYear: (item) => ({
+    title: `Delete school year ${item.label}?`,
+    detail:
+      `This cannot be undone, and it will also delete every section and subject in it — which removes the class assignments, requirements, submissions and attendance records tied to those sections. The server will refuse while any section or subject still belongs to this year.${
+        item.is_active
+          ? ' This is the current school year; deleting it leaves no current year until you mark another one.'
+          : ''
+      }`,
+  }),
+  gradeLevel: (item) => ({
+    title: `Delete ${item.name}?`,
+    detail:
+      'This cannot be undone. The server will refuse while any section or subject still uses this grade level.',
+  }),
 }
 
 /** Default page size options. */
@@ -204,7 +220,7 @@ function SortableHeader({ label, field, currentOrdering, onSort, disabled }) {
       onClick={disabled ? undefined : () => onSort(field)}
       style={{ cursor: disabled ? 'not-allowed' : 'pointer' }}
     >
-      <span className="flex-row" style={{ gap: 4, alignItems: 'center' }}>
+      <span className="flex-row" style={{ gap: 'var(--space-1)', alignItems: 'center' }}>
         {label}
         {isActive && <Icon name={isDesc ? 'chevronDown' : 'chevronUp'} size={12} />}
       </span>
@@ -213,6 +229,7 @@ function SortableHeader({ label, field, currentOrdering, onSort, disabled }) {
 }
 
 export default function SectionsPage() {
+  const confirm = useConfirm()
   const [activeTab, setActiveTab] = useState('schoolYear')
   const [busyId, setBusyId] = useState(null)
   const [actionError, setActionError] = useState(null)
@@ -271,7 +288,10 @@ export default function SectionsPage() {
   }
 
   async function remove(kind, item) {
-    if (!window.confirm(CONFIRM[kind](item))) return
+    const { title, detail } = CONFIRM[kind](item)
+    if (!(await confirm({ title, message: detail, confirmLabel: 'Delete' }))) {
+      return
+    }
 
     setBusyId(`${kind}-${item.id}`)
     setActionError(null)

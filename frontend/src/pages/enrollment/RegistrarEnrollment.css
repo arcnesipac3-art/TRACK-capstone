@@ -5,14 +5,6 @@
 /* and RegistrarReports. Everything else comes from src/index.css.    */
 /* ================================================================== */
 
-/* ---------------------------- Stat grid --------------------------- */
-
-.enr-stat-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-}
-
 /* --------------------------- Filter strips ------------------------ */
 
 .enr-filters {
@@ -365,10 +357,6 @@
 }
 
 @media (max-width: 768px) {
-  .enr-stat-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .enr-filters .field,
   .enr-filters .field-search {
     min-width: 100%;
@@ -389,10 +377,6 @@
 }
 
 @media (max-width: 420px) {
-  .enr-stat-grid {
-    grid-template-columns: 1fr;
-  }
-
   .kv-grid {
     grid-template-columns: 1fr;
   }

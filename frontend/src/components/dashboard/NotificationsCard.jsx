@@ -51,7 +51,7 @@ function NotificationsFeed({ data, loading, error, reload, limit }) {
         ) : null
       }
       action={
-        <div className="row row-wrap" style={{ gap: 6 }}>
+        <div className="row row-wrap gap-xs">
           {unread > 0 && (
             <StatusBadge
               tone="blue"

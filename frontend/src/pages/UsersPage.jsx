@@ -12,6 +12,7 @@ import api from '../services/api'
 import useFetch from '../hooks/useFetch'
 import { roleLabel } from '../utils/format'
 import { useAuth } from '../context/AuthContext'
+import { useConfirm } from '../context/ConfirmContext'
 import Button from '../components/Button'
 
 const TITLES = {
@@ -23,6 +24,7 @@ const TITLES = {
 /** One directory per role — there is no all-accounts screen. */
 export default function UsersPage({ role }) {
   const { user: me, can } = useAuth()
+  const confirm = useConfirm()
   const [title, subtitle] = TITLES[role]
   const params = { role }
   const { data, loading, error, reload } = useFetch('/users/', {
@@ -57,8 +59,17 @@ export default function UsersPage({ role }) {
   async function toggleActive(user) {
     const next = !user.is_active
     const verb = next ? 'reactivate' : 'deactivate'
-    // eslint-disable-next-line no-alert
-    if (!window.confirm(`${verb[0].toUpperCase() + verb.slice(1)} ${user.full_name || user.username}?`)) {
+    const name = user.full_name || user.username
+    if (
+      !(await confirm({
+        title: `${verb[0].toUpperCase() + verb.slice(1)} ${name}?`,
+        message: next
+          ? `${name} will be able to sign in again, with the account as it is now.`
+          : `${name} will not be able to sign in until the account is reactivated. No record of theirs is deleted.`,
+        confirmLabel: next ? 'Reactivate' : 'Deactivate',
+        tone: next ? 'primary' : 'danger',
+      }))
+    ) {
       return
     }
     setBusyId(user.id)
@@ -79,7 +90,7 @@ export default function UsersPage({ role }) {
         title={title}
         subtitle={subtitle}
         actions={
-          <div className="row row-wrap" style={{ gap: 10 }}>
+          <div className="row row-wrap">
             <StatusBadge
               tone="blue"
               label={`${users.length} ${users.length === 1 ? 'account' : 'accounts'}`}
@@ -140,7 +151,7 @@ export default function UsersPage({ role }) {
         )}
 
         {!loading && !error && users.length > 0 && (
-          <div className="table-wrap">
+          <div className="table-wrap table-wrap--pin">
             <table className="table responsive-table">
               <thead>
                 <tr>
@@ -171,7 +182,7 @@ export default function UsersPage({ role }) {
                         {isMe && <span className="subtle"> (you)</span>}
                         {user.role === 'admin' && (
                           <span
-                            style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}
+                            style={{ display: 'flex', gap: 'var(--space-1)', flexWrap: 'wrap', marginTop: 'var(--space-1)' }}
                           >
                             {user.is_super_admin && (
                               <StatusBadge tone="red" label="Super Admin" />

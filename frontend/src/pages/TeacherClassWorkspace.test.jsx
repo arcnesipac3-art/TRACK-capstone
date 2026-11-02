@@ -360,17 +360,17 @@ describe('TeacherClassWorkspace — activity tabs', () => {
     renderWorkspace()
 
     await user.click(tab('Requirements'))
-    expect(screen.getByTestId('requirements-body')).toHaveTextContent(
+    expect(await screen.findByTestId('requirements-body')).toHaveTextContent(
       'scope:teacher assignment:500 embedded:true'
     )
 
     await user.click(tab('Submission review'))
-    expect(screen.getByTestId('submissions-body')).toHaveTextContent(
+    expect(await screen.findByTestId('submissions-body')).toHaveTextContent(
       'mode:review assignment:500 embedded:true requirements:700,701'
     )
 
     await user.click(tab('Attendance'))
-    expect(screen.getByTestId('attendance-body')).toHaveTextContent(
+    expect(await screen.findByTestId('attendance-body')).toHaveTextContent(
       'mode:teacher assignment:500 embedded:true'
     )
   })

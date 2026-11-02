@@ -23,7 +23,7 @@ export default function FinanceSummaryCard({ fees, action }) {
     <Card
       title="Finance summary"
       action={
-        <span className="row row-wrap" style={{ gap: 6 }}>
+        <span className="row row-wrap gap-xs">
           {rate !== null && (
             <StatusBadge
               tone={rate === 100 ? 'green' : 'blue'}

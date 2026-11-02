@@ -7,6 +7,7 @@ import CardSkeleton from '../components/loading/CardSkeleton'
 import Button from '../components/Button'
 import Icon from '../components/Icon'
 import Card from '../components/dashboard/Card'
+import { useConfirm } from '../context/ConfirmContext'
 import { formatCurrency } from '../utils/format'
 
 const REQUIRED = <span style={{ color: 'var(--red-700)' }}>*</span>
@@ -21,6 +22,7 @@ const REQUIRED = <span style={{ color: 'var(--red-700)' }}>*</span>
  */
 export default function AdminFeeAssessmentDetailPage() {
   const navigate = useNavigate()
+  const confirm = useConfirm()
   const { id } = useParams()
   // The static `/new` route has no `:id` param, so `id` is undefined there.
   const isNew = !id || id === 'new'
@@ -161,11 +163,21 @@ export default function AdminFeeAssessmentDetailPage() {
   }
 
   const handleArchive = async () => {
-    if (!window.confirm('Archive this assessment? It will no longer be visible to students and parents.')) return
+    if (
+      !(await confirm({
+        title: 'Archive this assessment?',
+        message: 'It will no longer be visible to students and parents.',
+        confirmLabel: 'Archive',
+      }))
+    ) {
+      return
+    }
     try {
       await api.patch(`/fee-assessments/${id}/`, { status: 'archived' })
       back()
-    } catch (err) { alert(err instanceof ApiError ? err.message : 'Could not archive.') }
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : 'Could not archive.')
+    }
   }
 
   const backButton = (
@@ -215,7 +227,7 @@ export default function AdminFeeAssessmentDetailPage() {
         <form onSubmit={handleSubmit} className="stack stack-sm">
           {saveError && <ErrorMessage error={saveError} compact />}
 
-          <div className="row row-wrap" style={{ gap: 12 }}>
+          <div className="row row-wrap" style={{ gap: 'var(--space-3)' }}>
             <div className="field grow" style={{ minWidth: '220px' }}>
               <label htmlFor="category">Category {REQUIRED}</label>
               <select
@@ -251,7 +263,7 @@ export default function AdminFeeAssessmentDetailPage() {
 
           <div className="field">
             <label>Scope {REQUIRED}</label>
-            <div className="row row-wrap" style={{ gap: 12 }}>
+            <div className="row row-wrap" style={{ gap: 'var(--space-3)' }}>
               <div className="field grow" style={{ minWidth: '180px' }}>
                 <label htmlFor="grade_level" style={{ fontSize: '0.82rem' }}>Grade Level</label>
                 <select
@@ -306,7 +318,7 @@ export default function AdminFeeAssessmentDetailPage() {
             </span>
           </div>
 
-          <div className="row row-wrap" style={{ gap: 12 }}>
+          <div className="row row-wrap" style={{ gap: 'var(--space-3)' }}>
             <div className="field" style={{ minWidth: '180px' }}>
               <label htmlFor="amount">Amount (PHP) {REQUIRED}</label>
               <input

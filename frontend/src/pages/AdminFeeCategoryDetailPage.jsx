@@ -7,6 +7,7 @@ import CardSkeleton from '../components/loading/CardSkeleton'
 import Button from '../components/Button'
 import Icon from '../components/Icon'
 import Card from '../components/dashboard/Card'
+import { useConfirm } from '../context/ConfirmContext'
 
 const REQUIRED = <span style={{ color: 'var(--red-700)' }}>*</span>
 
@@ -15,6 +16,7 @@ const REQUIRED = <span style={{ color: 'var(--red-700)' }}>*</span>
  */
 export default function AdminFeeCategoryDetailPage() {
   const navigate = useNavigate()
+  const confirm = useConfirm()
   const { id } = useParams()
   // The static `/new` route has no `:id` param, so `id` is undefined there.
   const isNew = !id || id === 'new'
@@ -67,11 +69,21 @@ export default function AdminFeeCategoryDetailPage() {
   }
 
   const handleDelete = async () => {
-    if (!window.confirm('Delete this fee category? This cannot be undone.')) return
+    if (
+      !(await confirm({
+        title: 'Delete this fee category?',
+        message: 'This cannot be undone. Assessments already raised under it lose their category.',
+        confirmLabel: 'Delete',
+      }))
+    ) {
+      return
+    }
     try {
       await api.delete(`/fee-categories/${id}/`)
       back()
-    } catch (err) { alert(err instanceof ApiError ? err.message : 'Could not delete category.') }
+    } catch (err) {
+      setSaveError(err instanceof ApiError ? err.message : 'Could not delete category.')
+    }
   }
 
   const backButton = (
@@ -110,7 +122,7 @@ export default function AdminFeeCategoryDetailPage() {
         <form onSubmit={handleSubmit} className="stack stack-sm">
           {saveError && <ErrorMessage error={saveError} compact />}
 
-          <div className="row row-wrap" style={{ gap: 12 }}>
+          <div className="row row-wrap" style={{ gap: 'var(--space-3)' }}>
             <div className="field grow" style={{ minWidth: '220px' }}>
               <label htmlFor="name">Name {REQUIRED}</label>
               <input
@@ -141,7 +153,7 @@ export default function AdminFeeCategoryDetailPage() {
 
           <div className="field">
             <label>Type {REQUIRED}</label>
-            <div className="row row-wrap" style={{ gap: 16 }}>
+            <div className="row row-wrap" style={{ gap: 'var(--space-4)' }}>
               <label className="checkbox-row">
                 <input
                   type="radio"

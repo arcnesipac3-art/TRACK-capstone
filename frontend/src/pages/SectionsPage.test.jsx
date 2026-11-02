@@ -1,7 +1,8 @@
-import { act, render, screen, within } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import SectionsPage from './SectionsPage'
+import { acceptConfirm, declineConfirm, renderConfirmed } from '../test/confirm'
 import api from '../services/api'
 
 vi.mock('../services/api', () => {
@@ -80,18 +81,11 @@ function lastParams(path) {
 
 const renderPage = (pages) => {
   mockApi(pages)
-  render(<SectionsPage />)
+  renderConfirmed(<SectionsPage />)
 }
-
-let confirm
 
 beforeEach(() => {
   vi.clearAllMocks()
-  confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
-})
-
-afterEach(() => {
-  confirm.mockRestore()
 })
 
 describe('SectionsPage', () => {
@@ -236,7 +230,7 @@ describe('SectionsPage', () => {
   it('shows the skeleton until the first page lands', async () => {
     api.get.mockReturnValue(new Promise(() => {}))
     api.list.mockResolvedValue([])
-    render(<SectionsPage />)
+    renderConfirmed(<SectionsPage />)
 
     expect(document.querySelector('.skeleton')).not.toBeNull()
     expect(screen.queryByRole('table')).toBeNull()
@@ -272,21 +266,26 @@ describe('SectionsPage', () => {
     const current = await screen.findByRole('row', { name: /2026-2027/ })
     await user.click(within(current).getByRole('button', { name: 'Delete 2026-2027' }))
 
-    expect(confirm).toHaveBeenCalledWith(expect.stringContaining('Delete school year 2026-2027?'))
-    expect(confirm.mock.calls[0][0]).toMatch(/it will also delete every section and subject/)
-    expect(confirm.mock.calls[0][0]).toMatch(/This is the current school year/)
+    const dialog = await screen.findByRole('dialog', { name: 'Delete school year 2026-2027?' })
+    expect(dialog).toHaveTextContent('it will also delete every section and subject')
+    expect(dialog).toHaveTextContent('This is the current school year')
+    expect(api.delete).not.toHaveBeenCalled()
+
+    await acceptConfirm(user, { title: 'Delete school year 2026-2027?', label: 'Delete' })
     await vi.waitFor(() => expect(api.delete).toHaveBeenCalledWith('/school-years/3/'))
   })
 
   it('leaves the record alone when the delete is declined', async () => {
     const user = userEvent.setup()
-    confirm.mockReturnValue(false)
     renderPage()
 
     const current = await screen.findByRole('row', { name: /2026-2027/ })
     await user.click(within(current).getByRole('button', { name: 'Delete 2026-2027' }))
 
+    await declineConfirm(user, { title: 'Delete school year 2026-2027?' })
+
     expect(api.delete).not.toHaveBeenCalled()
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
@@ -299,6 +298,7 @@ describe('SectionsPage', () => {
 
     const current = await screen.findByRole('row', { name: /2026-2027/ })
     await user.click(within(current).getByRole('button', { name: 'Delete 2026-2027' }))
+    await acceptConfirm(user, { title: 'Delete school year 2026-2027?', label: 'Delete' })
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Sections still belong to this year.')

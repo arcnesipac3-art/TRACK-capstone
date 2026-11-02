@@ -11,6 +11,7 @@ import StatusBadge from '../components/StatusBadge'
 import api from '../services/api'
 import useFetch from '../hooks/useFetch'
 import { useAuth } from '../context/AuthContext'
+import { useConfirm } from '../context/ConfirmContext'
 import Button from '../components/Button'
 
 /**
@@ -23,6 +24,7 @@ import Button from '../components/Button'
  */
 export default function DepartmentsPage() {
   const { can } = useAuth()
+  const confirm = useConfirm()
   const departments = useFetch('/departments/', { list: true })
   const definitions = useFetch('/permissions/', { list: true })
 
@@ -50,8 +52,18 @@ export default function DepartmentsPage() {
   async function toggleActive(department) {
     const next = !department.is_active
     const verb = next ? 'Activate' : 'Deactivate'
-    // eslint-disable-next-line no-alert
-    if (!window.confirm(`${verb} ${department.name}?`)) return
+    if (
+      !(await confirm({
+        title: `${verb} ${department.name}?`,
+        message: next
+          ? `Administrators in ${department.name} will hold its permissions again.`
+          : `Administrators in ${department.name} will lose its permissions until it is active again.`,
+        confirmLabel: verb,
+        tone: next ? 'primary' : 'danger',
+      }))
+    ) {
+      return
+    }
     setBusyId(department.id)
     setActionError(null)
     try {
@@ -71,8 +83,15 @@ export default function DepartmentsPage() {
 
   /** Departments with assigned administrators must be reassigned first. */
   async function remove(department) {
-    // eslint-disable-next-line no-alert
-    if (!window.confirm(`Delete ${department.name}? This cannot be undone.`)) return
+    if (
+      !(await confirm({
+        title: `Delete ${department.name}?`,
+        message: 'This cannot be undone. Reassign its administrators first if the department is still in use.',
+        confirmLabel: 'Delete',
+      }))
+    ) {
+      return
+    }
     setBusyId(department.id)
     setActionError(null)
     try {
@@ -92,7 +111,7 @@ export default function DepartmentsPage() {
         title="Departments & Roles"
         subtitle="Which administrators belong where, and exactly what each department may do."
         actions={
-          <div className="row row-wrap" style={{ gap: 10 }}>
+          <div className="row row-wrap">
             <StatusBadge
               tone="blue"
               label={`${rows.length} ${rows.length === 1 ? 'department' : 'departments'}`}
