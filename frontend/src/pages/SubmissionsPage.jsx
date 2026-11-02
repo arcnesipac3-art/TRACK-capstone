@@ -1,5 +1,6 @@
 import ButtonLoader from '../components/loading/ButtonLoader'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import Card from '../components/dashboard/Card'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
@@ -258,17 +259,58 @@ function ReviewRow({ submission, onDone }) {
   )
 }
 
-function TeacherReview() {
+function TeacherReview({ assignmentId = null, embedded = false, requirementIds = null }) {
   const [filter, setFilter] = useState('submitted')
+  // `/teacher/classes` hands a class over as ?class=<assignment id>.
+  // Submissions only carry their requirement, so this teacher's own
+  // requirements supply the mapping — and the list is only fetched when the
+  // screen actually arrived scoped.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const classFilter = assignmentId ?? searchParams.get('class')
+  // A class workspace already holds this class's requirement ids, so it hands
+  // them over instead of paying for the same list a second time.
+  const requirementsNeeded = Boolean(classFilter) && requirementIds === null
+  const classRequirements = useFetch('/requirements/', {
+    list: true,
+    enabled: requirementsNeeded,
+  })
   const { data, loading, error, reload } = useFetch('/submissions/', {
     list: true,
     params: { page_size: 100 },
   })
 
+  const scope = useMemo(() => {
+    if (!classFilter) return null
+    if (requirementIds !== null) {
+      return { ids: new Set(requirementIds), label: '', loading: false }
+    }
+    const rows = (classRequirements.data || []).filter(
+      (requirement) =>
+        String(requirement.teacher_assignment) === String(classFilter)
+    )
+    return {
+      ids: new Set(rows.map((requirement) => requirement.id)),
+      label: rows.length
+        ? `${rows[0].subject_name || 'Subject'} — ${rows[0].section_name || ''}`.trim()
+        : 'this class',
+      loading: classRequirements.loading && !classRequirements.data,
+    }
+  }, [classFilter, requirementIds, classRequirements.data, classRequirements.loading])
+
   const items = (data || []).filter(
-    (item) => filter === 'all' || item.status === filter
+    (item) =>
+      (filter === 'all' || item.status === filter) &&
+      (!scope || scope.ids.has(item.requirement))
   )
-  const pending = (data || []).filter((item) => item.status === 'submitted').length
+  const pending = (data || []).filter(
+    (item) => item.status === 'submitted' && (!scope || scope.ids.has(item.requirement))
+  ).length
+
+  function clearScope() {
+    const next = new URLSearchParams(searchParams)
+    next.delete('class')
+    setSearchParams(next, { replace: true })
+  }
 
   function refresh() {
     reload()
@@ -276,6 +318,20 @@ function TeacherReview() {
 
   return (
     <>
+      {scope && !embedded && (
+        <div className="alert alert-info" role="status">
+          <Icon name="book" size={15} />
+          <span className="grow">
+            {scope.loading
+              ? 'Loading this class…'
+              : `Showing submissions for ${scope.label}.`}
+          </span>
+          <Button variant="ghost" size="sm" onClick={clearScope}>
+            Show all classes
+          </Button>
+        </div>
+      )}
+
       <div className="filter-bar">
         <div className="field grow">
           <label htmlFor="review-filter">Show</label>
@@ -311,7 +367,11 @@ function TeacherReview() {
             <EmptyState
               icon="checkSquare"
               title="Nothing to show"
-              message="Submissions from your students will be listed here for verification."
+              message={
+                scope
+                  ? 'No student has sent work for this class that matches the filter.'
+                  : 'Submissions from your students will be listed here for verification.'
+              }
             />
           </div>
         )}
@@ -328,20 +388,35 @@ function TeacherReview() {
 
 /* ------------------------------------------------------------------ */
 
-export default function SubmissionsPage({ mode = 'mine' }) {
+export default function SubmissionsPage({
+  mode = 'mine',
+  assignmentId = null,
+  embedded = false,
+  requirementIds = null,
+}) {
   const isReview = mode === 'review'
 
   return (
-    <div className="stack stack-md">
-      <PageHeader
-        title={isReview ? 'Submission Review' : 'My Submissions'}
-        subtitle={
-          isReview
-            ? 'Verify work that meets the requirements or return it with feedback.'
-            : 'Every piece of work you have submitted, and what happened to it.'
-        }
-      />
-      {isReview ? <TeacherReview /> : <StudentSubmissions />}
+    <div className={`stack ${embedded ? 'stack-sm' : 'stack-md'}`}>
+      {!embedded && (
+        <PageHeader
+          title={isReview ? 'Submission Review' : 'My Submissions'}
+          subtitle={
+            isReview
+              ? 'Verify work that meets the requirements or return it with feedback.'
+              : 'Every piece of work you have submitted, and what happened to it.'
+          }
+        />
+      )}
+      {isReview ? (
+        <TeacherReview
+          assignmentId={assignmentId}
+          embedded={embedded}
+          requirementIds={requirementIds}
+        />
+      ) : (
+        <StudentSubmissions />
+      )}
     </div>
   )
 }

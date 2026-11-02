@@ -7,7 +7,9 @@ All timestamps are stored in UTC and converted to Asia/Manila for display.
 
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxLengthValidator
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 from .rbac import PERMISSION_KEYS
@@ -599,6 +601,17 @@ class AttendanceSession(models.Model):
                 condition=models.Q(schedule__isnull=True)
             ),
         ]
+        # Every attendance screen asks the same two questions — "this teacher's
+        # sessions in this date window" and "the newest sessions" — and both
+        # partial uniques lead with teacher_assignment, so a plain date scan had
+        # nothing to use. These cover the history filters and the -date default.
+        indexes = [
+            models.Index(
+                fields=["teacher_assignment", "date"],
+                name="att_sess_asg_date_idx",
+            ),
+            models.Index(fields=["-date"], name="att_sess_date_idx"),
+        ]
 
     def __str__(self):
         time_str = f" {self.schedule.start_time}" if self.schedule else ""
@@ -659,6 +672,11 @@ class AttendanceRecord(models.Model):
     class Meta:
         ordering = ["-session__date"]
         unique_together = [["session", "student"]]
+        # (session, status) is how a session's counters and every "how many
+        # absent" rollup are read; the bulk save filters on it per session.
+        indexes = [
+            models.Index(fields=["session", "status"], name="att_rec_sess_status_idx"),
+        ]
 
     def __str__(self):
         return f"{self.student} — {self.session.date} [{self.status}]"
@@ -684,6 +702,7 @@ class Notification(models.Model):
         ENROLLMENT_CORRECTIONS = "enrollment_corrections", "Enrollment Corrections Requested"
         ENROLLMENT_DECISION = "enrollment_decision", "Enrollment Application Decision"
         ENROLLMENT_CONFIRMED = "enrollment_confirmed", "Enrollment Confirmed"
+        MESSAGE_RECEIVED = "message_received", "New Message"
 
     recipient = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="notifications"
@@ -705,6 +724,15 @@ class Notification(models.Model):
     # Enrollment applications (see the Enrollment & Admissions section below)
     application = models.ForeignKey(
         "EnrollmentApplication",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notifications",
+    )
+    # The message that caused a MESSAGE_RECEIVED bell item, so the bell can
+    # deep-link straight into the right thread at the right place.
+    message = models.ForeignKey(
+        "Message",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -1608,3 +1636,334 @@ class Enrollment(models.Model):
 
     def __str__(self):
         return f"{self.student} — {self.school_year} [{self.get_status_display()}]"
+
+
+# ---------------------------------------------------------------------------
+# Messaging
+# ---------------------------------------------------------------------------
+#
+# One conversation table covers every shape of thread. A direct thread is
+# pinned to a deterministic `direct_key` so two people can never accumulate
+# parallel copies of the same chat, while class/department threads point at
+# the existing Section/Department row they mirror — membership of those is
+# derived from records the school already maintains (see core/messaging.py).
+#
+# Read and delivery state is stored as two markers per member rather than one
+# row per (message, member). A group is a class of ~40 students, so a
+# per-message receipt table would write 40 rows for every message sent. The
+# markers say "this member has seen everything up to here", which answers
+# every question the UI asks — unread counts, ticks, and "3 of 40 read" —
+# with one row and no fan-out. `Message.seq` makes "up to here" comparable.
+
+MESSAGE_BODY_MAX_LENGTH = 4000
+
+
+class Conversation(models.Model):
+    """A direct thread or a group (class-based or department-based)."""
+
+    class Kind(models.TextChoices):
+        DIRECT = "direct", "Direct message"
+        GROUP = "group", "Group"
+        CLASS = "class", "Class group"
+        DEPARTMENT = "department", "Department group"
+
+    kind = models.CharField(max_length=12, choices=Kind.choices, default=Kind.DIRECT)
+    title = models.CharField(
+        max_length=120,
+        blank=True,
+        help_text="Group name. Direct threads derive their name from the members.",
+    )
+    # Mirrored structure for the two scoped group kinds. Never set on a direct
+    # or an ad-hoc group.
+    section = models.ForeignKey(
+        Section,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="conversations",
+    )
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="conversations",
+    )
+    # Deterministic identity for direct threads: "<low user id>-<high user id>".
+    direct_key = models.CharField(max_length=40, blank=True, editable=False)
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="conversations_created",
+    )
+    # Archived threads stay queryable (history is never deleted on a whim) but
+    # accept no further messages and drop out of the default list.
+    is_archived = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["direct_key"],
+                condition=~models.Q(direct_key=""),
+                name="uniq_direct_conversation_per_pair",
+            ),
+            # One live thread per class and per department, so a section does
+            # not accumulate five "Grade 7 Sampaguita" groups.
+            models.UniqueConstraint(
+                fields=["section"],
+                condition=Q(kind="class") & ~models.Q(is_archived=True),
+                name="uniq_live_class_conversation",
+            ),
+            models.UniqueConstraint(
+                fields=["department"],
+                condition=Q(kind="department") & ~models.Q(is_archived=True),
+                name="uniq_live_department_conversation",
+            ),
+        ]
+
+    def __str__(self):
+        return self.display_name
+
+    @staticmethod
+    def build_direct_key(user_ids):
+        """The stable key for a direct thread between exactly two users."""
+        low, high = sorted(int(user_id) for user_id in user_ids)
+        return f"{low}-{high}"
+
+    @property
+    def display_name(self):
+        if self.title:
+            return self.title
+        if self.section_id:
+            return str(self.section)
+        if self.department_id:
+            return str(self.department)
+        names = [
+            (u.get_full_name() or u.username) for u in self.members_all()
+        ]
+        if len(names) == 2:
+            return ", ".join(sorted(names))
+        return f"Conversation #{self.pk}"
+
+    def members_all(self):
+        return User.objects.filter(
+            conversation_memberships__conversation=self
+        ).distinct()
+
+    def is_group(self):
+        return self.kind in (self.Kind.GROUP, self.Kind.CLASS, self.Kind.DEPARTMENT)
+
+
+class Message(models.Model):
+    """One message in a conversation."""
+
+    conversation = models.ForeignKey(
+        Conversation, on_delete=models.CASCADE, related_name="messages"
+    )
+    sender = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="messages_sent"
+    )
+    body = models.TextField(validators=[MaxLengthValidator(MESSAGE_BODY_MAX_LENGTH)])
+    # Per-conversation sequence number, assigned under the conversation row
+    # lock in Conversation.add_message(). Clients resume after a reconnect by
+    # asking for everything above the highest seq they kept.
+    seq = models.PositiveIntegerField(db_index=True)
+    # Client-generated UUID echoed back on delivery so a retried send — the
+    # usual outcome of a socket dropping mid-message — is recognised as the
+    # copy the client already has instead of being stored twice.
+    client_reference = models.UUIDField(null=True, blank=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["seq"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["conversation", "seq"], name="uniq_message_seq_per_conversation"
+            ),
+            models.UniqueConstraint(
+                fields=["conversation", "client_reference"],
+                condition=~models.Q(client_reference=None),
+                name="uniq_client_reference_per_conversation",
+            ),
+        ]
+
+    def __str__(self):
+        preview = f"{self.body[:40]}…" if len(self.body) > 40 else self.body
+        return f"[{self.conversation_id}#{self.seq}] {self.sender}: {preview}"
+
+
+class ConversationMember(models.Model):
+    """
+    A user's membership of one conversation, plus their read/delivery markers.
+
+    Both markers point at a Message and mean "everything up to and including
+    that message". `viewing_since` is the live-view marker: a consumer sets it
+    when the member opens the thread and clears it on close, which is how a
+    notification is suppressed for the person already reading it.
+    """
+
+    class Role(models.TextChoices):
+        OWNER = "owner", "Owner"
+        ADMIN = "admin", "Group admin"
+        MEMBER = "member", "Member"
+
+    conversation = models.ForeignKey(
+        Conversation, on_delete=models.CASCADE, related_name="members"
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="conversation_memberships"
+    )
+    role = models.CharField(
+        max_length=10, choices=Role.choices, default=Role.MEMBER
+    )
+    joined_at = models.DateTimeField(auto_now_add=True)
+    last_read_message = models.ForeignKey(
+        Message,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="read_by_members",
+    )
+    last_delivered_message = models.ForeignKey(
+        Message,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="delivered_to_members",
+    )
+    # Live-view marker (see class docstring).
+    viewing_since = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["user__last_name", "user__first_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["conversation", "user"], name="uniq_membership_per_user"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user} in {self.conversation} ({self.role})"
+
+    def unread_count(self, now=None):
+        """
+        How many messages this member has not read.
+
+        Counts everything after the read marker that they did not send; a
+        member with no marker yet has read nothing but should not see their own
+        first message counted against them.
+        """
+        qs = Message.objects.filter(conversation_id=self.conversation_id).exclude(
+            sender_id=self.user_id
+        )
+        if self.last_read_message_id:
+            qs = qs.filter(seq__gt=self.last_read_message.seq)
+        return qs.count()
+
+
+class UserPresence(models.Model):
+    """
+    Online state, kept in the database rather than in one server's memory.
+
+    A WebSocket connection holds the user for as long as it lives, so the
+    count of open connections is the ground truth for "online". Keeping a
+    stale window alongside it means a process that dies without running its
+    disconnect handler is forgiven within a minute instead of permanently
+    marking someone online.
+    """
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="presence"
+    )
+    online = models.BooleanField(default=False)
+    open_connections = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+    last_seen_at = models.DateTimeField(null=True, blank=True)
+
+    # A connection heartbeat refreshes `updated_at`; twice that window and the
+    # row is considered stale (the process holding it is gone).
+    STALE_SECONDS = 90
+
+    def is_really_online(self, now=None):
+        if not self.online or self.open_connections <= 0:
+            return False
+        now = now or timezone.now()
+        return (now - self.updated_at).total_seconds() <= self.STALE_SECONDS
+
+    def __str__(self):
+        return f"{self.user}: {'online' if self.online else 'offline'}"
+
+
+class WebSocketTicket(models.Model):
+    """
+    Short-lived, single-use credential for a WebSocket handshake.
+
+    Browsers cannot attach an Authorization header to a WebSocket, so the
+    alternative is the session token in the query string — which ends up in
+    proxy logs, server logs and browser history. Instead the client trades its
+    token for a random ticket over HTTPS, and the ticket dies on first use and
+    expires within seconds.
+    """
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="ws_tickets")
+    token = models.CharField(max_length=64, unique=True, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"WS ticket for {self.user} until {self.expires_at:%H:%M:%S}"
+
+
+class UserMessagingSettings(models.Model):
+    """
+    Per-user messaging preferences — the switchboard the notification fan-out
+    consults before it bothers anyone.
+
+    There were no preferences in TRACK before messaging arrived; the bell was
+    always on. These fields make that behaviour explicit and give users a way
+    to mute message noise without muting requirements, attendance and
+    announcements they still need.
+    """
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="messaging_settings"
+    )
+    notify_in_app = models.BooleanField(
+        default=True,
+        help_text="Write a bell notification when a message arrives.",
+    )
+    notify_push = models.BooleanField(
+        default=False,
+        help_text="Send browser push for messages while signed out of the app.",
+    )
+
+    def __str__(self):
+        return f"Messaging settings for {self.user}"
+
+
+class PushSubscription(models.Model):
+    """A browser push endpoint belonging to a user (Web Push / VAPID)."""
+
+    user = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="push_subscriptions"
+    )
+    endpoint = models.TextField(unique=True)
+    p256dh = models.CharField(max_length=120)
+    auth = models.CharField(max_length=60)
+    created_at = models.DateTimeField(auto_now_add=True)
+    failures = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Push subscription for {self.user} → {self.endpoint[:60]}"

@@ -17,17 +17,19 @@ const TYPES = [
  * Create-requirement form for teachers. Posts to the real
  * `POST /api/requirements/` endpoint (ownership is enforced in Django).
  */
-export default function RequirementCreateForm({ onCreated }) {
+export default function RequirementCreateForm({ onCreated, initialAssignment }) {
   const assignments = useFetch('/teacher-assignments/', { list: true })
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({
-    teacher_assignment: '',
+  const [form, setForm] = useState(() => ({
+    // A teacher arriving from one of their class cards has already chosen the
+    // class; the select opens on it instead of on "Select a class…".
+    teacher_assignment: initialAssignment || '',
     title: '',
     description: '',
     requirement_type: 'assignment',
     deadline: '',
     allow_link_submission: true,
-  })
+  }))
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
 

@@ -1,5 +1,6 @@
 import ButtonLoader from '../../components/loading/ButtonLoader'
 import { useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import EmptyState from '../EmptyState'
 import ErrorMessage from '../ErrorMessage'
 import Icon from '../Icon'
@@ -40,6 +41,8 @@ const SORTS = [
  *                   'teacher' | 'admin' | 'parent' show class information
  * - `limit`         optional cap for compact dashboard lists
  * - `showFilter`    status filter + deadline sorting controls
+ * - `classScope`    assignment id from a class workspace, which has no `?class=`
+ *                   in its url; `locked` means that scope cannot be cleared
  */
 export default function RequirementsExplorer({
   params,
@@ -48,6 +51,8 @@ export default function RequirementsExplorer({
   showFilter = true,
   refreshKey,
   childName,
+  classScope = null,
+  locked = false,
 }) {
   const [statusFilter, setStatusFilter] = useState('all')
   const [sort, setSort] = useState('deadline_asc')
@@ -55,6 +60,11 @@ export default function RequirementsExplorer({
   const [linkUrl, setLinkUrl] = useState('')
   const [submitError, setSubmitError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  // `/teacher/classes` hands a card over as ?class=<assignment id>; the
+  // endpoint has no per-assignment filter, so the rows already fetched for
+  // this teacher are narrowed here.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const classFilter = classScope ?? searchParams.get('class')
 
   const studentScoped = scope === 'student' || scope === 'parent'
   const requirements = useFetch('/requirements/', {
@@ -91,6 +101,11 @@ export default function RequirementsExplorer({
       submission: submissionFor.get(requirement.id) || null,
     }))
 
+    if (classFilter) {
+      list = list.filter(
+        (row) => String(row.teacher_assignment) === String(classFilter)
+      )
+    }
     if (statusFilter !== 'all') {
       list = list.filter((row) => row.status === statusFilter)
     }
@@ -106,7 +121,22 @@ export default function RequirementsExplorer({
     if (limit) list = list.slice(0, limit)
     return list
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requirements.data, submissionFor, statusFilter, sort, limit])
+  }, [requirements.data, submissionFor, statusFilter, sort, limit, classFilter])
+
+  const scopeLabel = useMemo(() => {
+    const match = (requirements.data || []).find(
+      (row) => String(row.teacher_assignment) === String(classFilter)
+    )
+    return match
+      ? `${match.subject_name || 'Subject'} — ${match.section_name || ''}`.trim()
+      : 'this class'
+  }, [requirements.data, classFilter])
+
+  function clearClassScope() {
+    const next = new URLSearchParams(searchParams)
+    next.delete('class')
+    setSearchParams(next, { replace: true })
+  }
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -207,14 +237,26 @@ export default function RequirementsExplorer({
         </div>
       )}
 
+      {classFilter && !locked && (
+        <div className="alert alert-info" role="status">
+          <Icon name="book" size={15} />
+          <span className="grow">Showing requirements for {scopeLabel}.</span>
+          <Button variant="ghost" size="sm" onClick={clearClassScope}>
+            Show all classes
+          </Button>
+        </div>
+      )}
+
       {rows.length === 0 && !loading && (
         <EmptyState
           icon="clipboard"
           title="No requirements to show"
           message={
-            statusFilter !== 'all'
-              ? 'Nothing matches the selected status filter.'
-              : 'When teachers post requirements, they will appear here.'
+            classFilter
+              ? 'Nothing has been posted to this class yet.'
+              : statusFilter !== 'all'
+                ? 'Nothing matches the selected status filter.'
+                : 'When teachers post requirements, they will appear here.'
           }
         />
       )}

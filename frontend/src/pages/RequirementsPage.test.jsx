@@ -1,5 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import RequirementsPage from './RequirementsPage'
 import useFetch from '../hooks/useFetch'
@@ -38,6 +39,7 @@ const REQUIREMENTS = [
     requirement_type: 'project',
     subject_name: 'Science',
     section_name: 'Grade 7 — Sampaguita',
+    teacher_assignment: 500,
     deadline: DAY(3),
     is_overdue: false,
   },
@@ -47,6 +49,7 @@ const REQUIREMENTS = [
     requirement_type: 'activity',
     subject_name: 'English',
     section_name: 'Grade 7 — Sampaguita',
+    teacher_assignment: 501,
     deadline: DAY(-2),
     is_overdue: true,
   },
@@ -59,12 +62,14 @@ function mockFetch({
   dashboard = LOADED({ children: [] }),
   requirements = LOADED(REQUIREMENTS),
   submissions = LOADED([]),
+  assignments = LOADED([]),
 } = {}) {
   useFetch.mockImplementation((path) => {
     const reload = vi.fn()
     if (path === '/dashboard/') return { ...dashboard, reload }
     if (path === '/requirements/') return { ...requirements, reload }
     if (path === '/submissions/') return { ...submissions, reload }
+    if (path === '/teacher-assignments/') return { ...assignments, reload }
     return { ...IDLE, reload }
   })
 }
@@ -75,6 +80,11 @@ function requirementsParams() {
   return calls[calls.length - 1][1]?.params
 }
 
+/** The page reads `?class=` off the router, so every render needs a route. */
+function renderPage(ui, entry = '/') {
+  return render(<MemoryRouter initialEntries={[entry]}>{ui}</MemoryRouter>)
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
 })
@@ -82,7 +92,7 @@ beforeEach(() => {
 describe('RequirementsPage — student', () => {
   it('boxes the explorer inside one shared card', () => {
     mockFetch()
-    render(<RequirementsPage scope="student" />)
+    renderPage(<RequirementsPage scope="student" />)
 
     const card = document.querySelector('.card')
     expect(card).not.toBeNull()
@@ -100,7 +110,7 @@ describe('RequirementsPage — student', () => {
   it('names the request and reports a failure without inventing rows', async () => {
     const user = userEvent.setup()
     mockFetch({ requirements: { ...IDLE, error: new Error('Requirements unavailable') } })
-    render(<RequirementsPage scope="student" />)
+    renderPage(<RequirementsPage scope="student" />)
 
     expect(screen.getByText('Could not load requirements')).toBeInTheDocument()
     expect(screen.getByText('Requirements unavailable')).toBeInTheDocument()
@@ -112,7 +122,7 @@ describe('RequirementsPage — student', () => {
 
   it('explains an empty list instead of leaving a bare card', () => {
     mockFetch({ requirements: LOADED([]) })
-    render(<RequirementsPage scope="student" />)
+    renderPage(<RequirementsPage scope="student" />)
 
     expect(screen.getByText('No requirements to show')).toBeInTheDocument()
     expect(
@@ -124,7 +134,7 @@ describe('RequirementsPage — student', () => {
 describe('RequirementsPage — parent', () => {
   it('holds the child picker open until the directory resolves', () => {
     mockFetch({ dashboard: { ...IDLE, loading: true } })
-    render(<RequirementsPage scope="parent" />)
+    renderPage(<RequirementsPage scope="parent" />)
 
     // Announced once, and the placeholder lives in a real card body.
     const announced = screen.getByText('Loading your children…')
@@ -141,7 +151,7 @@ describe('RequirementsPage — parent', () => {
 
   it('describes an account with no child linked to it', () => {
     mockFetch({ dashboard: LOADED({ children: [] }) })
-    render(<RequirementsPage scope="parent" />)
+    renderPage(<RequirementsPage scope="parent" />)
 
     const card = document.querySelector('.card')
     expect(card).not.toBeNull()
@@ -152,7 +162,7 @@ describe('RequirementsPage — parent', () => {
 
   it('reports a failed directory request', () => {
     mockFetch({ dashboard: { ...IDLE, error: new Error('Directory unavailable') } })
-    render(<RequirementsPage scope="parent" />)
+    renderPage(<RequirementsPage scope="parent" />)
 
     expect(screen.getByText('Could not load your children')).toBeInTheDocument()
     expect(screen.getByText('Directory unavailable')).toBeInTheDocument()
@@ -161,7 +171,7 @@ describe('RequirementsPage — parent', () => {
   it('scopes the list to the selected child and follows the picker', async () => {
     const user = userEvent.setup()
     mockFetch({ dashboard: LOADED({ children: CHILDREN }) })
-    render(<RequirementsPage scope="parent" />)
+    renderPage(<RequirementsPage scope="parent" />)
 
     // Defaults to the first child and says so in the subtitle.
     expect(requirementsParams()).toEqual({ child: 11 })
@@ -186,7 +196,7 @@ describe('RequirementsPage — parent', () => {
 
   it('stays a single column when only one child is linked', () => {
     mockFetch({ dashboard: LOADED({ children: [CHILDREN[0]] }) })
-    render(<RequirementsPage scope="parent" />)
+    renderPage(<RequirementsPage scope="parent" />)
 
     expect(screen.queryByRole('tablist', { name: 'Select child' })).toBeNull()
     expect(screen.getByText(/Showing Sofia Cruz\./)).toBeInTheDocument()
@@ -197,11 +207,110 @@ describe('RequirementsPage — parent', () => {
 describe('RequirementsPage — staff', () => {
   it('leaves the teacher request unscoped and keeps the post affordance', () => {
     mockFetch()
-    render(<RequirementsPage scope="teacher" />)
+    renderPage(<RequirementsPage scope="teacher" />)
 
     expect(requirementsParams()).toEqual({})
     // Teachers see class information, not a student's submission controls.
     expect(screen.queryByLabelText('Status')).toBeNull()
     expect(document.querySelectorAll('.record-card')).toHaveLength(2)
+    expect(screen.queryByText(/Showing requirements for/)).toBeNull()
+  })
+})
+
+describe('RequirementsPage — class context', () => {
+  it('narrows the list to the class named in the url', async () => {
+    const user = userEvent.setup()
+    mockFetch()
+    renderPage(<RequirementsPage scope="teacher" />, '/teacher/requirements?class=500')
+
+    expect(document.querySelectorAll('.record-card')).toHaveLength(1)
+    expect(screen.getByText('Quarter 1 Portfolio')).toBeInTheDocument()
+    expect(screen.queryByText('Reading Log')).toBeNull()
+    expect(
+      screen.getByText(/Showing requirements for Science — Grade 7 — Sampaguita/)
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /show all classes/i }))
+    expect(document.querySelectorAll('.record-card')).toHaveLength(2)
+    expect(screen.queryByText(/Showing requirements for/)).toBeNull()
+  })
+
+  it('says so when the class has nothing posted yet', () => {
+    mockFetch()
+    renderPage(<RequirementsPage scope="teacher" />, '/teacher/requirements?class=777')
+
+    expect(document.querySelectorAll('.record-card')).toHaveLength(0)
+    expect(screen.getByText('Nothing has been posted to this class yet.')).toBeInTheDocument()
+  })
+
+  it('opens the create form on the class the card came from', async () => {
+    const user = userEvent.setup()
+    mockFetch({
+      assignments: LOADED([
+        { id: 500, subject_name: 'Science', section_name: 'Grade 7 — Sampaguita' },
+        { id: 501, subject_name: 'English', section_name: 'Grade 7 — Sampaguita' },
+      ]),
+    })
+    renderPage(<RequirementsPage scope="teacher" />, '/teacher/requirements?class=500')
+
+    await user.click(screen.getByRole('button', { name: /new requirement/i }))
+    expect(screen.getByLabelText('Class and subject')).toHaveValue('500')
+  })
+})
+
+describe('RequirementsPage — inside a class workspace', () => {
+  const embedded = LOADED([
+    { id: 500, subject_name: 'Science', section_name: 'Grade 7 — Sampaguita' },
+    { id: 501, subject_name: 'English', section_name: 'Grade 7 — Sampaguita' },
+  ])
+
+  it('drops the page header and keeps only this class’s requirements', () => {
+    mockFetch({ assignments: embedded })
+    renderPage(
+      <RequirementsPage scope="teacher" assignmentId="500" embedded />,
+      '/teacher/classes/500/requirements'
+    )
+
+    expect(document.querySelector('.page-header')).toBeNull()
+    expect(document.querySelector('.cw-activity-bar')).not.toBeNull()
+    expect(screen.getByText(/Only this class is listed/)).toBeInTheDocument()
+    expect(document.querySelectorAll('.record-card')).toHaveLength(1)
+    expect(screen.getByText('Quarter 1 Portfolio')).toBeInTheDocument()
+    expect(screen.queryByText('Reading Log')).toBeNull()
+  })
+
+  it('gives no way to widen the scope, because the class is the scope', () => {
+    mockFetch({ assignments: embedded })
+    renderPage(
+      <RequirementsPage scope="teacher" assignmentId="500" embedded />,
+      '/teacher/classes/500/requirements'
+    )
+
+    expect(screen.queryByText(/Showing requirements for/)).toBeNull()
+    expect(screen.queryByRole('button', { name: /show all classes/i })).toBeNull()
+  })
+
+  it('ignores a ?class= that names a different class', () => {
+    mockFetch({ assignments: embedded })
+    renderPage(
+      <RequirementsPage scope="teacher" assignmentId="500" embedded />,
+      '/teacher/classes/500/requirements?class=501'
+    )
+
+    // The route owns the scope: a stray query string cannot swap the class.
+    expect(screen.getByText('Quarter 1 Portfolio')).toBeInTheDocument()
+    expect(screen.queryByText('Reading Log')).toBeNull()
+  })
+
+  it('posts to the class the workspace is open on', async () => {
+    const user = userEvent.setup()
+    mockFetch({ assignments: embedded })
+    renderPage(
+      <RequirementsPage scope="teacher" assignmentId="500" embedded />,
+      '/teacher/classes/500/requirements'
+    )
+
+    await user.click(screen.getByRole('button', { name: /new requirement/i }))
+    expect(screen.getByLabelText('Class and subject')).toHaveValue('500')
   })
 })

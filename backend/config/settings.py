@@ -65,6 +65,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "corsheaders",
+    "channels",
     "core",
 ]
 
@@ -97,6 +98,40 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+
+# ---------------------------------------------------------------------------
+# Real-time messaging (Django Channels)
+# ---------------------------------------------------------------------------
+# The ASGI entry point is what carries WebSocket traffic; WSGI (runserver in
+# production, gunicorn) cannot. See README → "Real-time messaging" for how to
+# run it (uvicorn) and what changes when a second worker joins.
+ASGI_APPLICATION = 'config.asgi.application'
+
+# A channel layer is how a message written by one process reaches a socket held
+# by another. The in-memory layer is the right default for development and for
+# the test suite — one process, no infrastructure — and it makes the same
+# single-process trade-off the LocMemCache login throttle already documents
+# (KNOWN_LIMITATIONS.md L-003). Any deployment with more than one ASGI worker
+# must set REDIS_URL, otherwise group broadcasts silently reach only the
+# process that happens to hold the socket.
+_redis_url = os.environ.get("REDIS_URL", "").strip()
+
+if _redis_url:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [_redis_url],
+                # A reconnecting client re-reads from the database by `seq`, so
+                # a buffered event has no value past a minute.
+                "expiry": 60,
+            },
+        },
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
+    }
 
 
 # Database
@@ -200,6 +235,10 @@ REST_FRAMEWORK = {
         # Keyed per-IP; 10/min is far more than one human needs but stops
         # online password guessing. Override with TRACK_AUTH_THROTTLE_RATE.
         "auth": os.environ.get("TRACK_AUTH_THROTTLE_RATE", "10/min"),
+        # Sends (HTTP path) and ticket handshakes. The WebSocket path enforces
+        # the same window through core/messaging.check_rate_limit, because a
+        # socket has no requests to throttle.
+        "messaging": os.environ.get("TRACK_MESSAGING_THROTTLE_RATE", "60/min"),
     },
 }
 
@@ -212,6 +251,11 @@ CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+# Extra browser origins allowed to open the messaging WebSocket, on top of the
+# CORS/CSRF lists above (core/websocket_auth.py). Comma-separated:
+#   TRACK_WS_ALLOWED_ORIGINS=https://track.knhs.edu.ph
+TRACK_WS_ALLOWED_ORIGINS = os.environ.get("TRACK_WS_ALLOWED_ORIGINS", "")
 
 # Media files (student uploads)
 import os

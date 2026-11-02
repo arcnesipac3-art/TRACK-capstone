@@ -1,4 +1,5 @@
 import { useContext, useState } from 'react'
+import { Link } from 'react-router-dom'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
 import ListSkeleton from '../components/loading/ListSkeleton'
@@ -23,6 +24,7 @@ const TYPE_LABELS = {
   enrollment_corrections: 'Corrections needed',
   enrollment_decision: 'Application decision',
   enrollment_confirmed: 'Enrollment confirmed',
+  message_received: 'Message',
 }
 
 export default function NotificationsPage() {
@@ -147,6 +149,16 @@ function NotificationsView({ data, loading, error, reload }) {
                     label={TYPE_LABELS[item.notif_type] || item.notif_type}
                     tone={item.is_read ? 'neutral' : 'blue'}
                   />
+                  {item.conversation ? (
+                    // Without this the bell is a dead end for a message: the
+                    // thread itself is the only place it can be answered.
+                    <Link
+                      className="btn btn-secondary btn-sm"
+                      to={`/messages/?conversation=${item.conversation}`}
+                    >
+                      Open thread
+                    </Link>
+                  ) : null}
                   {!item.is_read && (
                     <Button
                       variant="secondary"

@@ -70,6 +70,7 @@ const PATHS = {
       <path d="M13.7 21a2 2 0 0 1-3.4 0" />
     </>
   ),
+  chat: <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />,
   settings: (
     <>
       <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3" />
@@ -159,6 +160,18 @@ const PATHS = {
     </>
   ),
   check: <path d="M20 6 9 17l-5-5" />,
+  checkDouble: (
+    <>
+      <path d="M18 6 7 17l-4-4" />
+      <path d="m22 9-7.5 7.5a1.9 1.9 0 0 1-2.7 0L11 15.7" />
+    </>
+  ),
+  reply: (
+    <>
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h9.5A6.5 6.5 0 0 1 20 15.5V20" />
+    </>
+  ),
   panelRight: (
     <>
       <rect x="3" y="4" width="18" height="16" rx="2" />

@@ -204,9 +204,48 @@ async function list(path, { params, signal } = {}) {
   return results
 }
 
+/**
+ * One page of a server-side list, exactly as the server cut it.
+ *
+ * `list()` is what the older admin tables use: they render every row and sort
+ * in the browser, so it crawls up to ten pages, throws the total away and
+ * stops at a thousand rows. A term of attendance history is the opposite case —
+ * the server already filtered, sorted and counted, and the row count *is* the
+ * pagination. This asks for one page and returns the page plus its count, so a
+ * screen can show "page 3 of 41" without ever holding the other 40.
+ */
+async function paged(path, { params, signal } = {}) {
+  const payload = await request(path, { params, method: 'GET', signal })
+  return pageFrom(payload, params)
+}
+
+/** Normalises a DRF page (or a bare list endpoint) into one shape. */
+export function pageFrom(payload, params = {}) {
+  const rows = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload && payload.results)
+      ? payload.results
+      : []
+  const count = Array.isArray(payload)
+    ? payload.length
+    : Number((payload && payload.count) || 0)
+  const pageSize = Number(params.page_size) || rows.length || 1
+  const page = Number(params.page) || 1
+  return {
+    rows,
+    count,
+    page,
+    pageSize,
+    totalPages: Math.max(1, Math.ceil(count / pageSize)),
+    next: (payload && payload.next) || null,
+    previous: (payload && payload.previous) || null,
+  }
+}
+
 export const api = {
   get: (path, opts) => request(path, { ...opts, method: 'GET' }),
   list,
+  paged,
   post: (path, body, opts) => request(path, { ...opts, method: 'POST', body }),
   patch: (path, body, opts) => request(path, { ...opts, method: 'PATCH', body }),
   put: (path, body, opts) => request(path, { ...opts, method: 'PUT', body }),

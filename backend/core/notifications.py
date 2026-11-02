@@ -502,3 +502,105 @@ def mark_overdue_requirements():
                 if was_created:
                     created += 1
     return created
+
+
+# ---------------------------------------------------------------------------
+# Messages
+# ---------------------------------------------------------------------------
+
+# A push is an outbound HTTPS call made in the same process that just accepted
+# a message, and TRACK has no task queue (KNOWN_LIMITATIONS.md L-012). A direct
+# thread is one call; a class thread would be forty. The cap keeps a send fast
+# for the person sending it — everyone still gets the in-app bell item and the
+# live socket event, which is what the unread badge is built from.
+PUSH_FANOUT_LIMIT = 5
+
+
+def notify_message_received(conversation, message, recipient_ids):
+    """
+    Fan a new message out to the people who are not the sender.
+
+    Three rules decide whether a person is bothered:
+
+      * they are not already looking at that thread (the socket keeps a live
+        view marker while they are, so reading a chat does not also fill the
+        bell);
+      * their messaging preferences allow the bell item (`notify_in_app`) or
+        push (`notify_push`, off by default);
+      * for push, the thread is small enough that the extra round-trips do not
+        slow down the sender.
+
+    Failure is logged and swallowed like every other helper here: the message
+    is already stored, and a notification is a courtesy.
+    """
+    from . import messaging
+    from .push import send_push
+    from .realtime import emit_users
+
+    try:
+        sender_name = message.sender.get_full_name() or message.sender.username
+        preview = message.body[:140]
+        push_targets = []
+
+        members = conversation.members.filter(
+            user_id__in=list(recipient_ids)
+        ).select_related("user", "user__messaging_settings")
+
+        for member in members:
+            if messaging.is_viewing(conversation, member.user_id):
+                continue
+            preferences = (
+                getattr(member.user, "messaging_settings", None)
+                or messaging.settings_for(member.user)
+            )
+
+            if preferences.notify_in_app:
+                notification = _silently(
+                    Notification.objects.create,
+                    recipient=member.user,
+                    notif_type=Notification.NotifType.MESSAGE_RECEIVED,
+                    title=(
+                        f"{sender_name}: {conversation.display_name}"
+                        if conversation.is_group()
+                        else sender_name
+                    ),
+                    body=preview,
+                    message=message,
+                )
+                if notification is not None:
+                    emit_users(
+                        [member.user_id],
+                        "notification.new",
+                        notification={
+                            "id": notification.id,
+                            "notif_type": notification.notif_type,
+                            "title": notification.title,
+                            "body": notification.body,
+                            "is_read": notification.is_read,
+                            "message": message.id,
+                            "conversation": conversation.id,
+                            "created_at": notification.created_at.isoformat(),
+                        },
+                    )
+
+            if preferences.notify_push:
+                push_targets.append(member.user)
+
+        for user in push_targets[:PUSH_FANOUT_LIMIT]:
+            _silently(
+                send_push,
+                user,
+                sender_name,
+                preview,
+                tag=f"track-conversation-{conversation.id}",
+                url=f"/messages/?conversation={conversation.id}",
+            )
+        if len(push_targets) > PUSH_FANOUT_LIMIT:
+            logger.info(
+                "TRACK: push fan-out capped for conversation %s (%d recipients "
+                "skipped; no task queue is configured)",
+                conversation.id,
+                len(push_targets) - PUSH_FANOUT_LIMIT,
+            )
+    except Exception:  # noqa: BLE001 - never break a send over a notification
+        logger.exception("TRACK: message notification fan-out failed")

@@ -71,6 +71,7 @@ from .serializers import (
     AdminUserSerializer,
     AnnouncementSerializer,
     AttendanceRecordSerializer,
+    AttendanceSessionListSerializer,
     AttendanceSessionSerializer,
     AuditLogSerializer,
     ChangePasswordSerializer,
@@ -780,24 +781,44 @@ class StudentProfileListView(generics.ListAPIView):
             # The student directory is personal data: an administrator needs
             # `students.view` (registrar, finance for assessments, attendance).
             require_key(user, "students.view")
-            return StudentProfile.objects.select_related("user", "section")
-        if user.is_teacher:
+            queryset = StudentProfile.objects.select_related("user", "section")
+        elif user.is_teacher:
             # Teachers see students in their assigned sections
             sections = TeacherAssignment.objects.filter(teacher=user).values_list(
                 "section_id", flat=True
             )
-            return StudentProfile.objects.filter(
+            queryset = StudentProfile.objects.filter(
                 section_id__in=sections
             ).select_related("user", "section")
-        if user.is_student:
-            return StudentProfile.objects.filter(user=user).select_related("user", "section")
-        if user.is_parent:
+        elif user.is_student:
+            queryset = (
+                StudentProfile.objects.filter(user=user).select_related("user", "section")
+            )
+        elif user.is_parent:
             try:
                 parent = user.parent_profile
-                return parent.children.select_related("user", "section")
+                queryset = parent.children.select_related("user", "section")
             except Exception:
-                return StudentProfile.objects.none()
-        return StudentProfile.objects.none()
+                queryset = StudentProfile.objects.none()
+        else:
+            return StudentProfile.objects.none()
+
+        # The attendance sheet needs one class, not every learner this teacher
+        # can reach: a section filter keeps a 40-learner roster a 40-row read.
+        params = self.request.query_params
+        section_id = _clean_int(params, "section")
+        if section_id is not None:
+            queryset = queryset.filter(section_id=section_id)
+        search = (params.get("search") or "").strip()
+        if search:
+            queryset = queryset.filter(
+                Q(user__first_name__icontains=search)
+                | Q(user__last_name__icontains=search)
+                | Q(lrn__icontains=search)
+            )
+        return queryset.order_by(
+            "user__last_name", "user__first_name", "id"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1318,6 +1339,228 @@ def generate_attendance_sessions(request):
     })
 
 
+# ---------------------------------------------------------------------------
+# Attendance list queries
+# ---------------------------------------------------------------------------
+
+# A school-wide table must not let a query string reach the SQL. Every sortable
+# column the attendance screens offer is listed here and nothing else resolves.
+SESSION_ORDERING = {
+    "date": "date",
+    "-date": "-date",
+    "status": "status",
+    "-status": "-status",
+    "created": "created_at",
+    "-created": "-created_at",
+    "class": (
+        "teacher_assignment__section__grade_level__order",
+        "teacher_assignment__section__name",
+    ),
+    "-class": (
+        "-teacher_assignment__section__grade_level__order",
+        "-teacher_assignment__section__name",
+    ),
+    "subject": "teacher_assignment__subject__name",
+    "-subject": "-teacher_assignment__subject__name",
+    # The annotated tally, so a teacher can open "the sessions I have barely
+    # marked" without pulling every row into the browser.
+    "marked": "record_count",
+    "-marked": "-record_count",
+}
+
+RECORD_ORDERING = {
+    "date": "session__date",
+    "-date": "-session__date",
+    "status": "status",
+    "-status": "-status",
+    # Names live on the user row as first/last, so the roster sorts the way the
+    # register is read: surname first.
+    "student": ("student__user__last_name", "student__user__first_name"),
+    "-student": ("-student__user__last_name", "-student__user__first_name"),
+    "recorded": "recorded_at",
+    "-recorded": "-recorded_at",
+}
+
+SESSION_COUNTS = (
+    "present",
+    "absent",
+    "late",
+    "excused",
+)
+
+
+def annotate_session_counts(queryset):
+    """
+    Give a session queryset the per-status tallies the lists render.
+
+    Every COUNT carries distinct=True because they share the `records` join:
+    without it the four annotations multiply each other and the numbers are
+    wrong as soon as a session has more than one record.
+    """
+    annotated = queryset.annotate(record_count=Count("records", distinct=True))
+    for status_value in SESSION_COUNTS:
+        annotated = annotated.annotate(
+            **{
+                f"{status_value}_count": Count(
+                    "records",
+                    filter=Q(records__status=status_value),
+                    distinct=True,
+                )
+            }
+        )
+    # Enrolled size is what turns a tally into "3 of 4 marked"; it rides on the
+    # same section join the ordering keys use.
+    return annotated.annotate(
+        enrolled_count=Count(
+            "teacher_assignment__section__students", distinct=True
+        )
+    )
+
+
+def sessions_with_counts(queryset=None):
+    """
+    The one place the flat session row is built: joins, then tallies.
+
+    The list view and the bulk-save echo both need an identical shape, so the
+    `select_related` path lives here rather than being written twice — a missed
+    join in one of them would otherwise cost a query per row on the wire path
+    that carries the most rows.
+    """
+    base = AttendanceSession.objects.all() if queryset is None else queryset
+    return annotate_session_counts(
+        base.select_related(
+            "teacher_assignment__subject",
+            "teacher_assignment__section",
+            "teacher_assignment__section__grade_level",
+            "schedule",
+        )
+    )
+
+
+def _clean_int(params, key):
+    raw = params.get(key)
+    if raw in (None, ""):
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        # A junk id narrows to nothing rather than throwing at the database.
+        return -1
+
+
+def _clean_date(params, key):
+    raw = params.get(key)
+    if raw in (None, ""):
+        return None
+    from datetime import date as _date
+
+    try:
+        return _date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def resolve_ordering(params, allowed, default):
+    """Whitelisted `ordering=` with a stable tie-breaker so pages do not repeat."""
+    requested = params.get("ordering")
+    if requested in allowed:
+        field = allowed[requested]
+        return field if isinstance(field, (tuple, list)) else (field,)
+    return default
+
+
+def attendance_session_filters(params, *, alias="", include_search=True):
+    """
+    Translate the session list's query string into a Q object.
+
+    `status=missed` is deliberately not a stored value: AttendanceSession only
+    keeps not_started / in_progress / completed, so "missed" is a day that has
+    passed without the session being finished. Deriving it here — instead of in
+    each screen — keeps the list filter, the card label and the rollups telling
+    the same story, and adds no column to write.
+
+    `include_search=False` is for callers that search on their own columns
+    first: a record list that matched on "any learner enrolled in that class"
+    would light up every row of the class for one name, which is not what the
+    history search box promises.
+    """
+    prefix = f"{alias}__" if alias else ""
+    conditions = Q()
+
+    exact_date = _clean_date(params, "date")
+    if exact_date is not None:
+        conditions &= Q(**{f"{prefix}date": exact_date})
+    after = _clean_date(params, "date_after")
+    if after is not None:
+        conditions &= Q(**{f"{prefix}date__gte": after})
+    before = _clean_date(params, "date_before")
+    if before is not None:
+        conditions &= Q(**{prefix + "date__lte": before})
+
+    assignment_id = _clean_int(params, "teacher_assignment")
+    if assignment_id is not None:
+        conditions &= Q(**{f"{prefix}teacher_assignment_id": assignment_id})
+    section_id = _clean_int(params, "section")
+    if section_id is not None:
+        conditions &= Q(**{f"{prefix}teacher_assignment__section_id": section_id})
+    subject_id = _clean_int(params, "subject")
+    if subject_id is not None:
+        conditions &= Q(
+            **{f"{prefix}teacher_assignment__subject_id": subject_id}
+        )
+    school_year_id = _clean_int(params, "school_year")
+    if school_year_id is not None:
+        conditions &= Q(
+            **{f"{prefix}teacher_assignment__section__school_year_id": school_year_id}
+        )
+
+    status_value = params.get("status")
+    today = timezone.localdate()
+    if status_value in AttendanceSession.Status.values:
+        conditions &= Q(**{f"{prefix}status": status_value})
+    elif status_value == "missed":
+        conditions &= (
+            Q(**{f"{prefix}date__lt": today})
+            & ~Q(**{f"{prefix}status": AttendanceSession.Status.COMPLETED})
+        )
+    elif status_value == "outstanding":
+        # Everything still to be marked, future or past — the teacher's queue.
+        conditions &= ~Q(**{f"{prefix}status": AttendanceSession.Status.COMPLETED})
+
+    search = (params.get("search") or "").strip()
+    if search and include_search:
+        from django.db.models import Exists, OuterRef
+
+        # Users carry first/last names, not a full_name column, so a learner is
+        # matched on either — the same rule every other name search in the
+        # project uses. `prefix` keeps the correlation right: on the record list
+        # the outer row is a mark, and its session is what these subqueries join.
+        learner_name = (
+            Q(user__first_name__icontains=search)
+            | Q(user__last_name__icontains=search)
+        )
+        marked_student = StudentProfile.objects.filter(
+            attendance_records__session_id=OuterRef(f"{prefix}pk")
+        ).filter(learner_name)
+        enrolled_student = StudentProfile.objects.filter(
+            section_id=OuterRef(f"{prefix}teacher_assignment__section_id")
+        ).filter(learner_name)
+        conditions &= (
+            Q(**{f"{prefix}teacher_assignment__subject__name__icontains": search})
+            | Q(**{f"{prefix}teacher_assignment__section__name__icontains": search})
+            | Q(
+                **{
+                    f"{prefix}teacher_assignment__section__grade_level__name__icontains": search
+                }
+            )
+            | Q(**{f"{prefix}notes__icontains": search})
+            | Exists(marked_student)
+            | Exists(enrolled_student)
+        )
+
+    return conditions
+
+
 class AttendanceSessionListCreateView(generics.ListCreateAPIView):
     serializer_class = AttendanceSessionSerializer
 
@@ -1326,14 +1569,35 @@ class AttendanceSessionListCreateView(generics.ListCreateAPIView):
         # department-scoped (attendance department / super administrator).
         return [AdminKeyOrTeacher("attendance.view", "attendance.manage")]
 
+    def get_serializer_class(self):
+        # The list can be asked for a flat page (`?brief=1`) because embedding
+        # every roster turns 100 history rows into thousands of records on the
+        # wire. Absent that flag the shape is unchanged for older consumers.
+        return (
+            AttendanceSessionListSerializer
+            if self.request.query_params.get("brief") in ("1", "true")
+            else AttendanceSessionSerializer
+        )
+
     def get_queryset(self):
         user = self.request.user
-        if user.is_admin:
-            return AttendanceSession.objects.select_related("teacher_assignment")
-        assignments = TeacherAssignment.objects.filter(teacher=user)
-        return AttendanceSession.objects.filter(
-            teacher_assignment__in=assignments
-        ).select_related("teacher_assignment")
+        params = self.request.query_params
+        queryset = (
+            AttendanceSession.objects.all()
+            if user.is_admin
+            else AttendanceSession.objects.filter(
+                teacher_assignment__in=TeacherAssignment.objects.filter(teacher=user)
+            )
+        ).filter(attendance_session_filters(params))
+        queryset = sessions_with_counts(queryset)
+        if self.get_serializer_class() is AttendanceSessionSerializer:
+            # The nested shape reads each record's student and user, so without
+            # this a page of sessions costs one query per mark. The flat shape
+            # takes its numbers from the annotations and skips that read.
+            queryset = queryset.prefetch_related("records__student__user")
+        return queryset.order_by(
+            *resolve_ordering(params, SESSION_ORDERING, ("-date",)), "-id"
+        )
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -1346,6 +1610,161 @@ class AttendanceSessionListCreateView(generics.ListCreateAPIView):
         serializer.save(created_by=user)
 
 
+class AttendanceSessionRecordsBulkView(APIView):
+    """
+    Save a whole roster in one request.
+
+    The sheet used to fire one POST/PATCH per student, so a 40-learner class was
+    40 round trips that could half-fail: the teacher saw 31 saved marks and 9
+    silent errors, and a retry could re-POST a row that had actually landed.
+    Everything in here is one transaction, keyed on (session, student), so the
+    same payload sent twice — a double click, a flaky network retry — updates
+    the same rows instead of duplicating them.
+    """
+
+    def get_permissions(self):
+        return [AdminKeyOrTeacher("attendance.view", "attendance.manage")]
+
+    def _session_for_request(self, request, pk):
+        from rest_framework.exceptions import PermissionDenied
+
+        user = request.user
+        queryset = AttendanceSession.objects.select_related(
+            "teacher_assignment__section", "teacher_assignment__subject"
+        )
+        if not (user.is_admin or user.is_teacher):
+            raise PermissionDenied(
+                "Only teachers and administrators can record attendance."
+            )
+        if user.is_admin:
+            require_key(user, "attendance.manage")
+        else:
+            queryset = queryset.filter(
+                teacher_assignment__teacher_id=user.pk
+            )
+        session = queryset.filter(pk=pk).first()
+        if session is None:
+            return None
+        return session
+
+
+    def post(self, request, pk):
+        session = self._session_for_request(request, pk)
+        if session is None:
+            return Response(
+                {"error": "No such session, or it belongs to another teacher."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        data = request.data
+        payload = data.get("records") if isinstance(data, dict) else data
+        if not isinstance(payload, list) or not payload:
+            return Response(
+                {"error": "`records` must be a non-empty list."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        valid_statuses = set(AttendanceRecord.Status.values)
+        section_id = session.teacher_assignment.section_id
+
+        # One lookup for the whole roster rather than one per entry, and only
+        # students enrolled in this session's class are accepted.
+        wanted_ids = [
+            entry.get("student")
+            for entry in payload
+            if isinstance(entry, dict) and isinstance(entry.get("student"), int)
+        ]
+        students = {
+            profile.pk: profile
+            for profile in StudentProfile.objects.filter(
+                pk__in=wanted_ids, section_id=section_id
+            )
+        }
+
+        rejected = []
+        wanted = {}
+        for index, entry in enumerate(payload):
+            student_id = entry.get("student") if isinstance(entry, dict) else None
+            mark = entry.get("status") if isinstance(entry, dict) else None
+            if student_id is None or mark is None:
+                rejected.append(
+                    {"index": index, "student": student_id, "error": "student and status are required"}
+                )
+                continue
+            if student_id not in students:
+                rejected.append(
+                    {"index": index, "student": student_id, "error": "not enrolled in this class"}
+                )
+                continue
+            if mark not in valid_statuses:
+                rejected.append(
+                    {"index": index, "student": student_id, "error": "invalid status"}
+                )
+                continue
+            wanted[student_id] = (
+                mark,
+                str(entry.get("notes") or "")[:200],
+            )
+
+        if rejected:
+            # Refuse the batch rather than marking part of a roster: a teacher
+            # must never have to guess which learners landed.
+            return Response(
+                {"error": "Some entries were rejected.", "rejected": rejected},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        existing = {
+            record.student_id: record
+            for record in AttendanceRecord.objects.filter(session=session)
+        }
+        created = updated = unchanged = 0
+        touched = []
+
+        with transaction.atomic():
+            for student_id, (mark, note) in wanted.items():
+                record = existing.get(student_id)
+                if record is None:
+                    record = AttendanceRecord(
+                        session=session,
+                        student_id=student_id,
+                        status=mark,
+                        notes=note,
+                        recorded_by=request.user,
+                    )
+                    record.save()
+                    existing[student_id] = record
+                    created += 1
+                    touched.append(record)
+                elif record.status != mark or (record.notes or "") != note:
+                    record.status = mark
+                    record.notes = note
+                    record.modified_by = request.user
+                    record.save(update_fields=["status", "notes", "modified_by", "modified_at"])
+                    updated += 1
+                    touched.append(record)
+                else:
+                    unchanged += 1
+            # One status pass for the session, not one per mark.
+            session.update_status()
+
+        # Absent/late marks alert the linked parents, but only for the rows this
+        # request actually changed.
+        for record in touched:
+            notify_attendance_marked(record)
+
+        return Response(
+            {
+                "session": AttendanceSessionListSerializer(
+                    sessions_with_counts().get(pk=session.pk)
+                ).data,
+                "created": created,
+                "updated": updated,
+                "unchanged": unchanged,
+            }
+        )
+
+
 class AttendanceSessionDetailView(generics.RetrieveUpdateAPIView):
     serializer_class = AttendanceSessionSerializer
 
@@ -1354,10 +1773,16 @@ class AttendanceSessionDetailView(generics.RetrieveUpdateAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        base = AttendanceSession.objects.select_related(
+            "teacher_assignment__subject",
+            "teacher_assignment__section",
+            "teacher_assignment__section__grade_level",
+            "schedule",
+        ).prefetch_related("records__student__user")
         if user.is_admin:
-            return AttendanceSession.objects.all()
+            return base
         assignments = TeacherAssignment.objects.filter(teacher=user)
-        return AttendanceSession.objects.filter(teacher_assignment__in=assignments)
+        return base.filter(teacher_assignment__in=assignments)
 
 
 class AttendanceRecordListCreateView(generics.ListCreateAPIView):
@@ -1366,11 +1791,36 @@ class AttendanceRecordListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         user = self.request.user
+        params = self.request.query_params
         qs = AttendanceRecord.objects.select_related(
             "student__user", "session__teacher_assignment__subject",
             "session__teacher_assignment__section",
         )
-        student_id = self.request.query_params.get("student")
+        student_id = params.get("student")
+
+        # Module-level narrowing that every role may use, applied to the rows
+        # the role is already allowed to read. Search is deliberately excluded
+        # here and rebuilt below on the mark's own columns, because "Nina" must
+        # not light up every other learner's row in Nina's class.
+        common = attendance_session_filters(
+            params, alias="session", include_search=False
+        )
+        session_id = _clean_int(params, "session")
+        if session_id is not None:
+            common &= Q(session_id=session_id)
+        record_status = params.get("status")
+        if record_status in AttendanceRecord.Status.values:
+            common &= Q(status=record_status)
+        search = (params.get("search") or "").strip()
+        if search:
+            common &= (
+                Q(student__user__first_name__icontains=search)
+                | Q(student__user__last_name__icontains=search)
+                | Q(student__lrn__icontains=search)
+                | Q(session__teacher_assignment__subject__name__icontains=search)
+                | Q(session__teacher_assignment__section__name__icontains=search)
+            )
+        qs = qs.filter(common)
 
         if user.is_admin:
             # Reading school-wide attendance is the attendance module's
@@ -1378,7 +1828,9 @@ class AttendanceRecordListCreateView(generics.ListCreateAPIView):
             require_key(user, "attendance.view")
             if student_id:
                 qs = qs.filter(student_id=student_id)
-            return qs
+            return qs.order_by(
+                *resolve_ordering(params, RECORD_ORDERING, ("-session__date",)), "-id"
+            )
 
         if user.is_teacher:
             assignments = TeacherAssignment.objects.filter(teacher=user)
@@ -1394,7 +1846,9 @@ class AttendanceRecordListCreateView(generics.ListCreateAPIView):
                     from rest_framework.exceptions import PermissionDenied
                     raise PermissionDenied("You may not view that student's attendance.")
                 qs = qs.filter(student_id=student_id)
-            return qs
+            return qs.order_by(
+                *resolve_ordering(params, RECORD_ORDERING, ("-session__date",)), "-id"
+            )
 
         if user.is_student:
             try:
@@ -1404,7 +1858,9 @@ class AttendanceRecordListCreateView(generics.ListCreateAPIView):
             if student_id and str(profile.pk) != str(student_id):
                 from rest_framework.exceptions import PermissionDenied
                 raise PermissionDenied("You may only view your own attendance.")
-            return qs.filter(student=profile)
+            return qs.filter(student=profile).order_by(
+                *resolve_ordering(params, RECORD_ORDERING, ("-session__date",)), "-id"
+            )
 
         if user.is_parent:
             try:
@@ -1417,8 +1873,12 @@ class AttendanceRecordListCreateView(generics.ListCreateAPIView):
                     raise PermissionDenied(
                         "You may only view attendance for your linked children."
                     )
-                return qs.filter(student_id=student_id)
-            return qs.filter(student__in=children)
+                return qs.filter(student_id=student_id).order_by(
+                    *resolve_ordering(params, RECORD_ORDERING, ("-session__date",)), "-id"
+                )
+            return qs.filter(student__in=children).order_by(
+                *resolve_ordering(params, RECORD_ORDERING, ("-session__date",)), "-id"
+            )
 
         return AttendanceRecord.objects.none()
 
@@ -1490,7 +1950,9 @@ class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer
 
     def get_queryset(self):
-        return self.request.user.notifications.all()
+        # select_related("message") because the serializer reads through it for
+        # the conversation deep-link; without it the bell costs one query per row.
+        return self.request.user.notifications.select_related("message").all()
 
 
 class NotificationMarkReadView(generics.UpdateAPIView):
@@ -1499,7 +1961,7 @@ class NotificationMarkReadView(generics.UpdateAPIView):
 
     def get_queryset(self):
         # Strict: only the owner can mark their own notifications read
-        return self.request.user.notifications.all()
+        return self.request.user.notifications.select_related("message").all()
 
     def patch(self, request, *args, **kwargs):
         return self._mark_read(request, *args, **kwargs)

@@ -8,13 +8,12 @@ import { attendanceStatus, formatNumber } from '../../utils/format'
 /**
  * Contextual column for the attendance screens (admin + teacher).
  *
- * `/attendance/sessions/` accepts no date filter and returns every session
- * with its nested records, so this panel is built from `/dashboard/` instead:
- * the admin payload carries a genuine today-scoped block
- * (`blocks.attendance_today`), while the teacher payload carries the
- * teacher-scoped term summary. A "recent sessions" list would mean pulling
- * the whole unfiltered session table a second time next to the page that
- * already does it — deliberately not done.
+ * The session table is paginated and filtered by the screens beside this panel,
+ * so the panel takes no second slice of it: it reads `/dashboard/`, where the
+ * admin payload carries a genuine today-scoped block
+ * (`blocks.attendance_today`) and the teacher payload carries the teacher-scoped
+ * term summary. Re-listing "recent sessions" here would repeat a query the page
+ * already runs — deliberately not done.
  */
 export default function AttendanceContextPanel() {
   const summary = useFetch('/dashboard/')

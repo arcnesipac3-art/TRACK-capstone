@@ -38,6 +38,7 @@ MODULES = OrderedDict([
     ("fees", "Fee Management"),
     ("attendance", "Attendance"),
     ("announcements", "Announcements"),
+    ("messaging", "Messaging"),
     ("reports", "Reports"),
     ("audit", "Audit Logs"),
     ("settings", "System Settings"),
@@ -121,6 +122,20 @@ PERMISSION_DEFS = (
      "Read every announcement, including ones aimed at other audiences."),
     ("announcements", "publish", "Publish announcements",
      "Create, edit, publish and archive announcements."),
+
+    # ── Messaging ──────────────────────────────────────────────────────────
+    # Joining a thread you belong to and starting a permitted direct chat need
+    # no key — every role does that as a person, not as an administrator. These
+    # keys are the *administrative* powers over other people's conversations.
+    ("messaging", "view", "View conversations",
+     "Open any conversation in the school for oversight, including class and "
+     "department threads the holder is not enrolled in."),
+    ("messaging", "manage", "Manage conversations",
+     "Create department and class conversations, add or remove participants in "
+     "any thread and archive conversations."),
+    ("messaging", "broadcast", "Post in any class",
+     "Send messages into a class or department conversation the holder is not "
+     "a member of."),
 
     # ── Reports ────────────────────────────────────────────────────────────
     ("reports", "view", "View reports",
@@ -251,6 +266,9 @@ DEFAULT_DEPARTMENTS = (
         "permissions": (
             "announcements.view",
             "announcements.publish",
+            "messaging.view",
+            "messaging.manage",
+            "messaging.broadcast",
             "reports.view",
         ),
     },

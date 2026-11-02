@@ -67,6 +67,37 @@ describe('navForRole', () => {
   })
 })
 
+describe('teacher navigation — My Classes is the workspace', () => {
+  it('offers only the six entries a teacher navigates by', () => {
+    expect(navForRole('teacher').map((item) => item.label)).toEqual([
+      'Dashboard',
+      'My Classes',
+      'Announcements',
+      'Messages',
+      'Notifications',
+      'Profile',
+    ])
+  })
+
+  it('keeps the modules that moved inside a class off the sidebar but reachable', () => {
+    const tos = navForRole('teacher').map((item) => item.to)
+    expect(tos).not.toContain('/teacher/requirements')
+    expect(tos).not.toContain('/teacher/review')
+    expect(tos).not.toContain('/teacher/attendance')
+    // The standalone routes still exist, so the topbar still names them.
+    expect(titleForPath('/teacher/requirements', 'teacher')).toBe('Requirements')
+    expect(titleForPath('/teacher/review', 'teacher')).toBe('Submission Review')
+    expect(titleForPath('/teacher/attendance', 'teacher')).toBe('Attendance')
+  })
+
+  it('trails a class activity back through My Classes', () => {
+    expect(trailForPath('/teacher/classes/500/attendance', 'teacher')).toEqual([
+      { label: 'Dashboard', to: '/teacher/dashboard' },
+      { label: 'My Classes', to: '/teacher/classes' },
+    ])
+  })
+})
+
 describe('navForUser', () => {
   const adminWith = (permissions) => ({ role: 'admin', permissions })
 
@@ -80,9 +111,12 @@ describe('navForUser', () => {
     expect(items.map((i) => i.to)).not.toContain('/admin/audit-logs')
   })
 
-  it('keeps Dashboard and Notifications visible for every administrator', () => {
+  it('keeps Dashboard, Messages and Notifications visible for every administrator', () => {
+    // Messages is not permission-gated: who may open a thread is decided by
+    // conversation membership in Django, not by an administrator permission key.
     expect(navForUser(adminWith([])).map((i) => i.to)).toEqual([
       '/admin/dashboard',
+      '/messages',
       '/notifications',
     ])
   })
@@ -204,6 +238,19 @@ describe('titleForPath', () => {
     expect(NAVIGATION.admin.some((i) => i.to === '/profile')).toBe(false)
     expect(titleForPath('/profile', 'admin')).toBe('Profile')
     expect(titleForPath('/notifications', 'admin')).toBe('Notifications')
+  })
+
+  it('titles each activity of one class workspace', () => {
+    expect(titleForPath('/teacher/classes/500', 'teacher')).toBe('Class overview')
+    expect(titleForPath('/teacher/classes/500/students', 'teacher')).toBe('Students')
+    expect(titleForPath('/teacher/classes/500/requirements', 'teacher')).toBe('Requirements')
+    expect(titleForPath('/teacher/classes/500/submissions', 'teacher')).toBe('Submission review')
+    expect(titleForPath('/teacher/classes/500/attendance', 'teacher')).toBe('Attendance')
+    expect(titleForPath('/teacher/classes/500/grades', 'teacher')).toBe('Grades')
+    // A slug with no screen still reads as the class instead of a blank title.
+    expect(titleForPath('/teacher/classes/500/timetable', 'teacher')).toBe('Class overview')
+    // A non-numeric id is not a class, so it falls back to the sidebar entry.
+    expect(titleForPath('/teacher/classes/new/students', 'teacher')).toBe('My Classes')
   })
 
   it('falls back to a sensible label rather than blank', () => {

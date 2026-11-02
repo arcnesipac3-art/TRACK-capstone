@@ -55,6 +55,7 @@ export const NAVIGATION = {
     { label: 'Requirements', to: '/admin/requirements', icon: 'clipboard', perm: 'requirements.view' },
     { label: 'Attendance', to: '/admin/attendance', icon: 'calendar', perm: 'attendance.view' },
     { label: 'Announcements', to: '/announcements', icon: 'megaphone', perm: 'announcements.view' },
+    { label: 'Messages', to: '/messages', icon: 'chat' },
     { label: 'Reports', to: '/admin/reports', icon: 'file', perm: 'reports.view' },
     { label: 'Departments & Roles', to: '/admin/departments', icon: 'shield', perm: 'departments.view' },
     { label: 'Audit Logs', to: '/admin/audit-logs', icon: 'clock', perm: 'audit.view' },
@@ -63,11 +64,14 @@ export const NAVIGATION = {
   ],
   teacher: [
     { label: 'Dashboard', to: '/teacher/dashboard', icon: 'grid' },
+    // My Classes is the workspace: requirements, review and attendance live
+    // inside each class (`/teacher/classes/<assignment>/…`) rather than as
+    // separate sidebar modules, because a teacher plans around a class and its
+    // students, not around a system module. The three standalone screens stay
+    // routed for bookmarks and for the other roles that share them.
     { label: 'My Classes', to: '/teacher/classes', icon: 'book' },
-    { label: 'Requirements', to: '/teacher/requirements', icon: 'clipboard' },
-    { label: 'Submission Review', to: '/teacher/review', icon: 'checkSquare' },
-    { label: 'Attendance', to: '/teacher/attendance', icon: 'calendar' },
     { label: 'Announcements', to: '/announcements', icon: 'megaphone' },
+    { label: 'Messages', to: '/messages', icon: 'chat' },
     { label: 'Notifications', to: '/notifications', icon: 'bell' },
     { label: 'Profile', to: '/profile', icon: 'user' },
   ],
@@ -80,6 +84,7 @@ export const NAVIGATION = {
     { label: 'My Fees', to: '/student/fees', icon: 'creditCard' },
     { label: 'Schedule', icon: 'clock', enabled: false },
     { label: 'Announcements', to: '/announcements', icon: 'megaphone' },
+    { label: 'Messages', to: '/messages', icon: 'chat' },
     { label: 'Notifications', to: '/notifications', icon: 'bell' },
     { label: 'Profile', to: '/profile', icon: 'user' },
   ],
@@ -91,6 +96,7 @@ export const NAVIGATION = {
     { label: 'Attendance', to: '/parent/attendance', icon: 'calendar' },
     { label: 'Fees', to: '/parent/fees', icon: 'creditCard' },
     { label: 'Announcements', to: '/announcements', icon: 'megaphone' },
+    { label: 'Messages', to: '/messages', icon: 'chat' },
     { label: 'Notifications', to: '/notifications', icon: 'bell' },
     { label: 'Profile', to: '/profile', icon: 'user' },
   ],
@@ -98,10 +104,10 @@ export const NAVIGATION = {
 
 /** Navigation items used in the mobile bottom bar (max 4). */
 export const MOBILE_PRIMARY = {
-  admin: ['/admin/dashboard', '/admin/students', '/notifications'],
-  teacher: ['/teacher/dashboard', '/teacher/review', '/notifications'],
-  student: ['/student/dashboard', '/student/requirements', '/notifications'],
-  parent: ['/parent/dashboard', '/parent/requirements', '/notifications'],
+  admin: ['/admin/dashboard', '/admin/students', '/messages', '/notifications'],
+  teacher: ['/teacher/dashboard', '/teacher/classes', '/messages', '/notifications'],
+  student: ['/student/dashboard', '/student/requirements', '/messages', '/notifications'],
+  parent: ['/parent/dashboard', '/parent/requirements', '/messages', '/notifications'],
 }
 
 /** Navigation items for a role. */
@@ -183,15 +189,48 @@ export function trailForPath(pathname, role) {
  * Screens every role can reach from the avatar menu, even where the sidebar
  * does not list them (administrators have no Profile item). Kept separate so
  * the topbar can still name the page without inventing a sidebar entry.
+ *
+ * The three teacher paths are the modules that moved inside a class
+ * workspace. Their standalone routes stay live — bookmarks and other roles
+ * still resolve them — so the topbar has to name them without a sidebar item
+ * to inherit a label from.
  */
 const SHARED_TITLES = {
   '/announcements': 'Announcements',
+  '/messages': 'Messages',
   '/notifications': 'Notifications',
   '/profile': 'Profile',
+  '/teacher/requirements': 'Requirements',
+  '/teacher/review': 'Submission Review',
+  '/teacher/attendance': 'Attendance',
 }
+
+/**
+ * Activities inside one class workspace (`/teacher/classes/<assignment>/<slug>`).
+ * They are not sidebar items — the class is the unit of navigation — but the
+ * topbar still has to say which activity is open.
+ */
+export const CLASS_ACTIVITIES = {
+  overview: 'Class overview',
+  students: 'Students',
+  requirements: 'Requirements',
+  submissions: 'Submission review',
+  attendance: 'Attendance',
+  grades: 'Grades',
+}
+
+/**
+ * One class workspace: `/teacher/classes/<assignment>` and its activities
+ * (`/teacher/classes/<assignment>/attendance`). The bare id is the overview.
+ */
+const CLASS_ACTIVITY = /^\/teacher\/classes\/(\d+)(?:\/([a-z]+))?$/
 
 /** Topbar title for a pathname, falling back per role. */
 export function titleForPath(pathname, role) {
+  const activity = CLASS_ACTIVITY.exec(pathname)
+  if (activity) {
+    return CLASS_ACTIVITIES[activity[2]] || CLASS_ACTIVITIES.overview
+  }
   const trail = trailForPath(pathname, role)
   if (trail.length > 1) return trail[trail.length - 1].label
   if (SHARED_TITLES[pathname]) return SHARED_TITLES[pathname]

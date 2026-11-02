@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import ChildSelector from '../components/ChildSelector'
 import Card from '../components/dashboard/Card'
 import CardSkeleton from '../components/loading/CardSkeleton'
@@ -28,8 +29,9 @@ const COPY = {
   },
 }
 
-export default function RequirementsPage({ scope }) {
+export default function RequirementsPage({ scope, assignmentId = null, embedded = false }) {
   const copy = COPY[scope] || COPY.student
+  const [searchParams] = useSearchParams()
   const summary = useFetch('/dashboard/', { enabled: scope === 'parent' })
   const [selectedId, setSelectedId] = useState(null)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -39,6 +41,9 @@ export default function RequirementsPage({ scope }) {
     children.find((child) => child.student_id === selectedId) || children[0] || null
 
   const canCreate = scope === 'teacher'
+  // A class workspace hands the assignment in as a prop; the standalone screen
+  // is still reached with `?class=` from a dashboard shortcut or a bookmark.
+  const classScope = assignmentId ?? searchParams.get('class')
 
   if (scope === 'parent' && summary.error) {
     return (
@@ -80,20 +85,38 @@ export default function RequirementsPage({ scope }) {
     scope === 'parent' && activeChild ? { child: activeChild.student_id } : {}
 
   return (
-    <div className="stack stack-md">
-      <PageHeader
-        title={copy.title}
-        subtitle={
-          scope === 'parent' && activeChild
-            ? `${copy.subtitle} Showing ${activeChild.name}.`
-            : copy.subtitle
-        }
-        actions={
-          canCreate ? (
-            <RequirementCreateForm onCreated={() => setRefreshKey((k) => k + 1)} />
-          ) : null
-        }
-      />
+    <div className={`stack ${embedded ? 'stack-sm' : 'stack-md'}`}>
+      {!embedded && (
+        <PageHeader
+          title={copy.title}
+          subtitle={
+            scope === 'parent' && activeChild
+              ? `${copy.subtitle} Showing ${activeChild.name}.`
+              : copy.subtitle
+          }
+          actions={
+            canCreate ? (
+              <RequirementCreateForm
+                initialAssignment={classScope}
+                onCreated={() => setRefreshKey((k) => k + 1)}
+              />
+            ) : null
+          }
+        />
+      )}
+
+      {embedded && canCreate && (
+        <div className="cw-activity-bar">
+          <span className="cw-activity-note">
+            {copy.subtitle} Only this class is listed; the class header names it
+            above.
+          </span>
+          <RequirementCreateForm
+            initialAssignment={classScope}
+            onCreated={() => setRefreshKey((k) => k + 1)}
+          />
+        </div>
+      )}
 
       {scope === 'parent' && (
         <ChildSelector
@@ -109,6 +132,8 @@ export default function RequirementsPage({ scope }) {
           params={params}
           showFilter
           refreshKey={refreshKey}
+          classScope={classScope}
+          locked={Boolean(assignmentId)}
         />
       </Card>
     </div>

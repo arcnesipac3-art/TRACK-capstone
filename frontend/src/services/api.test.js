@@ -315,6 +315,75 @@ describe('list (DRF pagination)', () => {
   })
 })
 
+describe('paged — one server page, no crawl', () => {
+  it('returns the page the server cut, with its total', async () => {
+    const { api } = await freshApi()
+    global.fetch.mockResolvedValue(
+      jsonResponse({ count: 412, results: [{ id: 1 }, { id: 2 }], next: '/api/x/?page=2' })
+    )
+    const page = await api.paged('/attendance/sessions/', {
+      params: { page: 3, page_size: 20 },
+    })
+    // One request: the server already filtered, sorted and counted.
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(page.rows).toEqual([{ id: 1 }, { id: 2 }])
+    expect(page.count).toBe(412)
+    expect(page.page).toBe(3)
+    expect(page.pageSize).toBe(20)
+    expect(page.totalPages).toBe(21)
+    expect(page.next).toBe('/api/x/?page=2')
+  })
+
+  it('normalises an unpaginated list endpoint', async () => {
+    const { api } = await freshApi()
+    global.fetch.mockResolvedValue(jsonResponse([{ id: 1 }, { id: 2 }, { id: 3 }]))
+    const page = await api.paged('/students/')
+    expect(page.rows).toHaveLength(3)
+    expect(page.count).toBe(3)
+    expect(page.totalPages).toBe(1)
+  })
+
+  it('keeps the page size the caller asked for when the page comes back short', async () => {
+    const { api } = await freshApi()
+    global.fetch.mockResolvedValue(jsonResponse({ count: 45, results: [{ id: 1 }] }))
+    const page = await api.paged('/x/', { params: { page: 5, page_size: 10 } })
+    expect(page.pageSize).toBe(10)
+    expect(page.page).toBe(5)
+  })
+
+  it('does not swallow the params it needs to describe the page', async () => {
+    const { api } = await freshApi()
+    global.fetch.mockResolvedValue(jsonResponse({ count: 0, results: [] }))
+    await api.paged('/attendance/sessions/', {
+      params: { brief: 1, status: 'outstanding', date: '2026-11-02', page_size: 20 },
+    })
+    const [url] = global.fetch.mock.calls[0]
+    expect(url).toContain('brief=1')
+    expect(url).toContain('status=outstanding')
+    expect(url).toContain('date=2026-11-02')
+    expect(url).toContain('page_size=20')
+  })
+
+  it('passes an abort signal through and reports a rejected batch', async () => {
+    const { api, ApiError } = await freshApi()
+    global.fetch.mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: async () => JSON.stringify({ detail: 'pedro is not enrolled in this class.' }),
+    })
+    const controller = new AbortController()
+    await expect(
+      api.paged('/attendance/sessions/55/records/', { signal: controller.signal })
+    ).rejects.toMatchObject({ name: 'ApiError', status: 400 })
+    // The caller reads the server's payload off the error, not a string.
+    const error = await api
+      .paged('/attendance/sessions/55/records/', { signal: controller.signal })
+      .catch((err) => err)
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error.details.detail).toContain('not enrolled')
+  })
+})
+
 describe('auth helpers', () => {
   it('login posts credentials to the token endpoint', async () => {
     const { api } = await freshApi()

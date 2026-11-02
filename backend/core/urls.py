@@ -6,6 +6,7 @@ All routes are prefixed with /api/ from config/urls.py
 from django.urls import path
 
 from . import enrollment_views
+from . import messaging_views
 from . import views
 
 urlpatterns = [
@@ -57,6 +58,7 @@ urlpatterns = [
     path("attendance/generate/", views.generate_attendance_sessions, name="generate_attendance"),
     path("attendance/sessions/", views.AttendanceSessionListCreateView.as_view(), name="attendance_session_list"),
     path("attendance/sessions/<int:pk>/", views.AttendanceSessionDetailView.as_view(), name="attendance_session_detail"),
+    path("attendance/sessions/<int:pk>/records/", views.AttendanceSessionRecordsBulkView.as_view(), name="attendance_session_bulk_records"),
     path("attendance/records/", views.AttendanceRecordListCreateView.as_view(), name="attendance_record_list"),
     path("attendance/records/<int:pk>/", views.AttendanceRecordDetailView.as_view(), name="attendance_record_detail"),
 
@@ -64,6 +66,22 @@ urlpatterns = [
     path("notifications/", views.NotificationListView.as_view(), name="notification_list"),
     path("notifications/<int:pk>/read/", views.NotificationMarkReadView.as_view(), name="notification_mark_read"),
     path("notifications/read-all/", views.mark_all_notifications_read, name="notifications_read_all"),
+
+    # ── Messaging (see core/messaging.py; socket at /api/ws/messaging/) ──────
+    path("messaging/conversations/", messaging_views.ConversationListView.as_view(), name="messaging_conversations"),
+    path("messaging/conversations/<int:pk>/", messaging_views.ConversationDetailView.as_view(), name="messaging_conversation_detail"),
+    path("messaging/conversations/<int:pk>/messages/", messaging_views.MessageListView.as_view(), name="messaging_messages"),
+    path("messaging/conversations/<int:pk>/read/", messaging_views.ReadMarkerView.as_view(), name="messaging_read"),
+    path("messaging/conversations/<int:pk>/delivered/", messaging_views.DeliveredMarkerView.as_view(), name="messaging_delivered"),
+    path("messaging/conversations/<int:pk>/members/", messaging_views.ConversationMembersView.as_view(), name="messaging_members"),
+    path("messaging/conversations/<int:pk>/sync-members/", messaging_views.ConversationSyncView.as_view(), name="messaging_sync_members"),
+    path("messaging/conversations/<int:pk>/archive/", messaging_views.ConversationArchiveView.as_view(), name="messaging_archive"),
+    path("messaging/contacts/", messaging_views.ContactsView.as_view(), name="messaging_contacts"),
+    path("messaging/options/", messaging_views.MessagingOptionsView.as_view(), name="messaging_options"),
+    path("messaging/summary/", messaging_views.MessagingSummaryView.as_view(), name="messaging_summary"),
+    path("messaging/ws-ticket/", messaging_views.WebSocketTicketView.as_view(), name="messaging_ws_ticket"),
+    path("messaging/settings/", messaging_views.MessagingSettingsView.as_view(), name="messaging_settings"),
+    path("messaging/push/subscriptions/", messaging_views.PushSubscriptionView.as_view(), name="messaging_push_subscriptions"),
 
     # ── Announcements ────────────────────────────────────────────────────────
     path("announcements/", views.AnnouncementListCreateView.as_view(), name="announcement_list"),

@@ -23,6 +23,7 @@ const AttendancePage = lazy(() => import('./pages/AttendancePage'))
 const AssignmentsPage = lazy(() => import('./pages/AssignmentsPage'))
 const AuditLogsPage = lazy(() => import('./pages/AuditLogsPage'))
 const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage'))
+const MessagesPage = lazy(() => import('./pages/MessagesPage'))
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
 const ParentChildrenPage = lazy(() => import('./pages/ParentChildrenPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
@@ -33,6 +34,7 @@ const SectionsPage = lazy(() => import('./pages/SectionsPage'))
 const SubmissionsPage = lazy(() => import('./pages/SubmissionsPage'))
 const SystemSettingsPage = lazy(() => import('./pages/SystemSettingsPage'))
 const TeacherClassesPage = lazy(() => import('./pages/TeacherClassesPage'))
+const TeacherClassWorkspace = lazy(() => import('./pages/TeacherClassWorkspace'))
 const UsersPage = lazy(() => import('./pages/UsersPage'))
 
 const AdminDashboard = lazy(() => import('./pages/dashboards/AdminDashboard'))
@@ -140,6 +142,7 @@ export default function App() {
           {/* Shared screens (any authenticated role) */}
           <Route path="/announcements" element={<AnnouncementsPage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/messages" element={<MessagesPage />} />
           <Route path="/profile" element={<ProfilePage />} />
 
           {/* Administrator — each branch is gated on the permission key the
@@ -192,6 +195,13 @@ export default function App() {
           <Route element={<ProtectedRoute roles={['teacher']} />}>
             <Route path="/teacher/dashboard" element={<TeacherDashboard />} />
             <Route path="/teacher/classes" element={<TeacherClassesPage />} />
+            {/* One record for the whole class workspace: the splat is the
+                activity slug, so moving between overview, students,
+                requirements, submissions, attendance and grades never
+                remounts the class or refetches its rows. */}
+            <Route path="/teacher/classes/:assignmentId/*" element={<TeacherClassWorkspace />} />
+            {/* Kept live for bookmarks, the dashboard shortcuts and roles that
+                share these screens. My Classes is the normal way in. */}
             <Route path="/teacher/requirements" element={<RequirementsPage scope="teacher" />} />
             <Route path="/teacher/review" element={<SubmissionsPage mode="review" />} />
             <Route path="/teacher/attendance" element={<AttendancePage mode="teacher" />} />

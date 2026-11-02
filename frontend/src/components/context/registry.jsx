@@ -17,6 +17,11 @@ import VerificationContextPanel from './VerificationContextPanel'
 const RULES = [
   { test: /^\/admin\/dashboard$/, title: 'Today at a glance', Panel: AdminContextPanel },
   { test: /^\/admin\/enrollment(\/|$)/, title: 'Enrollment context', Panel: EnrollmentContextPanel },
+  // A class workspace activity is the same module with a class around it, so
+  // it gets the same column. The panels read the teacher's own rows and the
+  // links inside them still go to the standalone screens, which stay routed.
+  { test: /^\/teacher\/classes\/\d+\/(requirements|submissions|grades)$/, title: 'Verification context', Panel: VerificationContextPanel },
+  { test: /^\/teacher\/classes\/\d+\/attendance$/, title: 'Attendance context', Panel: AttendanceContextPanel },
   { test: /^\/(admin|teacher)\/attendance$/, title: 'Attendance context', Panel: AttendanceContextPanel },
   { test: /^\/(admin|teacher)\/requirements$/, title: 'Verification context', Panel: VerificationContextPanel },
   { test: /^\/teacher\/review$/, title: 'Verification context', Panel: VerificationContextPanel },

@@ -1,0 +1,546 @@
+/* ==========================================================================
+   Attendance — teacher board, record sheet, history and portals
+   Loaded by pages/AttendancePage.jsx. Everything here is attendance-specific;
+   shared primitives (card, table, tabs, badges, KPI grid) stay in index.css.
+   ========================================================================== */
+
+/* Filter strip under a sessions card header */
+.att-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px 10px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.att-filters .field { min-width: 168px; }
+.att-filter-meta {
+  margin-left: auto;
+  align-self: center;
+  white-space: nowrap;
+}
+
+/* Completion column: a short bar (or a "Complete" pill) plus the ratio */
+.att-completion { display: flex; align-items: center; gap: 8px; }
+.att-bar {
+  flex: none;
+  width: 52px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--gray-100);
+  overflow: hidden;
+}
+.att-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--navy-600);
+  border-radius: var(--radius-pill);
+}
+.att-frac {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.att-sessions td { padding-top: 10px; padding-bottom: 10px; }
+
+/* Note previews stay on one line so rows never grow */
+.att-notes { min-width: 0; }
+.att-note-text {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.att-note-btn {
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  justify-content: flex-start;
+}
+.att-note-btn .att-note-text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.att-note-btn.has-note .att-note-text { color: var(--text); font-weight: var(--weight-medium); }
+
+/* ---------------------------------------------------------------------
+   Sessions board — one day as cards, the days ahead as a list
+   --------------------------------------------------------------------- */
+
+.att-day-nav {
+  flex: none;
+  align-self: center;
+  gap: 2px;
+}
+
+.att-day-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(258px, 1fr));
+  gap: 12px;
+}
+
+.att-session-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 13px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-xs);
+}
+/* The left edge carries the status, so the badge does not have to be loud. */
+.att-session-card.is-not_started { border-left-color: var(--navy-500); }
+.att-session-card.is-in_progress { border-left-color: var(--amber-700); }
+.att-session-card.is-completed { border-left-color: var(--green-700); }
+.att-session-card.is-missed { border-left-color: var(--red-700); }
+
+.att-session-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.att-session-subject {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  min-width: 0;
+}
+.att-session-class,
+.att-session-time {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+.att-session-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+.att-session-progress { margin: 3px 0 7px; }
+/* One action per card, sitting at the bottom so the grid scans in a column. */
+.att-session-card .btn { align-self: flex-start; margin-top: auto; }
+
+.att-upcoming {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.att-upcoming-row {
+  display: flex;
+  align-items: center;
+  gap: 6px 14px;
+  flex-wrap: wrap;
+  padding: 9px 20px;
+  border-top: 1px solid var(--border);
+  font-size: var(--text-md);
+}
+.att-upcoming-date {
+  flex: none;
+  min-width: 104px;
+  font-weight: var(--weight-semibold);
+}
+.att-upcoming-time {
+  flex: none;
+  min-width: 108px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.att-upcoming-class { flex: 1 1 180px; min-width: 0; }
+.att-upcoming-row .btn { margin-left: auto; }
+
+/* ---------------------------------------------------------------------
+   Record sheet
+   --------------------------------------------------------------------- */
+
+.att-sheet .card-header {
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+}
+.sheet-head-left { flex: 1 1 320px; min-width: 0; gap: 10px; }
+.sheet-head-title { min-width: 0; }
+.sheet-head-title h2 {
+  margin: 0;
+  font-size: var(--text-xl);
+  line-height: var(--leading-tight);
+}
+.sheet-head-meta { flex: 0 1 auto; align-items: center; gap: 6px 12px; }
+
+.att-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.att-summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.att-total {
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+  color: var(--text);
+  padding-right: 10px;
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+}
+.att-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.att-search { position: relative; display: flex; }
+.att-search > svg {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-subtle);
+  pointer-events: none;
+}
+.att-search .input {
+  min-width: 190px;
+  padding-left: 31px;
+}
+
+.att-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 20px 0;
+}
+
+/* Register longer than the viewport scrolls inside its own box, which is what
+   keeps the header column labels in sight while a teacher works down 40 rows. */
+.att-sheet .table-wrap {
+  max-height: max(320px, calc(100vh - 320px));
+  overflow-y: auto;
+}
+.att-roster {
+  min-width: 840px;
+  table-layout: fixed;
+}
+.att-roster th,
+.att-roster td { padding-left: 12px; padding-right: 12px; }
+.att-roster td { padding-top: 7px; padding-bottom: 7px; }
+.att-roster thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-alt);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+
+.att-idx {
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+.att-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.att-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--weight-semibold);
+}
+.att-dirty-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--amber-700);
+}
+.att-id {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A register the sheet has not fully fetched yet — the strip says so in plain
+   numbers instead of letting the teacher mark a partial class by accident. */
+.att-note-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  flex-wrap: wrap;
+  padding: 9px 20px;
+  background: var(--surface-alt);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-sm);
+}
+
+/* Windowed roster: the "show more" row keeps the table's own width. */
+.att-more {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  border-top: 1px solid var(--border);
+}
+
+/* --- Sticky save bar ------------------------------------------------ */
+
+.att-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  flex-wrap: wrap;
+  padding: 11px 20px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.att-foot-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+}
+.att-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-md);
+  color: var(--text-subtle);
+}
+.sheet-foot-actions { align-items: center; margin-left: auto; }
+
+/* --- Segmented status control -------------------------------------- */
+
+.seg-group {
+  display: inline-flex;
+  flex: none;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.seg { position: relative; display: inline-flex; }
+.seg + .seg { border-left: 1px solid var(--border-strong); }
+.seg-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+.seg-face {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: 1.3;
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--ease), color var(--ease);
+}
+/* Leading glyph slot is reserved so segments never shift when selected. */
+.seg-face::before {
+  content: "";
+  display: inline-block;
+  width: 0.7em;
+  text-align: center;
+  font-size: 0.85em;
+}
+.seg:hover .seg-face { background: var(--surface-alt); color: var(--text); }
+.seg-input:focus-visible + .seg-face { outline: 2px solid var(--blue-600); outline-offset: -2px; }
+.seg-input:disabled + .seg-face { opacity: 0.55; cursor: not-allowed; }
+
+.seg-present .seg-input:checked + .seg-face {
+  background: var(--green-100);
+  color: var(--green-700);
+  box-shadow: inset 0 -2px 0 var(--green-700);
+}
+.seg-absent .seg-input:checked + .seg-face {
+  background: var(--red-100);
+  color: var(--red-700);
+  box-shadow: inset 0 -2px 0 var(--red-700);
+}
+.seg-late .seg-input:checked + .seg-face {
+  background: var(--amber-100);
+  color: var(--amber-700);
+  box-shadow: inset 0 -2px 0 var(--amber-700);
+}
+.seg-excused .seg-input:checked + .seg-face {
+  background: var(--blue-100);
+  color: var(--blue-700);
+  box-shadow: inset 0 -2px 0 var(--blue-700);
+}
+.seg-present .seg-input:checked + .seg-face::before { content: "\2713"; }
+.seg-absent .seg-input:checked + .seg-face::before { content: "!"; }
+.seg-late .seg-input:checked + .seg-face::before { content: "\25F7"; }
+.seg-excused .seg-input:checked + .seg-face::before { content: "\2192"; }
+
+/* --- History and registers ----------------------------------------- */
+
+.att-count {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--weight-medium);
+  color: var(--text-muted);
+}
+.att-count-present { color: var(--green-700); }
+.att-count-absent { color: var(--red-700); }
+.att-count-late { color: var(--amber-700); }
+.att-count-excused { color: var(--blue-700); }
+.att-history th.att-count,
+.att-history td.att-count {
+  padding-left: 6px;
+  padding-right: 6px;
+  text-align: center;
+}
+
+.att-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  border-top: 1px solid var(--border);
+}
+
+/* Correction hint: shows what a staged edit replaces. */
+.att-was {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.att-search-wide { flex: 1 1 auto; }
+.att-search-wide .input { width: 100%; min-width: 0; }
+
+.att-student-hits {
+  display: flex;
+  flex-direction: column;
+}
+.att-student-hit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 20px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border);
+  font: inherit;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+  transition: background var(--ease);
+}
+.att-student-hit:hover { background: var(--surface-alt); }
+.att-student-hit:focus-visible { outline: 2px solid var(--blue-600); outline-offset: -2px; }
+.att-student-hit .hit-meta {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Required-field marker inside the session editor. */
+.req { color: var(--red-700); }
+.confirm-copy { margin: 0; }
+
+/* ---------------------------------------------------------------------
+   Attendance on small screens
+   --------------------------------------------------------------------- */
+
+@media (max-width: 767px) {
+  .att-filters,
+  .att-toolbar,
+  .att-alerts,
+  .att-pager,
+  .att-note-strip,
+  .att-more { padding-left: 14px; padding-right: 14px; }
+
+  .att-filters .field { flex: 1 1 140px; min-width: 0; }
+  .att-filter-meta { margin-left: 0; }
+
+  .att-toolbar { gap: 8px; }
+  .att-total { border-right: none; padding-right: 0; }
+  .att-tools { width: 100%; margin-left: 0; }
+  .att-search { flex: 1 1 auto; }
+  .att-search .input { width: 100%; min-width: 0; }
+
+  .att-sessions,
+  .att-roster { min-width: 0; }
+  /* Rows become stacked blocks here, so an inner scroll box would trap the
+     page: let the document scroll instead. */
+  .att-sheet .table-wrap { max-height: none; overflow-y: visible; }
+
+  .att-roster .att-idx { display: none; }
+  .att-roster td { flex-wrap: wrap; }
+  .att-roster .seg-group { margin-left: auto; }
+
+  .att-history td.att-count { text-align: right; }
+
+  .att-day-grid { grid-template-columns: minmax(0, 1fr); }
+  .att-upcoming-row { gap: 4px 10px; }
+  .att-upcoming-date { min-width: 0; }
+  .att-upcoming-time { min-width: 0; }
+  .att-upcoming-class { flex-basis: 100%; order: 3; }
+  .att-upcoming-row .btn { margin-left: 0; }
+
+  .tabs--pill { width: 100%; }
+  .tabs--pill .tab { flex: 1 1 auto; justify-content: center; padding-left: 10px; padding-right: 10px; }
+
+  .att-student-hit { padding-left: 14px; padding-right: 14px; }
+
+  /* Keep the save bar above the floating bottom dock (64px tall + 12px gap). */
+  .att-foot {
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    margin-left: 12px;
+    margin-right: 12px;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+    padding: 10px 14px;
+  }
+  .sheet-foot-actions { width: 100%; margin-left: 0; }
+}
+
+@media (max-width: 479px) {
+  .seg-face { padding: 5px 6px; font-size: var(--text-xs); gap: 3px; }
+}

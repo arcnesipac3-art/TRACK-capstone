@@ -905,13 +905,19 @@ class AttendanceSessionSerializer(serializers.ModelSerializer):
         source="teacher_assignment.subject.name", read_only=True
     )
     section_name = serializers.SerializerMethodField()
+    # The recording sheet loads its roster with `?section=`, so the detail row
+    # has to say which section it belongs to. `section_name` is a label, not an
+    # id, and the sheet must not guess one from the other.
+    section_id = serializers.IntegerField(
+        source="teacher_assignment.section_id", read_only=True
+    )
     schedule_time = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
 
     class Meta:
         model = AttendanceSession
         fields = [
-            "id", "teacher_assignment", "subject_name", "section_name",
+            "id", "teacher_assignment", "subject_name", "section_id", "section_name",
             "date", "schedule", "schedule_time", "status", "status_display",
             "notes", "created_by", "created_at", "records",
         ]
@@ -974,16 +980,85 @@ class AttendanceSessionSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class AttendanceSessionListSerializer(serializers.ModelSerializer):
+    """
+    One flat row for the session lists.
+
+    `AttendanceSessionSerializer` embeds the whole roster, which is what the
+    recording sheet needs and nothing else: a term of history at 100 sessions a
+    page would drag thousands of student rows over the wire to draw a
+    completion fraction. The counts the table shows are annotated on the
+    queryset instead, so a page of history stays one query per join.
+    """
+
+    subject_name = serializers.CharField(
+        source="teacher_assignment.subject.name", read_only=True
+    )
+    section_name = serializers.SerializerMethodField()
+    section_id = serializers.IntegerField(
+        source="teacher_assignment.section_id", read_only=True
+    )
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    start_time = serializers.SerializerMethodField()
+    room = serializers.SerializerMethodField()
+    enrolled = serializers.SerializerMethodField()
+    # QuerySet annotations, not model columns, so DRF cannot infer them; they
+    # are declared so a row serialized without the annotation still answers
+    # with a number instead of an AttributeError in the middle of a page.
+    record_count = serializers.IntegerField(read_only=True, default=0)
+    present_count = serializers.IntegerField(read_only=True, default=0)
+    absent_count = serializers.IntegerField(read_only=True, default=0)
+    late_count = serializers.IntegerField(read_only=True, default=0)
+    excused_count = serializers.IntegerField(read_only=True, default=0)
+
+    class Meta:
+        model = AttendanceSession
+        fields = [
+            "id", "date", "status", "status_display", "notes",
+            "teacher_assignment", "subject_name", "section_id", "section_name",
+            "schedule", "start_time", "room",
+            "enrolled", "record_count",
+            "present_count", "absent_count", "late_count", "excused_count",
+        ]
+
+    def get_section_name(self, obj):
+        return section_label(obj.teacher_assignment.section)
+
+    def get_start_time(self, obj):
+        return obj.schedule.start_time.strftime("%H:%M") if obj.schedule else None
+
+    def get_room(self, obj):
+        return obj.schedule.room if obj.schedule else None
+
+    def get_enrolled(self, obj):
+        # Annotated on the list queryset; the detail view has no annotation, so
+        # fall back to the one COUNT rather than shipping a null.
+        value = getattr(obj, "enrolled_count", None)
+        if value is None:
+            value = obj.teacher_assignment.section.students.count()
+        return value
+
+
 # ---------------------------------------------------------------------------
 # Notifications
 # ---------------------------------------------------------------------------
 
 class NotificationSerializer(serializers.ModelSerializer):
+    # The thread a MESSAGE_RECEIVED item came from, so the bell can deep-link
+    # into the conversation instead of a dead end. Both are the foreign-key id,
+    # not the row: `message` is a model instance, so an IntegerField bound to it
+    # would try `int(message)` and 500 the whole bell for anyone with a message.
+    message = serializers.IntegerField(source="message_id", read_only=True)
+    conversation = serializers.IntegerField(
+        source="message.conversation_id", read_only=True, default=None
+    )
+
     class Meta:
         model = Notification
         fields = [
             "id", "notif_type", "title", "body", "is_read",
-            "requirement", "submission", "attendance_record", "created_at",
+            "requirement", "submission", "attendance_record",
+            "message", "conversation", "created_at",
         ]
         read_only_fields = [
             "notif_type", "title", "body", "created_at",

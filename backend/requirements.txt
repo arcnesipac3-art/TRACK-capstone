@@ -5,6 +5,22 @@ djangorestframework==3.18.3
 sqlparse==0.6.0
 tzdata==2026.5
 
+# --- Real-time messaging (core/messaging_consumers.py) ---
+# Channels serves the WebSocket at /api/ws/messaging/ and provides the channel
+# layer used to fan thread events out to every connected client.
+channels==4.3.2
+# Multi-process / multi-server fan-out. Used only when REDIS_URL is set; with no
+# REDIS_URL Django falls back to the in-memory layer (single process only).
+channels-redis==4.3.0
+redis==8.1.0
+# ASGI server that speaks WebSocket. `daphne config.asgi:application` is the
+# documented way to run TRACK with live messaging (uvicorn also works).
+daphne==4.2.3
+# Browser push delivery for messages a user has not seen yet (core/push.py) and
+# the key pair produced by `manage.py generate_vapid_keys`.
+pywebpush==2.5.0
+cryptography==50.0.2
+
 # --- Production / deployment (Phase 5) ---
 # WSGI server for Linux hosts (gunicorn does not run on Windows; dev uses
 # `manage.py runserver` as before).

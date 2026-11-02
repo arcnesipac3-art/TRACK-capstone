@@ -1,0 +1,534 @@
+/* ================================================================== */
+/* TeacherClassesPage — class workspace: hero band, KPI strip, cards   */
+/* ================================================================== */
+
+/* Everything is scoped under .teacher-classes-page: this stylesheet is a
+   lazy route chunk, and `.card`, `.filter-bar` and `.badge` belong to the
+   global layer that every other screen shares. */
+
+/* ------------------------------ Hero -------------------------------- */
+
+.teacher-classes-page .tc-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-6) var(--space-7);
+  border-radius: var(--radius-lg);
+  background:
+    radial-gradient(80% 130% at 92% -20%, rgba(15, 95, 205, 0.45) 0%, rgba(15, 95, 205, 0.18) 46%, transparent 74%),
+    linear-gradient(160deg, var(--navy-800) 0%, var(--navy-900) 100%);
+  color: var(--on-navy);
+}
+
+.teacher-classes-page .tc-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--on-navy-accent);
+}
+
+.teacher-classes-page .tc-title {
+  margin: 0;
+  font-size: var(--text-4xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.01em;
+  line-height: var(--leading-tight);
+  color: var(--on-navy);
+}
+
+.teacher-classes-page .tc-subtitle {
+  margin: 6px 0 0;
+  max-width: 74ch;
+  font-size: var(--text-md);
+  line-height: var(--leading-normal);
+  color: var(--on-navy-soft);
+}
+
+.teacher-classes-page .tc-hero-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
+.teacher-classes-page .tc-year {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border: 1px solid var(--navy-line);
+  border-radius: var(--radius-pill);
+  background: var(--navy-hover);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--on-navy-item);
+}
+
+.teacher-classes-page .tc-year.is-active {
+  border-color: rgba(127, 176, 255, 0.45);
+  color: var(--on-navy);
+}
+
+/* ---------------------------- Class grid ---------------------------- */
+
+.teacher-classes-page .class-count {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.teacher-classes-page .filter-bar {
+  border-top: 1px solid var(--border-light);
+}
+
+.teacher-classes-page .class-reset {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
+
+.teacher-classes-page .field-spacer {
+  display: block;
+  height: 15px;
+}
+
+.teacher-classes-page .class-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(318px, 1fr));
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5) var(--space-5);
+}
+
+/* --------------------------- Class card ----------------------------- */
+
+.teacher-classes-page .class-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  transition:
+    border-color var(--dur-2) var(--ease-out),
+    box-shadow var(--dur-2) var(--ease-out),
+    transform var(--dur-2) var(--ease-out);
+}
+
+.teacher-classes-page .class-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+
+.teacher-classes-page .class-card:focus-within,
+.teacher-classes-page .class-card.is-open {
+  border-color: var(--navy-400);
+  box-shadow: var(--shadow);
+}
+
+.teacher-classes-page .class-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.teacher-classes-page .class-card-subject {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: -0.01em;
+  color: var(--navy-900);
+}
+
+.teacher-classes-page .class-card-class {
+  margin: 3px 0 0;
+  font-size: var(--text-md);
+  color: var(--text-muted);
+}
+
+.teacher-classes-page .class-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.teacher-classes-page .class-card-meta li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+
+/* The three numbers a teacher scans before reading anything else. */
+
+.teacher-classes-page .class-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.teacher-classes-page .class-card-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.teacher-classes-page .class-card-stats dt {
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+.teacher-classes-page .class-card-stats dd {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  line-height: 1.1;
+  color: var(--navy-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.teacher-classes-page .class-card-stats .is-alert dd {
+  color: var(--warning);
+}
+
+.teacher-classes-page .class-card-activity {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.teacher-classes-page .activity-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.teacher-classes-page .activity-item.tone-amber {
+  background: var(--warning-bg);
+  color: var(--amber-800);
+}
+
+.teacher-classes-page .activity-item.tone-red {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* ------------------------- Subjects in a room ------------------------ */
+
+/* The list a teacher picks from when one section has several subjects. Each
+   row is one class workspace, so it carries its own counts and its own open. */
+
+.teacher-classes-page .class-card-subjects {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-light);
+}
+
+.teacher-classes-page .class-pick {
+  flex: 1 1 auto;
+  font-size: var(--text-xs);
+}
+
+.teacher-classes-page .subject-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.teacher-classes-page .subject-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--border-light);
+  transition: background var(--dur-1) var(--ease-out);
+}
+
+.teacher-classes-page .subject-row:last-child {
+  border-bottom: 0;
+}
+
+.teacher-classes-page .subject-row:hover {
+  background: var(--surface-alt);
+}
+
+.teacher-classes-page .subject-name {
+  flex: 1 1 140px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
+  color: var(--navy-900);
+}
+
+.teacher-classes-page .subject-counts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-2xs);
+}
+
+.teacher-classes-page .subject-open {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.teacher-classes-page .class-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: auto;
+}
+
+.teacher-classes-page .class-card-actions .btn {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+.teacher-classes-page .class-card-actions svg {
+  transition: transform var(--dur-2) var(--ease-out);
+}
+
+.teacher-classes-page .class-card-actions svg.is-open {
+  transform: rotate(180deg);
+}
+
+/* --------------------------- Card detail ---------------------------- */
+
+.teacher-classes-page .class-card-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-light);
+  animation: tc-reveal var(--dur-3) var(--ease-out);
+}
+
+@keyframes tc-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.teacher-classes-page .class-detail-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--navy-900);
+}
+
+.teacher-classes-page .class-detail-count {
+  margin-left: auto;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-bold);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.teacher-classes-page .class-detail-empty {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.teacher-classes-page .class-roster {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 208px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.teacher-classes-page .class-roster li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 8px 11px;
+  border-bottom: 1px solid var(--border-light);
+  font-size: var(--text-sm);
+}
+
+.teacher-classes-page .class-roster li:last-child {
+  border-bottom: 0;
+}
+
+.teacher-classes-page .class-roster li:hover {
+  background: var(--surface-alt);
+}
+
+.teacher-classes-page .roster-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.teacher-classes-page .roster-lrn {
+  flex: 0 0 auto;
+  font-size: var(--text-2xs);
+  color: var(--text-subtle);
+  font-variant-numeric: tabular-nums;
+}
+
+.teacher-classes-page .tc-source-note {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-subtle);
+}
+
+.teacher-classes-page .tc-hero-skeleton {
+  min-height: 128px;
+}
+
+/* ----------------------------- Responsive --------------------------- */
+
+/* Tablet: the hero stops competing with the sentence for width. */
+@media (max-width: 1023px) {
+  .teacher-classes-page .tc-hero {
+    flex-direction: column;
+    padding: var(--space-5);
+  }
+
+  .teacher-classes-page .tc-hero-side {
+    align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .teacher-classes-page .class-grid {
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    padding: var(--space-4);
+  }
+}
+
+/* Phone: one column, full-width actions, nothing smaller than 40px tall. */
+@media (max-width: 767px) {
+  .teacher-classes-page .class-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .teacher-classes-page .tc-title {
+    font-size: var(--text-3xl);
+  }
+
+  .teacher-classes-page .class-card {
+    padding: var(--space-4) var(--space-3) var(--space-3);
+  }
+
+  .teacher-classes-page .class-card-actions .btn {
+    flex: 1 1 100%;
+    min-height: 40px;
+  }
+
+  .teacher-classes-page .subject-open {
+    flex: 1 1 100%;
+    justify-content: center;
+    min-height: 40px;
+  }
+
+  .teacher-classes-page .class-roster {
+    max-height: 260px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .teacher-classes-page .class-card,
+  .teacher-classes-page .class-card-actions svg,
+  .teacher-classes-page .subject-row {
+    transition: none;
+  }
+
+  .teacher-classes-page .class-card:hover,
+  .teacher-classes-page .subject-row:hover {
+    transform: none;
+  }
+
+  .teacher-classes-page .class-card-detail {
+    animation: none;
+  }
+}
+
+/* Print: the workspace is read on paper as a class list, not a wall of
+   buttons — the detail of every card is what a teacher would want. */
+@media print {
+  .teacher-classes-page .filter-bar,
+  .teacher-classes-page .class-card-actions,
+  .teacher-classes-page .subject-open,
+  .teacher-classes-page .quick-actions {
+    display: none;
+  }
+
+  .teacher-classes-page .tc-hero {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .teacher-classes-page .class-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
