@@ -1,5 +1,9 @@
 /**
  * Admin Fee Category Detail — View and edit a fee category.
+ *
+ * Validation and the destructive delete are reported in-page: `Alert.alert` is
+ * a no-op on react-native-web, so on a browser build the old dialog made
+ * "Save" and "Delete" look dead rather than refusing the input.
  */
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -8,19 +12,20 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
-  Alert,
   TouchableOpacity,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, spacing, radius, typography } from '../../../../../theme';
+import { countNoun } from '../../../../../format';
 import { api, ApiError } from '../../../../../api/client';
 import type { FeeCategory } from '../../../../../api/types';
-import { EmptyState, ErrorState, LoadingState } from '../../../../../components/StateViews';
+import { ErrorBanner, ErrorState, LoadingState } from '../../../../../components/StateViews';
 import AppHeader from '../../../../../components/ui/AppHeader';
 import Button from '../../../../../components/ui/Button';
 import Badge from '../../../../../components/ui/Badge';
+import ConfirmRow from '../../../../../components/ui/ConfirmRow';
 import SegmentedControl from '../../../../../components/ui/SegmentedControl';
 
 export default function FeeCategoryDetailScreen() {
@@ -38,6 +43,8 @@ export default function FeeCategoryDetailScreen() {
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const load = useCallback(async () => {
     if (isNew) {
@@ -56,14 +63,18 @@ export default function FeeCategoryDetailScreen() {
   }, [categoryId, isNew]);
 
   useEffect(() => {
+    // A new category has nothing to fetch, so `load` clears the spinner inline
+    // for that one case; every other update lands after the await.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
 
   const handleSave = async () => {
     if (!category.name || !category.code) {
-      Alert.alert('Error', 'Name and code are required.');
+      setFormError('Name and code are required.');
       return;
     }
+    setFormError(null);
     setSaving(true);
     try {
       if (isNew) {
@@ -73,32 +84,23 @@ export default function FeeCategoryDetailScreen() {
       }
       router.back();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save category.');
+      setFormError(err instanceof ApiError ? err.message : 'Could not save category.');
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    Alert.alert(
-      'Delete Category',
-      'Are you sure you want to delete this fee category? This cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.delete(`/fee-categories/${categoryId}/`);
-              router.back();
-            } catch (err) {
-              setError(err instanceof ApiError ? err.message : 'Could not delete category.');
-            }
-          },
-        },
-      ]
-    );
+    setConfirmDelete(false);
+    setSaving(true);
+    try {
+      await api.delete(`/fee-categories/${categoryId}/`);
+      router.back();
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : 'Could not delete category.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) return <LoadingState label="Loading category…" />;
@@ -119,9 +121,14 @@ export default function FeeCategoryDetailScreen() {
           style={styles.backButton}
           onPress={() => router.back()}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Back to fees"
+          hitSlop={8}
         >
-          <Ionicons name="chevron-back-outline" size={24} color={colors.navy700} />
+          <Ionicons name="chevron-back-outline" size={24} color={colors.blue} />
         </TouchableOpacity>
+
+        {formError ? <ErrorBanner message={formError} /> : null}
         <View style={styles.section}>
           <Text style={styles.label}>Name</Text>
           <TextInput
@@ -191,22 +198,31 @@ export default function FeeCategoryDetailScreen() {
         {!isNew && (
           <View style={styles.section}>
             <Text style={styles.label}>Assessments</Text>
-            <Text style={styles.muted}>{category.assessment_count} assessment(s) using this category</Text>
+            <Text style={styles.muted}>{countNoun(category.assessment_count ?? 0, 'assessment')} using this category</Text>
           </View>
         )}
 
         <View style={styles.actions}>
           {isNew ? (
             <Button variant="primary" onPress={handleSave} disabled={saving} loading={saving}>
-              Create Category
+              Create category
             </Button>
+          ) : confirmDelete ? (
+            <ConfirmRow
+              style={styles.confirm}
+              message={`Deleting removes this category for good. ${countNoun(category.assessment_count ?? 0, 'assessment')} use it.`}
+              confirmLabel="Delete now"
+              onConfirm={handleDelete}
+              onCancel={() => setConfirmDelete(false)}
+              busy={saving}
+            />
           ) : (
             <>
               <Button variant="primary" onPress={handleSave} disabled={saving} loading={saving}>
-                Save Changes
+                Save changes
               </Button>
-              <Button variant="danger" onPress={handleDelete} style={styles.deleteBtn}>
-                Delete Category
+              <Button variant="danger" onPress={() => setConfirmDelete(true)} style={styles.deleteBtn}>
+                Delete category
               </Button>
             </>
           )}
@@ -224,16 +240,19 @@ const styles = StyleSheet.create({
   label: { ...typography.label },
   input: {
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    minHeight: 48,
     borderWidth: 1,
     borderColor: colors.border,
-    ...typography.body,
+    ...typography.input,
   },
   textarea: { minHeight: 100, textAlignVertical: 'top' },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   muted: { ...typography.subtle },
   actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md },
+  confirm: { flex: 1 },
   deleteBtn: { flex: 1 },
-  backButton: { marginBottom: spacing.md, alignSelf: 'flex-start' },
+  backButton: { marginBottom: spacing.md, alignSelf: 'flex-start', minWidth: 44, minHeight: 44 },
 });

@@ -55,6 +55,32 @@ if (!RAW_API_BASE || (!IS_DEV && IS_LOCALHOST.test(RAW_API_BASE))) {
 
 export const API_BASE = RAW_API_BASE.replace(/\/+$/, '');
 
+/**
+ * Origin (no `/api`, no path) the messaging WebSocket connects to.
+ *
+ * It is not always the API's own host. `manage.py runserver` serves WSGI, and
+ * the socket lives behind the ASGI application, so in development the two run
+ * on different ports (README → "Real-time messaging"): REST on 8000, daphne on
+ * 8010. Set `EXPO_PUBLIC_WS_URL` (e.g. `ws://10.0.2.2:8010` for an Android
+ * emulator, `ws://<LAN-IP>:8010` for a physical device) when that is the case;
+ * unset, the socket is assumed to share the API's origin, which is how the
+ * deployed single-origin setup works.
+ *
+ * The value here is only the origin: the path comes from the handshake ticket
+ * (`websocket_path`), so the server — not this file — decides where the socket
+ * lives.
+ */
+const RAW_WS_BASE = process.env.EXPO_PUBLIC_WS_URL?.trim() || API_BASE.replace(/\/api$/, '');
+
+// https and wss both mean TLS; http, ws and a bare host:port mean plain. The
+// written scheme is stripped rather than substituted in place, so an explicit
+// `wss://` in EXPO_PUBLIC_WS_URL can never be downgraded to `ws://`.
+const WS_SECURE = /^(https|wss):\/\//i.test(RAW_WS_BASE);
+
+export const WS_ORIGIN = `${WS_SECURE ? 'wss' : 'ws'}://${RAW_WS_BASE
+  .replace(/^[a-z]+:\/\//i, '')
+  .replace(/\/+$/, '')}`;
+
 export class ApiError extends Error {
   status: number;
   details: unknown;
@@ -189,10 +215,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
   } catch {
-    throw new ApiError(
-      'Cannot reach the TRACK server. Check that Django is running and that EXPO_PUBLIC_API_URL points at it.',
-      0
-    );
+    // A parent with a phone on mobile data gets an action they can take, not a
+    // variable name. The wiring detail is for whoever is running the app.
+    if (__DEV__) {
+      console.warn('[api] fetch failed — is Django running and EXPO_PUBLIC_API_URL pointing at it?');
+    }
+    throw new ApiError('Cannot reach TRACK. Check your connection and try again.', 0);
   }
 
   if (response.status === 204) return null as T;
@@ -277,6 +305,14 @@ export type SessionUser = {
   full_name: string;
   role: Role;
   is_active: boolean;
+  /**
+   * Read-only fields /auth/me/ already sends. The profile screen shows them;
+   * nothing here is writable — UserSerializer marks role and status read-only
+   * so a client can never grant itself a permission.
+   */
+  is_super_admin?: boolean;
+  departments?: { id: number; name: string; code: string; is_active: boolean }[];
+  permissions?: string[];
 };
 
 export const auth = {

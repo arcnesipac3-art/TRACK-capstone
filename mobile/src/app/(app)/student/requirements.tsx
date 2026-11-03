@@ -23,7 +23,9 @@ import {
 } from 'react-native';
 import ScreenList from '../../../components/ScreenList';
 
-import { colors, spacing, radius, typography, scrim, type Tone } from '../../../theme';
+import { colors, spacing, radius, typography, scrim } from '../../../theme';
+import { formatDate, formatRelativeDay } from '../../../format';
+import { submissionStatusMeta } from '../../../status';
 import { api, ApiError } from '../../../api/client';
 import type { Requirement, Submission } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
@@ -36,32 +38,6 @@ type Row = Requirement & {
   submission?: Submission;
   overdueDays: number;
 };
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function formatRelative(iso: string | null) {
-  if (!iso) return '';
-  const diff = Date.now() - new Date(iso).getTime();
-  const days = Math.floor(diff / 864e5);
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days} days ago`;
-  return formatDate(iso);
-}
-
-function statusMeta(status: Row['status'], isOverdue: boolean): { label: string; tone: Tone } {
-  switch (status) {
-    case 'verified': return { label: 'Verified', tone: 'green' };
-    case 'submitted': return { label: 'Awaiting verification', tone: 'blue' };
-    case 'returned': return { label: 'Returned for revision', tone: 'red' };
-    case 'overdue': return { label: 'Overdue', tone: 'red' };
-    default: return isOverdue
-      ? { label: 'Overdue', tone: 'red' }
-      : { label: 'Not submitted', tone: 'gray' };
-  }
-}
 
 function requirementTypeLabel(t: string) {
   return t.charAt(0).toUpperCase() + t.slice(1);
@@ -133,7 +109,7 @@ export default function StudentRequirementsScreen() {
     <View style={styles.screen}>
       <AppHeader title="Requirements" subtitle="What you need to submit and when." />
       <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.navy700]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.blue]} />}
         contentContainerStyle={styles.content}
       >
         {error && <Text style={styles.errorText}>{error}</Text>}
@@ -175,7 +151,7 @@ export default function StudentRequirementsScreen() {
 /* ------------------------------------------------------------------ */
 
 function RequirementRow({ item, onSubmitPress }: { item: Row; onSubmitPress: () => void }) {
-  const meta = statusMeta(item.status, item.is_overdue);
+  const meta = submissionStatusMeta(item.status, item.is_overdue);
   const canSubmit =
     item.status === 'returned' || item.status === 'overdue' || item.status === 'not_submitted';
 
@@ -196,14 +172,14 @@ function RequirementRow({ item, onSubmitPress }: { item: Row; onSubmitPress: () 
         <Text style={styles.metaItem}>
           Due {formatDate(item.deadline)}
           {item.is_overdue && (
-            <Text style={{ color: colors.red700, fontWeight: '600' }}> · Overdue by {item.overdueDays} days</Text>
+            <Text style={{ color: colors.redText, fontWeight: '700' }}> · Overdue by {item.overdueDays} days</Text>
           )}
         </Text>
         <Text style={styles.metaItem}>{item.section_name}</Text>
       </View>
 
       {item.submission?.submitted_at && (
-        <Text style={styles.submittedLine}>Submitted {formatRelative(item.submission.submitted_at)}</Text>
+        <Text style={styles.submittedLine}>Submitted {formatRelativeDay(item.submission.submitted_at)}</Text>
       )}
 
       {item.submission?.teacher_feedback ? (
@@ -346,13 +322,13 @@ function SubmitForm({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxl },
-  errorText: { ...typography.muted, color: colors.red700 },
+  errorText: { ...typography.muted, color: colors.redText },
   flash: {
-    backgroundColor: colors.green100,
+    backgroundColor: colors.greenTint,
     borderRadius: radius.md,
     padding: spacing.md,
   },
-  flashText: { ...typography.body, color: colors.green700 },
+  flashText: { ...typography.body, color: colors.greenText },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -363,15 +339,14 @@ const styles = StyleSheet.create({
   },
   rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md },
   grow: { flex: 1, minWidth: 0 },
-  subject: { ...typography.label, color: colors.navy700 },
+  subject: { ...typography.label, color: colors.blue },
   title: { ...typography.heading, color: colors.text, marginTop: 2 },
   meta: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.xs },
   metaItem: { ...typography.muted },
-  metaBold: { fontWeight: '600' },
-  submittedLine: { ...typography.subtle, color: colors.blue700 },
+  metaBold: { fontWeight: '700' },
+  submittedLine: { ...typography.subtle, color: colors.blueText },
   feedback: {
-    fontSize: 15,
-    color: colors.textMuted,
+    ...typography.muted,
     backgroundColor: colors.surfaceAlt,
     padding: spacing.sm,
     borderRadius: radius.sm,
@@ -384,7 +359,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.xs,
   },
-  actionText: { ...typography.label, color: colors.navy700 },
+  actionText: { ...typography.label, color: colors.blue },
   separator: { height: 1 },
   modalBackdrop: {
     flex: 1,
@@ -399,8 +374,8 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     paddingBottom: spacing.xxl,
   },
-  modalTitle: { ...typography.title, color: colors.navy900 },
-  modalSubject: { ...typography.label, color: colors.navy700, marginTop: spacing.sm },
+  modalTitle: { ...typography.title, color: colors.navy },
+  modalSubject: { ...typography.label, color: colors.blue, marginTop: spacing.sm },
   modalRequirement: { ...typography.heading, color: colors.text },
   modalHint: { ...typography.muted, marginTop: spacing.sm },
   linkInput: {
@@ -410,11 +385,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-    fontSize: 16,
-    color: colors.text,
+    ...typography.input,
     marginTop: spacing.sm,
   },
-  modalError: { ...typography.muted, color: colors.red700, marginTop: spacing.sm },
+  modalError: { ...typography.muted, color: colors.redText, marginTop: spacing.sm },
   modalActions: {
     gap: spacing.sm,
     marginTop: spacing.lg,

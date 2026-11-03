@@ -1,5 +1,11 @@
 /**
- * Admin Fee Management — List and manage fee categories and assessments.
+ * Admin fee management — the bursar's five views over one set of endpoints.
+ *
+ * Dashboard, categories, assessments, payments and reports. The two editors
+ * live on their own routes (`/admin/fees/category/<id>`,
+ * `/admin/fees/assessment/<id>`) and the two heaviest views are components,
+ * because a phone screen that inlines all five would be 900 lines of tabs.
+ * Everything here is the same data the web fees page reads.
  */
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -10,20 +16,21 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
 import { colors, spacing, radius, typography } from '../../../theme';
 import { api, ApiError } from '../../../api/client';
+import { formatDate, formatPeso } from '../../../format';
 import type { FeeCategory, FeeAssessment, FeeDashboardSummary } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
-import SignOutButton from '../../../components/SignOutButton';
+import FeesPaymentsTab from '../../../components/FeesPaymentsTab';
+import FeesReportsTab from '../../../components/FeesReportsTab';
+import HeaderActions from '../../../components/ui/HeaderActions';
 import AppHeader from '../../../components/ui/AppHeader';
 import StatTile from '../../../components/ui/StatTile';
 import Badge from '../../../components/ui/Badge';
-import Button from '../../../components/ui/Button';
 import SegmentedControl from '../../../components/ui/SegmentedControl';
 
 type Tab = 'dashboard' | 'categories' | 'assessments' | 'payments' | 'reports';
@@ -102,7 +109,7 @@ export default function AdminFeesScreen() {
   const renderCategoriesTab = () => (
     <ScrollView
       style={styles.scroll}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.navy700]} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.blue]} />}
       contentContainerStyle={styles.content}
     >
       <View style={styles.section}>
@@ -154,9 +161,11 @@ export default function AdminFeesScreen() {
 
       <View style={styles.section}>
         <TouchableOpacity
-          style={[styles.fab, { backgroundColor: colors.navy700 }]}
+          style={[styles.fab, { backgroundColor: colors.blue }]}
           onPress={() => router.push('/admin/fees/category/new')}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="New fee category"
         >
           <Ionicons name="add" size={24} color={colors.surface} />
         </TouchableOpacity>
@@ -167,7 +176,7 @@ export default function AdminFeesScreen() {
   const renderAssessmentsTab = () => (
     <ScrollView
       style={styles.scroll}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.navy700]} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.blue]} />}
       contentContainerStyle={styles.content}
     >
       <View style={styles.section}>
@@ -205,7 +214,7 @@ export default function AdminFeesScreen() {
               <View style={styles.listItemLeft}>
                 <Text style={styles.listItemTitle}>{a.category_name}</Text>
                 <Text style={styles.listItemSubtitle}>
-                  {a.amount.toLocaleString()} PHP · Due {new Date(a.due_date).toLocaleDateString()}
+                  {formatPeso(a.amount)} · Due {formatDate(a.due_date)}
                   {a.grade_level_name && ` · ${a.grade_level_name}`}
                   {a.section_name && ` · ${a.section_name}`}
                   {a.student_name && ` · ${a.student_name}`}
@@ -220,7 +229,7 @@ export default function AdminFeesScreen() {
                   }
                 />
                 <Text style={styles.listItemCount}>
-                  Collected: {a.total_collected.toLocaleString()} / {a.total_assessed.toLocaleString()}
+                  Collected: {formatPeso(a.total_collected)} of {formatPeso(a.total_assessed)}
                 </Text>
                 <Ionicons name="chevron-forward-outline" size={20} color={colors.textMuted} />
               </View>
@@ -231,9 +240,11 @@ export default function AdminFeesScreen() {
 
       <View style={styles.section}>
         <TouchableOpacity
-          style={[styles.fab, { backgroundColor: colors.navy700 }]}
+          style={[styles.fab, { backgroundColor: colors.blue }]}
           onPress={() => router.push('/admin/fees/assessment/new')}
           activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="New fee assessment"
         >
           <Ionicons name="add" size={24} color={colors.surface} />
         </TouchableOpacity>
@@ -244,7 +255,7 @@ export default function AdminFeesScreen() {
   const renderDashboardTab = () => (
     <ScrollView
       style={styles.scroll}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.navy700]} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.blue]} />}
       contentContainerStyle={styles.content}
     >
       {dashboard && (
@@ -252,10 +263,10 @@ export default function AdminFeesScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Collection Summary</Text>
             <View style={styles.grid}>
-              <StatTile label="Total Assessed" value={dashboard.total_assessed.toLocaleString()} tone="navy" />
-              <StatTile label="Total Collected" value={dashboard.total_collected.toLocaleString()} tone="green" />
-              <StatTile label="Outstanding" value={dashboard.total_outstanding.toLocaleString()} tone="amber" />
-              <StatTile label="Students w/ Balance" value={dashboard.students_with_balance} tone="red" />
+              <StatTile label="Total assessed" value={formatPeso(dashboard.total_assessed)} tone="navy" />
+              <StatTile label="Total collected" value={formatPeso(dashboard.total_collected)} tone="green" />
+              <StatTile label="Outstanding" value={formatPeso(dashboard.total_outstanding)} tone="amber" />
+              <StatTile label="Students w/ balance" value={dashboard.students_with_balance} tone="red" />
             </View>
           </View>
 
@@ -267,7 +278,7 @@ export default function AdminFeesScreen() {
                   <View style={styles.listItemLeft}>
                     <Text style={styles.listItemTitle}>{cat.category}</Text>
                     <Text style={styles.listItemSubtitle}>
-                      {cat.collected.toLocaleString()} / {cat.assessed.toLocaleString()} collected
+                      {formatPeso(cat.collected)} of {formatPeso(cat.assessed)} collected
                     </Text>
                   </View>
                   <View style={styles.listItemRight}>
@@ -290,10 +301,10 @@ export default function AdminFeesScreen() {
                   <View key={p.id} style={styles.listItem}>
                     <View style={styles.listItemLeft}>
                       <Text style={styles.listItemTitle}>{p.student}</Text>
-                      <Text style={styles.listItemSubtitle}>{p.category} · {new Date(p.payment_date).toLocaleDateString()}</Text>
+                      <Text style={styles.listItemSubtitle}>{p.category} · {formatDate(p.payment_date)}</Text>
                     </View>
                     <View style={styles.listItemRight}>
-                      <Text style={styles.listItemAmount}>₱{p.amount.toLocaleString()}</Text>
+                      <Text style={styles.listItemAmount}>{formatPeso(p.amount)}</Text>
                       <Text style={styles.listItemReceipt}>{p.receipt_number}</Text>
                     </View>
                   </View>
@@ -306,31 +317,9 @@ export default function AdminFeesScreen() {
     </ScrollView>
   );
 
-  const renderPaymentsTab = () => (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.content}
-    >
-      <EmptyState
-        inline
-        title="Payments"
-        body="Payment recording and management coming soon."
-      />
-    </ScrollView>
-  );
+  const renderPaymentsTab = () => <FeesPaymentsTab />;
 
-  const renderReportsTab = () => (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.content}
-    >
-      <EmptyState
-        inline
-        title="Reports"
-        body="Collection and outstanding reports coming soon."
-      />
-    </ScrollView>
-  );
+  const renderReportsTab = () => <FeesReportsTab />;
 
   return (
     <View style={styles.screen}>
@@ -338,9 +327,9 @@ export default function AdminFeesScreen() {
         hero
         title="Fee Management"
         subtitle={dashboard
-          ? `₱${dashboard.total_outstanding.toLocaleString()} outstanding across ${dashboard.total_students_assessed} students`
+          ? `${formatPeso(dashboard.total_outstanding)} outstanding across ${dashboard.total_students_assessed} students`
           : undefined}
-        right={<SignOutButton variant="onNavy" />}
+        right={<HeaderActions />}
       />
       <SegmentedControl
         options={[
@@ -368,7 +357,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.xl },
   section: { gap: spacing.md },
-  sectionTitle: { ...typography.heading, color: colors.navy900 },
+  sectionTitle: { ...typography.heading, color: colors.navy },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   searchInput: {
     backgroundColor: colors.surface,
@@ -392,10 +381,10 @@ const styles = StyleSheet.create({
   },
   listItemLeft: { flex: 1 },
   listItemRight: { alignItems: 'flex-end', gap: spacing.xs },
-  listItemTitle: { ...typography.body, fontWeight: '600', color: colors.text },
+  listItemTitle: { ...typography.body, fontWeight: '700', color: colors.text },
   listItemSubtitle: { ...typography.subtle, marginTop: 2 },
   listItemCount: { ...typography.subtle, color: colors.textMuted },
-  listItemAmount: { ...typography.body, fontWeight: '600', color: colors.green700 },
+  listItemAmount: { ...typography.body, fontWeight: '700', color: colors.greenText },
   listItemReceipt: { ...typography.subtle, color: colors.textMuted },
   fab: {
     alignSelf: 'flex-end',
@@ -404,7 +393,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: colors.navy900,
+    shadowColor: colors.navy,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,

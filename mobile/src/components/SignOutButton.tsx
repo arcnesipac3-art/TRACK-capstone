@@ -41,7 +41,7 @@ export default function SignOutButton({ variant = 'surface' }: { variant?: 'surf
       accessibilityLabel="Sign out"
     >
       {busy ? (
-        <ActivityIndicator size="small" color={onNavy ? colors.onNavy : colors.navy700} />
+        <ActivityIndicator size="small" color={onNavy ? colors.onNavy : colors.blue} />
       ) : (
         <Text style={[styles.label, onNavy && styles.labelOnNavy]}>Sign out</Text>
       )}
@@ -59,13 +59,13 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: radius.md,
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
+    minHeight: 44,
     alignSelf: 'flex-end',
   },
   buttonOnNavy: {
     backgroundColor: 'transparent',
     borderColor: 'rgba(255, 255, 255, 0.4)',
   },
-  label: { ...typography.label, color: colors.navy700 },
+  label: { ...typography.label, color: colors.blue },
   labelOnNavy: { color: colors.onNavy },
 });

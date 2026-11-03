@@ -2,11 +2,13 @@
  * Admin directory — people and school structure, read-only.
  *
  * Endpoints: GET /students/, GET /users/?role=teacher|parent (admin-only,
- * enforced server-side), GET /sections/. Account management stays on the web
- * app; this screen exists to *see* the data, mirroring the web directory.
+ * enforced server-side), GET /sections/. This screen only *sees* the data; the
+ * write side is `/admin/accounts`, linked from here.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, RefreshControl, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, RefreshControl, ScrollView, TouchableOpacity } from 'react-native';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import ScreenList from '../../../components/ScreenList';
 
 import { colors, spacing, radius, typography } from '../../../theme';
@@ -106,9 +108,21 @@ export default function AdminDirectoryScreen() {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.navy700]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.blue]} />}
       >
         <SegmentedControl options={SEGMENTS} value={segment} onChange={setSegment} />
+
+        <TouchableOpacity
+          style={styles.manageRow}
+          onPress={() => router.push('/admin/accounts')}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Manage accounts"
+        >
+          <Ionicons name="person-add-outline" size={18} color={colors.blue} />
+          <Text style={styles.manageLabel}>Manage accounts</Text>
+          <Ionicons name="chevron-forward" size={16} color={colors.textMuted} />
+        </TouchableOpacity>
 
         {error && <Text style={styles.errorText}>{error}</Text>}
 
@@ -138,7 +152,18 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
-  errorText: { ...typography.muted, color: colors.red700 },
+  errorText: { ...typography.muted, color: colors.redText },
+  manageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  manageLabel: { ...typography.label, color: colors.blue, flex: 1 },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -147,7 +172,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     gap: 2,
   },
-  title: { ...typography.heading, color: colors.navy900 },
+  title: { ...typography.heading, color: colors.navy },
   meta: { ...typography.muted },
   separator: { height: 1 },
 });

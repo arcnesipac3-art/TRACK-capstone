@@ -1,15 +1,22 @@
 /**
  * TRACK — shared segmented control.
  *
- * White active pill on a gray track, mirroring the website's pill tab groups
- * (frontend sidebar active pill / attendance view tabs). Replaces the three
- * divergent per-screen implementations (NoticesScreen, admin/attendance,
- * admin/directory) that had different metrics.
+ * A bordered white track with one tinted segment: Khan Academy marks the
+ * selected filter with its pale instructive blue rather than a raised white
+ * pill, which keeps the row flat and leaves the shadow vocabulary for things
+ * that actually float. 40dp segments so the row stays tappable with a thumb.
+ *
+ * Replaces the three divergent per-screen implementations (NoticesScreen,
+ * admin/attendance, admin/directory) that had different metrics.
+ *
+ * The segments grow to fill the row when there is room and keep their own
+ * width when there is not, so a five-tab strip on a small phone scrolls
+ * sideways instead of squeezing "Assessments" into "Assess".
  */
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
-import { colors, radius, shadows, spacing } from '../../theme';
+import { colors, radius, spacing, typography } from '../../theme';
 
 export type SegmentedOption<T extends string> = {
   label: string;
@@ -30,57 +37,71 @@ export default function SegmentedControl<T extends string>({
   style,
 }: SegmentedControlProps<T>) {
   return (
-    <View style={[styles.track, style]} accessibilityRole="tablist">
-      {options.map((option) => {
-        const active = option.value === value;
-        return (
-          <TouchableOpacity
-            key={option.value}
-            style={[styles.segment, active && styles.segmentActive]}
-            onPress={() => onChange(option.value)}
-            activeOpacity={0.85}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active }}
-          >
-            <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
-              {option.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+    <View style={[styles.frame, style]}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.inner}
+        accessibilityRole="tablist"
+      >
+        {options.map((option) => {
+          const active = option.value === value;
+          return (
+            <TouchableOpacity
+              key={option.value}
+              style={[styles.segment, active && styles.segmentActive]}
+              onPress={() => onChange(option.value)}
+              activeOpacity={0.85}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
+            >
+              <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>
+                {option.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  track: {
-    flexDirection: 'row',
-    gap: 3,
-    backgroundColor: colors.gray100,
-    borderRadius: radius.md,
-    padding: 3,
-  },
-  segment: {
-    flex: 1,
-    minHeight: 34,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    paddingHorizontal: spacing.sm,
-  },
-  segmentActive: {
+  frame: {
     backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
-    ...shadows.sm,
+    borderRadius: radius.md,
+    padding: spacing.xs,
+  },
+  inner: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    // Growing the content to the frame is what lets the segments share the
+    // width; `flexShrink: 0` on each segment is what stops them being squeezed
+    // below their label once they cannot.
+    flexGrow: 1,
+  },
+  segment: {
+    flexGrow: 1,
+    flexShrink: 0,
+    minHeight: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+  },
+  segmentActive: {
+    backgroundColor: colors.blueTint,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
+    ...typography.body,
+    fontSize: 14,
+    lineHeight: 18,
+    fontWeight: '700',
     color: colors.textMuted,
   },
   labelActive: {
-    color: colors.navy800,
-    fontWeight: '700',
+    color: colors.blueText,
   },
 });

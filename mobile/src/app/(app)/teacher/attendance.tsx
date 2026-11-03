@@ -39,6 +39,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../../components/StateV
 import AppHeader from '../../../components/ui/AppHeader';
 import Badge from '../../../components/ui/Badge';
 import Button from '../../../components/ui/Button';
+import { formatDateWithWeekday } from '../../../format';
 
 const STATUS_CHOICES: { value: AttendanceStatus; short: string; label: string }[] = [
   { value: 'present', short: 'P', label: 'Present' },
@@ -46,15 +47,6 @@ const STATUS_CHOICES: { value: AttendanceStatus; short: string; label: string }[
   { value: 'late', short: 'L', label: 'Late' },
   { value: 'excused', short: 'E', label: 'Excused' },
 ];
-
-function formatDate(iso: string) {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
 
 /** Session status → badge tone (mirrors the web sessions list). */
 function sessionTone(status: AttendanceSession['status']): Tone {
@@ -196,13 +188,12 @@ export default function TeacherAttendanceScreen() {
       <AppHeader title="Attendance" subtitle="Tap a session to open its roster." />
       <ScrollView
         style={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.navy700]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.blue]} />}
         contentContainerStyle={styles.content}
       >
         <View style={styles.toolbar}>
           <Text style={styles.hint}>Newest first · tap a session to record marks</Text>
           <Button
-            size="sm"
             variant="primary"
             block
             onPress={generateNext7}
@@ -288,7 +279,7 @@ function SessionCard({
         accessibilityState={{ expanded }}
       >
         <View style={styles.grow}>
-          <Text style={styles.date}>{formatDate(session.date)}</Text>
+          <Text style={styles.date}>{formatDateWithWeekday(session.date)}</Text>
           <Text style={styles.subject}>{session.subject_name}</Text>
           <Text style={styles.meta}>
             {session.section_name}
@@ -359,10 +350,10 @@ const styles = StyleSheet.create({
   content: { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing.xxl },
   toolbar: { gap: spacing.sm, alignItems: 'stretch' },
   hint: { ...typography.muted },
-  flash: { backgroundColor: colors.green100, borderRadius: radius.md, padding: spacing.md },
-  flashText: { ...typography.body, color: colors.green700 },
-  errorText: { ...typography.muted, color: colors.red700 },
-  okText: { ...typography.muted, color: colors.green700 },
+  flash: { backgroundColor: colors.greenTint, borderRadius: radius.md, padding: spacing.md },
+  flashText: { ...typography.body, color: colors.greenText },
+  errorText: { ...typography.muted, color: colors.redText },
+  okText: { ...typography.muted, color: colors.greenText },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -372,7 +363,7 @@ const styles = StyleSheet.create({
   },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, padding: spacing.md },
   grow: { flex: 1, minWidth: 0 },
-  date: { ...typography.label, color: colors.navy700 },
+  date: { ...typography.label, color: colors.blue },
   subject: { ...typography.heading, color: colors.text, marginTop: 2 },
   meta: { ...typography.muted, marginTop: 2 },
   headerRight: { alignItems: 'flex-end', gap: spacing.xs, maxWidth: '55%' },
@@ -394,7 +385,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.sm,
   },
-  studentName: { ...typography.body, fontWeight: '600', color: colors.text },
+  studentName: { ...typography.body, fontWeight: '700', color: colors.text },
   markGroup: { flexDirection: 'row', gap: 4 },
   markButton: {
     width: 36,
@@ -406,7 +397,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  markButtonActive: { backgroundColor: colors.navy700, borderColor: colors.navy700 },
+  markButtonActive: { backgroundColor: colors.blue, borderColor: colors.blue },
   markLabel: { ...typography.label, color: colors.textMuted, fontSize: 13 },
   markLabelActive: { color: colors.onNavy },
   separator: { height: 1 },

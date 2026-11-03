@@ -3,18 +3,24 @@
  *
  * Runs before any screen, so the token check must be synchronous-ish. We use
  * SecureStore.getItemAsync which is async but fast enough for the splash.
+ *
+ * Lato is loaded here rather than in a screen: the type scale in `theme.ts`
+ * names it, so a screen that painted before the font settled would show the
+ * system face and then reflow underneath the user.
  */
 import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 
 import { colors } from '../theme';
+import { useAppFonts } from '../fonts';
 import { getToken } from '../api/client';
 import { setAuthSnapshot, subscribeAuth } from '../auth-state';
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
   const [authed, setAuthed] = useState(false);
+  const [fontsLoaded] = useAppFonts();
 
   useEffect(() => {
     // Start listening before the first token read resolves so a login/logout
@@ -28,10 +34,10 @@ export default function RootLayout() {
     return unsubscribe;
   }, []);
 
-  if (!ready) {
+  if (!ready || !fontsLoaded) {
     return (
       <View style={styles.splash}>
-        <ActivityIndicator size="large" color={colors.navy700} />
+        <ActivityIndicator size="large" color={colors.navy} />
       </View>
     );
   }

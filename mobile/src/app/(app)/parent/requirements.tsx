@@ -11,40 +11,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import ScreenList from '../../../components/ScreenList';
 import { useLocalSearchParams } from 'expo-router';
-import { Picker } from '@react-native-picker/picker';
 
-import { colors, spacing, radius, typography, type Tone } from '../../../theme';
+import { colors, spacing, radius, typography } from '../../../theme';
+import { formatDate, formatRelativeDay } from '../../../format';
+import { submissionStatusMeta } from '../../../status';
 import { api, ApiError } from '../../../api/client';
 import type { Requirement, Submission, StudentProfile } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
 import Badge from '../../../components/ui/Badge';
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function formatRelative(iso: string | null) {
-  if (!iso) return '';
-  const diff = Date.now() - new Date(iso).getTime();
-  const days = Math.floor(diff / 864e5);
-  if (days === 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days} days ago`;
-  return formatDate(iso);
-}
-
-function statusMeta(status: string, isOverdue: boolean): { label: string; tone: Tone } {
-  switch (status) {
-    case 'verified': return { label: 'Verified', tone: 'green' };
-    case 'submitted': return { label: 'Awaiting verification', tone: 'blue' };
-    case 'returned': return { label: 'Returned for revision', tone: 'red' };
-    case 'overdue': return { label: 'Overdue', tone: 'red' };
-    default: return isOverdue
-      ? { label: 'Overdue', tone: 'red' }
-      : { label: 'Not submitted', tone: 'gray' };
-  }
-}
+import Dropdown from '../../../components/ui/Dropdown';
 
 function requirementTypeLabel(t: string) {
   return t.charAt(0).toUpperCase() + t.slice(1);
@@ -194,24 +170,18 @@ export default function ParentRequirementsScreen() {
     <View style={styles.screen}>
       <AppHeader title="Requirements" subtitle={subtitle} />
       <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.navy700]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.blue]} />}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
         {children.length > 1 && (
-          <View style={styles.pickerWrapper}>
-            <Picker
-              selectedValue={selectedChild ?? undefined}
-              onValueChange={(v: string) => setSelectedChild(v)}
-              itemStyle={{ color: colors.text }}
-              style={styles.picker}
-              accessibilityLabel="Choose which child to view"
-            >
-              {children.map((c) => (
-                <Picker.Item key={c.id} label={c.user.full_name} value={String(c.id)} />
-              ))}
-            </Picker>
-          </View>
+          <Dropdown
+            label="Child"
+            options={children.map((c) => ({ label: c.user.full_name, value: String(c.id) }))}
+            value={selectedChild}
+            onChange={setSelectedChild}
+            placeholder="Choose which child to view"
+          />
         )}
 
         {rows.length === 0 ? (
@@ -238,7 +208,7 @@ export default function ParentRequirementsScreen() {
 }
 
 function RequirementRow({ item }: { item: Row }) {
-  const meta = statusMeta(item.status, item.is_overdue);
+  const meta = submissionStatusMeta(item.status, item.is_overdue);
 
   return (
     <View style={styles.card}>
@@ -256,13 +226,13 @@ function RequirementRow({ item }: { item: Row }) {
         <Text style={styles.metaItem}>
           Due {formatDate(item.deadline)}
           {item.is_overdue && (
-            <Text style={{ color: colors.red700, fontWeight: '600' }}> · Overdue by {item.overdueDays} days</Text>
+            <Text style={{ color: colors.redText, fontWeight: '700' }}> · Overdue by {item.overdueDays} days</Text>
           )}
         </Text>
         <Text style={styles.metaItem}>{item.section_name}</Text>
       </View>
       {item.submission?.submitted_at && (
-        <Text style={styles.submittedLine}>Submitted {formatRelative(item.submission.submitted_at)}</Text>
+        <Text style={styles.submittedLine}>Submitted {formatRelativeDay(item.submission.submitted_at)}</Text>
       )}
       {item.submission?.teacher_feedback ? (
         <Text style={styles.feedback} numberOfLines={3}>
@@ -276,16 +246,7 @@ function RequirementRow({ item }: { item: Row }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxl },
-  pickerWrapper: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.sm,
-    overflow: 'hidden',
-  },
-  picker: { height: 48 },
-  errorText: { ...typography.muted, color: colors.red700 },
+  errorText: { ...typography.muted, color: colors.redText },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -296,15 +257,14 @@ const styles = StyleSheet.create({
   },
   rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md },
   grow: { flex: 1, minWidth: 0 },
-  subject: { ...typography.label, color: colors.navy700 },
+  subject: { ...typography.label, color: colors.blue },
   title: { ...typography.heading, color: colors.text, marginTop: 2 },
   meta: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.xs },
   metaItem: { ...typography.muted },
-  metaBold: { fontWeight: '600' },
-  submittedLine: { ...typography.subtle, color: colors.blue700 },
+  metaBold: { fontWeight: '700' },
+  submittedLine: { ...typography.subtle, color: colors.blueText },
   feedback: {
-    fontSize: 15,
-    color: colors.textMuted,
+    ...typography.muted,
     backgroundColor: colors.surfaceAlt,
     padding: spacing.sm,
     borderRadius: radius.sm,

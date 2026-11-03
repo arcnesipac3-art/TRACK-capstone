@@ -20,32 +20,14 @@ import {
 } from 'react-native';
 import ScreenList from '../../../components/ScreenList';
 
-import { colors, spacing, radius, typography, type Tone } from '../../../theme';
+import { colors, spacing, radius, typography } from '../../../theme';
 import { api, ApiError } from '../../../api/client';
 import type { Requirement, Submission, SubmissionStatus } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
 import Badge from '../../../components/ui/Badge';
-
-function formatDate(iso: string | null) {
-  if (!iso) return '';
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
-function statusMeta(status: SubmissionStatus): { label: string; tone: Tone } {
-  switch (status) {
-    case 'verified': return { label: 'Verified', tone: 'green' };
-    case 'submitted': return { label: 'Awaiting verification', tone: 'amber' };
-    case 'returned': return { label: 'Returned', tone: 'red' };
-    case 'overdue': return { label: 'Overdue', tone: 'red' };
-    default: return { label: 'Not submitted', tone: 'gray' };
-  }
-}
+import { formatDateTime } from '../../../format';
+import { submissionStatusMeta } from '../../../status';
 
 type RequirementRowData = Requirement & { pending: number; total: number };
 
@@ -117,7 +99,7 @@ export default function TeacherReviewScreen() {
       <AppHeader title="Review" subtitle="Check submissions and give feedback." />
       <ScrollView
         style={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.navy700]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.blue]} />}
         contentContainerStyle={styles.content}
       >
         {error && <Text style={styles.errorText}>{error}</Text>}
@@ -148,7 +130,7 @@ export default function TeacherReviewScreen() {
                       <Text style={styles.subject}>{item.subject_name}</Text>
                       <Text style={styles.title}>{item.title}</Text>
                       <Text style={styles.meta}>
-                        Due {formatDate(item.deadline)} · {item.section_name}
+                        Due {formatDateTime(item.deadline)} · {item.section_name}
                       </Text>
                     </View>
                     <View style={styles.headerRight}>
@@ -208,7 +190,7 @@ function SubmissionReview({
   const [message, setMessage] = useState<string | null>(null);
   const [rowError, setRowError] = useState<string | null>(null);
 
-  const meta = statusMeta(submission.status);
+  const meta = submissionStatusMeta(submission.status, false, 'reviewer');
   const dirty =
     feedback.trim() !== (submission.teacher_feedback ?? '') ||
     false; // status handled via explicit buttons
@@ -246,8 +228,8 @@ function SubmissionReview({
         <View style={styles.grow}>
           <Text style={styles.subName}>{submission.student_name}</Text>
           <Text style={styles.meta}>
-            {submission.submitted_at ? `Submitted ${formatDate(submission.submitted_at)}` : 'Not submitted'}
-            {submission.verified_at ? ` · Verified ${formatDate(submission.verified_at)}` : ''}
+            {submission.submitted_at ? `Submitted ${formatDateTime(submission.submitted_at)}` : 'Not submitted'}
+            {submission.verified_at ? ` · Verified ${formatDateTime(submission.verified_at)}` : ''}
           </Text>
         </View>
         <Badge label={meta.label} tone={meta.tone} />
@@ -291,8 +273,8 @@ function SubmissionReview({
                 style={[
                   styles.statusLabel,
                   active && styles.statusLabelActive,
-                  !active && choice.value === 'verified' && { color: colors.green700 },
-                  !active && choice.value === 'returned' && { color: colors.amber700 },
+                  !active && choice.value === 'verified' && { color: colors.greenText },
+                  !active && choice.value === 'returned' && { color: colors.amberText },
                 ]}
               >
                 {choice.label}
@@ -324,7 +306,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxl },
-  errorText: { ...typography.muted, color: colors.red700 },
+  errorText: { ...typography.muted, color: colors.redText },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -334,7 +316,7 @@ const styles = StyleSheet.create({
   },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, padding: spacing.md },
   grow: { flex: 1, minWidth: 0 },
-  subject: { ...typography.label, color: colors.navy700 },
+  subject: { ...typography.label, color: colors.blue },
   title: { ...typography.heading, color: colors.text, marginTop: 2 },
   meta: { ...typography.muted, marginTop: 2 },
   headerRight: { alignItems: 'flex-end', gap: spacing.xs },
@@ -355,16 +337,15 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   subTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.sm },
-  subName: { ...typography.heading, color: colors.navy900 },
-  link: { ...typography.subtle, color: colors.blue700 },
+  subName: { ...typography.heading, color: colors.navy },
+  link: { ...typography.subtle, color: colors.blueText },
   feedbackInput: {
     backgroundColor: colors.surfaceAlt,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
     padding: spacing.sm,
-    fontSize: 15,
-    color: colors.text,
+    ...typography.input,
     minHeight: 64,
   },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm, alignItems: 'center' },
@@ -376,14 +357,14 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  statusButtonActive: { backgroundColor: colors.navy700, borderColor: colors.navy700 },
-  statusVerify: { borderColor: colors.green700 },
-  statusReturn: { borderColor: colors.amber700 },
+  statusButtonActive: { backgroundColor: colors.blue, borderColor: colors.blue },
+  statusVerify: { borderColor: colors.greenText },
+  statusReturn: { borderColor: colors.amberText },
   statusLabel: { ...typography.label, color: colors.textMuted },
   statusLabelActive: { color: colors.onNavy },
   saveButton: {
     marginLeft: 'auto',
-    backgroundColor: colors.navy700,
+    backgroundColor: colors.blue,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
     borderRadius: radius.md,
@@ -391,7 +372,7 @@ const styles = StyleSheet.create({
   },
   saveLabel: { ...typography.buttonText, color: colors.onNavy, fontSize: 14 },
   helperCaption: { ...typography.subtle, textAlign: 'center' },
-  rowError: { ...typography.muted, color: colors.red700 },
-  rowOk: { ...typography.muted, color: colors.green700 },
+  rowError: { ...typography.muted, color: colors.redText },
+  rowOk: { ...typography.muted, color: colors.greenText },
   separator: { height: 1 },
 });

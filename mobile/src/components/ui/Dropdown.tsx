@@ -1,8 +1,8 @@
 /**
  * TRACK — simple dropdown selector.
  *
- * Replaces the missing react-native Picker with a modal-based dropdown
- * that works on iOS, Android, and web.
+ * The app's only selector. Native `Picker` needs a pod/APK module, so it is the
+ * one control that has to be a modal to behave the same on iOS, Android and web.
  */
 import { useState, useRef } from 'react';
 import {
@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { colors, spacing, radius, typography } from '../../theme';
+import { colors, spacing, radius, typography, scrim } from '../../theme';
 
 export type DropdownOption<T> = {
   label: string;
@@ -83,7 +83,7 @@ export default function Dropdown<T>({
         <Ionicons
           name={isOpen ? 'chevron-up-outline' : 'chevron-down-outline'}
           size={20}
-          color={colors.navy700}
+          color={colors.blue}
           style={styles.chevron}
         />
       </TouchableOpacity>
@@ -109,8 +109,14 @@ export default function Dropdown<T>({
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{label || 'Select'}</Text>
-              <TouchableOpacity onPress={() => { setIsOpen(false); Keyboard.dismiss(); }}>
-                <Ionicons name="close-outline" size={24} color={colors.navy700} />
+              <TouchableOpacity
+                onPress={() => { setIsOpen(false); Keyboard.dismiss(); }}
+                style={styles.closeButton}
+                accessibilityRole="button"
+                accessibilityLabel={`Close ${label || 'selection'}`}
+                hitSlop={8}
+              >
+                <Ionicons name="close-outline" size={24} color={colors.blue} />
               </TouchableOpacity>
             </View>
             <TextInput
@@ -137,7 +143,7 @@ export default function Dropdown<T>({
                     {item.label}
                   </Text>
                   {value === item.value && (
-                    <Ionicons name="checkmark-outline" size={20} color={colors.navy700} />
+                    <Ionicons name="checkmark-outline" size={20} color={colors.blue} />
                   )}
                 </TouchableOpacity>
               )}
@@ -166,7 +172,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   triggerOpen: {
-    borderColor: colors.navy700,
+    borderColor: colors.blue,
     borderWidth: 2,
   },
   triggerPlaceholder: {
@@ -177,7 +183,7 @@ const styles = StyleSheet.create({
   chevron: { marginLeft: spacing.sm },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(10, 22, 48, 0.4)',
+    backgroundColor: scrim,
     justifyContent: 'flex-end',
   },
   modalContent: {
@@ -186,7 +192,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: radius.lg,
     padding: spacing.lg,
     maxHeight: '80%',
-    shadowColor: colors.navy900,
+    shadowColor: colors.navy,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
     shadowRadius: 10,
@@ -198,9 +204,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.md,
   },
-  modalTitle: { ...typography.heading, color: colors.navy900 },
+  modalTitle: { ...typography.heading, color: colors.navy },
+  closeButton: {
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   searchInput: {
-    backgroundColor: colors.gray100,
+    backgroundColor: colors.quietFill,
     borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.md,
@@ -218,7 +230,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  optionSelected: { backgroundColor: colors.blue50 },
+  optionSelected: { backgroundColor: colors.blueWash },
   optionText: { ...typography.body, color: colors.text, flex: 1 },
-  optionTextSelected: { color: colors.navy700, fontWeight: '600' },
+  optionTextSelected: { color: colors.blue, fontWeight: '700' },
 });

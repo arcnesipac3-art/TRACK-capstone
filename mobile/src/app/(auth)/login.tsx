@@ -24,7 +24,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors, radius, shadows, spacing } from '../../theme';
+import { colors, radius, shadows, spacing, typography } from '../../theme';
 import { api, auth } from '../../api/client';
 import Button from '../../components/ui/Button';
 
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   },
   /* Navy brand panel */
   hero: {
-    backgroundColor: colors.navy800,
+    backgroundColor: colors.navy,
     paddingHorizontal: spacing.xl,
     paddingBottom: spacing.xxl,
     borderBottomLeftRadius: 24,
@@ -196,14 +196,12 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   tagline: {
-    fontSize: 16,
-    fontWeight: '600',
+    ...typography.heading,
     color: colors.onNavy,
-    lineHeight: 23,
     maxWidth: 300,
   },
   heroFooter: {
-    fontSize: 12,
+    ...typography.subtle,
     color: colors.onNavyMuted,
     marginTop: spacing.lg,
   },
@@ -216,37 +214,28 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xxl,
     paddingBottom: spacing.xxl,
   },
-  welcome: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: colors.navy900,
-  },
+  welcome: { ...typography.title },
   lede: {
-    fontSize: 14,
-    color: colors.textMuted,
+    ...typography.muted,
     marginTop: 4,
     marginBottom: spacing.xl,
   },
   errorBox: {
-    backgroundColor: colors.red100,
+    backgroundColor: colors.redTint,
     borderRadius: radius.md,
     padding: spacing.md,
     marginBottom: spacing.lg,
   },
   errorText: {
-    fontSize: 14,
-    color: colors.red700,
+    ...typography.muted,
+    color: colors.redText,
     textAlign: 'center',
   },
   field: {
     marginBottom: spacing.lg,
   },
   label: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    ...typography.label,
     marginBottom: 6,
   },
   input: {
@@ -256,8 +245,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
     minHeight: 42,
-    fontSize: 16,
-    color: colors.text,
+    ...typography.input,
   },
   passwordRow: {
     position: 'relative',
@@ -273,10 +261,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   showHideLabel: {
-    fontSize: 12,
+    ...typography.subtle,
     fontWeight: '700',
     letterSpacing: 0.6,
-    color: colors.navy700,
+    color: colors.blue,
   },
   submit: {
     marginTop: spacing.sm,
@@ -291,7 +279,7 @@ const styles = StyleSheet.create({
     ...shadows.sm,
   },
   noteText: {
-    fontSize: 12.5,
+    ...typography.subtle,
     color: colors.textMuted,
     textAlign: 'center',
     lineHeight: 18,

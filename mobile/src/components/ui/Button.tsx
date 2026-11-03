@@ -1,16 +1,21 @@
 /**
  * TRACK — shared button.
  *
- * One implementation of the website's button set (frontend .btn variants):
- * navy primary, white secondary with strong border, danger, and ghost.
- * Replaces the six per-screen copies that had drifted apart (different
- * paddings, radii and disabled opacities).
+ * Khan Academy's button set: one filled instructive blue, one white button with
+ * a hairline border, and a red-bordered destructive one. Blue is reserved for
+ * the action you want taken, which is why the primary variant is the only filled
+ * surface here. Geometry follows the app's touch rule — 44dp for a button you
+ * aim at with a thumb, 36 for the compact ones inside a row — and the 4dp corner
+ * KA uses, not a pill.
+ *
+ * Replaces the six per-screen copies that had drifted apart (different paddings,
+ * radii and disabled opacities).
  */
 import type { ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 
-import { colors, radius, spacing, shadows } from '../../theme';
+import { colors, radius, spacing, typography } from '../../theme';
 
 type ButtonProps = {
   onPress?: () => void;
@@ -38,7 +43,7 @@ export default function Button({
 }: ButtonProps) {
   const inactive = disabled || loading;
   const spinnerColor =
-    variant === 'primary' ? colors.onNavy : variant === 'danger' ? colors.red700 : colors.navy800;
+    variant === 'primary' ? colors.onNavy : variant === 'danger' ? colors.redText : colors.navy;
 
   return (
     <TouchableOpacity
@@ -46,7 +51,6 @@ export default function Button({
         styles.base,
         size === 'sm' ? styles.sm : styles.md,
         variantStyles[variant],
-        variant === 'primary' && shadows.sm,
         block && styles.block,
         inactive && styles.inactive,
         style,
@@ -78,11 +82,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.sm,
   },
   md: {
-    minHeight: 42,
+    minHeight: 44,
     paddingHorizontal: spacing.lg,
   },
   sm: {
-    minHeight: 32,
+    minHeight: 36,
     paddingHorizontal: spacing.md,
   },
   block: {
@@ -92,20 +96,21 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   label: {
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
   },
   labelMd: {
-    fontSize: 15,
+    ...typography.buttonText,
   },
   labelSm: {
-    fontSize: 13,
+    ...typography.buttonText,
+    fontSize: 14,
   },
 });
 
 const variantStyles = StyleSheet.create({
   primary: {
-    backgroundColor: colors.navy800,
+    backgroundColor: colors.blue,
   },
   secondary: {
     backgroundColor: colors.surface,
@@ -115,7 +120,7 @@ const variantStyles = StyleSheet.create({
   danger: {
     backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.red700,
+    borderColor: colors.redText,
   },
   ghost: {
     backgroundColor: 'transparent',
@@ -127,12 +132,12 @@ const labelStyles = StyleSheet.create({
     color: colors.onNavy,
   },
   secondary: {
-    color: colors.navy800,
+    color: colors.navy,
   },
   danger: {
-    color: colors.red700,
+    color: colors.redText,
   },
   ghost: {
-    color: colors.textMuted,
+    color: colors.blue,
   },
 });

@@ -494,10 +494,11 @@ export type FeeDashboardSummary = {
 export type FeeCollectionReport = {
   school_year: string;
   category: string;
-  total_assessed: number;
-  total_collected: number;
-  total_outstanding: number;
-  collection_rate: number;
+  /** DRF sends `DecimalField` values as strings — pass them to `formatPeso`. */
+  total_assessed: string;
+  total_collected: string;
+  total_outstanding: string;
+  collection_rate: string;
   student_count: number;
   paid_count: number;
   partial_count: number;
@@ -510,9 +511,146 @@ export type FeeOutstandingReport = {
   lrn: string;
   section: string;
   category: string;
-  assessed: number;
-  paid: number;
-  outstanding: number;
+  assessed: string;
+  paid: string;
+  outstanding: string;
   due_date: string;
   payment_status: 'paid' | 'partial' | 'unpaid';
+};
+
+/* ------------------------------------------------------------------ */
+/* Messaging                                                           */
+/* ------------------------------------------------------------------ */
+
+/** Mirrors `Conversation.Kind` in backend/core/models.py. */
+export type ConversationKind = 'direct' | 'group' | 'class' | 'department';
+
+/**
+ * One message row.
+ *
+ * `id` and `seq` are null on a row this device created but the server has not
+ * stored yet — that is exactly what makes it a pending row, and why identity in
+ * a thread is matched by id, then client_reference, then seq rather than by any
+ * one key.
+ */
+export type MessageRow = {
+  id: number | null;
+  conversation: number;
+  seq: number | null;
+  sender: number;
+  sender_name: string;
+  sender_role: string;
+  body: string;
+  client_reference: string | null;
+  created_at: string;
+  pending?: boolean;
+  failed?: boolean;
+};
+
+export type ConversationPartner = {
+  id: number;
+  full_name: string;
+  role: string;
+  online: boolean;
+};
+
+/** One row of `GET /api/messaging/conversations/` — the inbox list. */
+export type ConversationSummaryRow = {
+  id: number;
+  display_name: string;
+  kind: ConversationKind;
+  kind_label: string;
+  is_archived: boolean;
+  updated_at: string;
+  section: number | null;
+  department: number | null;
+  member_count: number;
+  unread_count: number;
+  last_message: MessageRow | null;
+  partner: ConversationPartner | null;
+};
+
+export type ConversationListResponse = {
+  results: ConversationSummaryRow[];
+  unread_total: number;
+};
+
+export type ConversationMemberRow = {
+  user_id: number;
+  full_name: string;
+  role: string;
+  role_label: string;
+  user_role: string;
+  online: boolean;
+  last_read_seq: number | null;
+  last_delivered_seq: number | null;
+  /** Only ever populated for the requesting user; null for anybody else. */
+  unread_count: number | null;
+  joined_at: string;
+};
+
+export type MemberStatus = {
+  delivered: number;
+  read: number;
+  total: number;
+  of_newest: number | null;
+};
+
+export type ConversationDetail = {
+  id: number;
+  kind: ConversationKind;
+  kind_label: string;
+  display_name: string;
+  title: string;
+  section: number | null;
+  department: number | null;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+  can_manage_members: boolean;
+  can_post: boolean;
+  members: ConversationMemberRow[];
+  status: MemberStatus;
+  unread_count: number;
+};
+
+/** One page of `GET /api/messaging/conversations/<id>/messages/`. */
+export type MessageHistoryPage = {
+  conversation_id: number;
+  messages: MessageRow[];
+  oldest_seq: number | null;
+  newest_seq: number | null;
+  has_more: boolean;
+  last_read_seq: number | null;
+};
+
+/** A person this account may start a direct thread with — server-decided. */
+export type ContactRow = {
+  id: number;
+  username: string;
+  full_name: string;
+  role: string;
+  detail: string;
+  online: boolean;
+};
+
+export type MessagingOptions = {
+  can_create_group: boolean;
+  sections: { id: number; name: string }[];
+  departments: { id: number; name: string }[];
+  vapid_public_key: string | null;
+};
+
+export type MessagingSummary = {
+  conversations: number;
+  unread_total: number;
+  online: number;
+};
+
+/** The single-use credential the socket handshake presents. */
+export type WsTicket = {
+  ticket: string;
+  expires_in: number;
+  websocket_path: string;
+  server_time: string;
 };

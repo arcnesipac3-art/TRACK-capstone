@@ -62,7 +62,7 @@ export default function TeacherTimetableScreen() {
       <AppHeader title="Timetable" subtitle="Your teaching schedule." />
       <ScrollView
         style={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.navy700]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.blue]} />}
         contentContainerStyle={styles.content}
       >
         {error && <Text style={styles.errorText}>{error}</Text>}
@@ -100,9 +100,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, gap: spacing.xl, paddingBottom: spacing.xxl },
-  errorText: { ...typography.muted, color: colors.red700 },
+  errorText: { ...typography.muted, color: colors.redText },
   daySection: { gap: spacing.sm },
-  dayTitle: { ...typography.heading, color: colors.navy900 },
+  dayTitle: { ...typography.heading, color: colors.navy },
   slotCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   slotTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  slotTime: { ...typography.label, color: colors.navy700 },
+  slotTime: { ...typography.label, color: colors.blue },
   slotRoom: { ...typography.subtle },
   slotSubject: { ...typography.heading, color: colors.text, marginTop: 2 },
   slotMeta: { ...typography.muted },

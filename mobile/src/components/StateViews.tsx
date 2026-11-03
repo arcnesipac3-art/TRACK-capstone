@@ -12,7 +12,7 @@ import { colors, spacing, radius, typography } from '../theme';
 export function LoadingState({ label = 'Loading…' }: { label?: string }) {
   return (
     <View style={styles.center}>
-      <ActivityIndicator size="large" color={colors.navy700} />
+      <ActivityIndicator size="large" color={colors.blue} />
       <Text style={styles.muted}>{label}</Text>
     </View>
   );
@@ -94,23 +94,26 @@ const styles = StyleSheet.create({
     flex: 0,
     paddingVertical: spacing.xxl,
   },
-  title: { ...typography.heading, color: colors.navy900, textAlign: 'center' },
+  title: { ...typography.heading, color: colors.navy, textAlign: 'center' },
   muted: { ...typography.muted, textAlign: 'center' },
-  errorText: { color: colors.red700 },
+  errorText: { color: colors.redText },
   retry: {
     marginTop: spacing.md,
-    backgroundColor: colors.navy700,
-    borderRadius: radius.md,
+    minHeight: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.blue,
+    borderRadius: radius.sm,
     paddingHorizontal: spacing.xl,
     paddingVertical: spacing.md,
   },
   retryLabel: { ...typography.buttonText, color: colors.onNavy },
   banner: {
-    backgroundColor: colors.red100,
-    borderRadius: radius.md,
+    backgroundColor: colors.redTint,
+    borderRadius: radius.sm,
     padding: spacing.md,
     gap: spacing.sm,
     alignItems: 'center',
   },
-  bannerRetry: { ...typography.label, color: colors.navy700 },
+  bannerRetry: { ...typography.label, color: colors.blue },
 });

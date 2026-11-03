@@ -8,13 +8,12 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  TouchableOpacity,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 
 import { colors, spacing, radius, typography } from '../../../theme';
 import { api, ApiError } from '../../../api/client';
+import { countNoun, formatDate, formatPesoExact } from '../../../format';
 import type { StudentFeeSummary, StudentFeeAssessment } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
@@ -23,18 +22,14 @@ import Button from '../../../components/ui/Button';
 
 type PaymentStatus = 'paid' | 'partial' | 'unpaid';
 
-function formatCurrency(amount: number): string {
-  return '₱' + amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 function getStatusConfig(status: PaymentStatus) {
   switch (status) {
     case 'paid':
-      return { variant: 'green' as const, label: 'Paid', color: colors.green700 };
+      return { variant: 'green' as const, label: 'Paid', color: colors.greenText };
     case 'partial':
-      return { variant: 'amber' as const, label: 'Partial', color: colors.amber700 };
+      return { variant: 'amber' as const, label: 'Partial', color: colors.amberText };
     default:
-      return { variant: 'red' as const, label: 'Unpaid', color: colors.red700 };
+      return { variant: 'red' as const, label: 'Unpaid', color: colors.redText };
   }
 }
 
@@ -67,6 +62,9 @@ export default function StudentFeesScreen() {
   }, [schoolYearFilter]);
 
   useEffect(() => {
+    // Mount fetch — every setState in `load` runs after an await, which the
+    // rule cannot see because it reads the call, not the schedule.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
 
@@ -113,30 +111,30 @@ export default function StudentFeesScreen() {
       <AppHeader
         hero
         title="My Fees"
-        subtitle={`Total Outstanding: ${formatCurrency(summary.total_outstanding)}`}
+        subtitle={`Total Outstanding: ${formatPesoExact(summary.total_outstanding)}`}
         right={
           <View style={styles.headerRight}>
-            <Text style={styles.totalBadge}>Outstanding: {formatCurrency(summary.total_outstanding)}</Text>
+            <Text style={styles.totalBadge}>Outstanding: {formatPesoExact(summary.total_outstanding)}</Text>
           </View>
         }
       />
       <ScrollView
         style={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.navy700]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.blue]} />}
         contentContainerStyle={styles.content}
       >
         <View style={styles.summaryCards}>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Total Assessed</Text>
-            <Text style={styles.summaryValue}>{formatCurrency(summary.total_assessed)}</Text>
+            <Text style={styles.summaryValue}>{formatPesoExact(summary.total_assessed)}</Text>
           </View>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Total Paid</Text>
-            <Text style={styles.summaryValuePaid}>{formatCurrency(summary.total_paid)}</Text>
+            <Text style={styles.summaryValuePaid}>{formatPesoExact(summary.total_paid)}</Text>
           </View>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Outstanding</Text>
-            <Text style={styles.summaryValueOutstanding}>{formatCurrency(summary.total_outstanding)}</Text>
+            <Text style={styles.summaryValueOutstanding}>{formatPesoExact(summary.total_outstanding)}</Text>
           </View>
         </View>
 
@@ -150,7 +148,7 @@ export default function StudentFeesScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Fee Assessments</Text>
-            <Text style={styles.sectionCount}>{sortedAssessments.length} assessment(s)</Text>
+            <Text style={styles.sectionCount}>{countNoun(sortedAssessments.length, 'assessment')}</Text>
           </View>
 
           {sortedAssessments.length === 0 ? (
@@ -158,11 +156,7 @@ export default function StudentFeesScreen() {
           ) : (
             <View style={styles.list}>
               {sortedAssessments.map(assessment => (
-                <TouchableOpacity
-                  key={assessment.id}
-                  style={styles.listItem}
-                  activeOpacity={0.7}
-                >
+                <View key={assessment.id} style={styles.listItem}>
                   <View style={styles.listItemLeft}>
                     <View style={styles.listItemHeader}>
                       <Text style={styles.listItemTitle}>{assessment.category}</Text>
@@ -173,7 +167,7 @@ export default function StudentFeesScreen() {
                     </View>
                     <Text style={styles.listItemSubtitle}>
                       {assessment.category_fee_type === 'voluntary' ? 'Voluntary · ' : 'Required · '}
-                      Due {new Date(assessment.due_date).toLocaleDateString()}
+                      Due {formatDate(assessment.due_date)}
                     </Text>
                     {assessment.description && (
                       <Text style={styles.listItemDesc}>{assessment.description}</Text>
@@ -181,20 +175,20 @@ export default function StudentFeesScreen() {
                   </View>
                   <View style={styles.listItemRight}>
                     <View style={styles.amountRow}>
-                      <Text style={styles.assessedAmount}>Assessed: {formatCurrency(assessment.amount)}</Text>
+                      <Text style={styles.assessedAmount}>Assessed: {formatPesoExact(assessment.amount)}</Text>
                       <Text style={[styles.paidAmount, { color: getStatusConfig(assessment.payment_status).color }]}>
-                        Paid: {formatCurrency(assessment.paid_amount)}
+                        Paid: {formatPesoExact(assessment.paid_amount)}
                       </Text>
-                      <Text style={styles.outstandingAmount}>Balance: {formatCurrency(assessment.outstanding)}</Text>
+                      <Text style={styles.outstandingAmount}>Balance: {formatPesoExact(assessment.outstanding)}</Text>
                     </View>
                     {assessment.receipt_number && (
                       <Text style={styles.receiptText}>Receipt: {assessment.receipt_number}</Text>
                     )}
                     {assessment.payment_date && (
-                      <Text style={styles.receiptText}>Paid: {new Date(assessment.payment_date).toLocaleDateString()}</Text>
+                      <Text style={styles.receiptText}>Paid: {formatDate(assessment.payment_date)}</Text>
                     )}
                   </View>
-                </TouchableOpacity>
+                </View>
               ))}
             </View>
           )}
@@ -216,16 +210,16 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.xl },
   headerRight: { alignItems: 'flex-end' },
-  totalBadge: { ...typography.subtle, color: colors.navy700, backgroundColor: colors.blue50, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.sm },
+  totalBadge: { ...typography.subtle, color: colors.blue, backgroundColor: colors.blueWash, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.sm },
   summaryCards: { flexDirection: 'row', gap: spacing.md },
   summaryCard: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.md, padding: spacing.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', gap: spacing.xs },
   summaryLabel: { ...typography.label },
-  summaryValue: { ...typography.heading, color: colors.navy900 },
-  summaryValuePaid: { ...typography.heading, color: colors.green700 },
-  summaryValueOutstanding: { ...typography.heading, color: colors.red700 },
+  summaryValue: { ...typography.heading, color: colors.navy },
+  summaryValuePaid: { ...typography.heading, color: colors.greenText },
+  summaryValueOutstanding: { ...typography.heading, color: colors.redText },
   section: { gap: spacing.md },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  sectionTitle: { ...typography.heading, color: colors.navy900 },
+  sectionTitle: { ...typography.heading, color: colors.navy },
   sectionCount: { ...typography.subtle, color: colors.textMuted },
   label: { ...typography.label },
   muted: { ...typography.subtle },
@@ -244,12 +238,12 @@ const styles = StyleSheet.create({
   listItemLeft: { flex: 1 },
   listItemRight: { width: 140, alignItems: 'flex-end', gap: spacing.xs },
   listItemHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  listItemTitle: { ...typography.body, fontWeight: '600', color: colors.text },
+  listItemTitle: { ...typography.body, fontWeight: '700', color: colors.text },
   listItemSubtitle: { ...typography.subtle, marginTop: 2 },
   listItemDesc: { ...typography.subtle, marginTop: spacing.xs, fontStyle: 'italic' },
   amountRow: { gap: spacing.xs },
   assessedAmount: { ...typography.subtle, color: colors.text },
-  paidAmount: { ...typography.subtle, fontWeight: '600' },
-  outstandingAmount: { ...typography.subtle, fontWeight: '600', color: colors.red700 },
+  paidAmount: { ...typography.subtle, fontWeight: '700' },
+  outstandingAmount: { ...typography.subtle, fontWeight: '700', color: colors.redText },
   receiptText: { ...typography.subtle, color: colors.textMuted },
 });

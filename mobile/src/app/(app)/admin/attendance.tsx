@@ -16,6 +16,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../../components/StateV
 import AppHeader from '../../../components/ui/AppHeader';
 import Badge from '../../../components/ui/Badge';
 import SegmentedControl from '../../../components/ui/SegmentedControl';
+import { formatDateWithWeekday } from '../../../format';
 
 type Segment = 'timetable' | 'sessions';
 
@@ -50,15 +51,6 @@ function recordTone(status: string): Tone {
     case 'excused': return 'blue';
     default: return 'gray';
   }
-}
-
-function formatDate(iso: string) {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
 }
 
 export default function AdminAttendanceScreen() {
@@ -114,7 +106,7 @@ export default function AdminAttendanceScreen() {
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.navy700]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.blue]} />}
       >
         <SegmentedControl options={SEGMENT_OPTIONS} value={segment} onChange={setSegment} />
 
@@ -163,7 +155,7 @@ export default function AdminAttendanceScreen() {
                     <View style={styles.grow}>
                       <Text style={styles.title}>{item.subject_name}</Text>
                       <Text style={styles.meta}>
-                        {formatDate(item.date)} · {item.section_name}
+                        {formatDateWithWeekday(item.date)} · {item.section_name}
                         {item.schedule_time ? ` · ${item.schedule_time.start_time}` : ''}
                       </Text>
                     </View>
@@ -200,9 +192,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
-  errorText: { ...typography.muted, color: colors.red700 },
+  errorText: { ...typography.muted, color: colors.redText },
   daySection: { gap: spacing.sm },
-  dayTitle: { ...typography.heading, color: colors.navy900 },
+  dayTitle: { ...typography.heading, color: colors.navy },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -213,7 +205,7 @@ const styles = StyleSheet.create({
   },
   sessionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   grow: { flex: 1, minWidth: 0 },
-  slotTime: { ...typography.label, color: colors.navy700 },
+  slotTime: { ...typography.label, color: colors.blue },
   title: { ...typography.heading, color: colors.text },
   meta: { ...typography.muted },
   records: {

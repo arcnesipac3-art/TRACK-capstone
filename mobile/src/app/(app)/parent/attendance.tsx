@@ -9,27 +9,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import ScreenList from '../../../components/ScreenList';
 import { useLocalSearchParams } from 'expo-router';
-import { Picker } from '@react-native-picker/picker';
 
-import { colors, spacing, radius, typography, type Tone } from '../../../theme';
+import { colors, spacing, radius, typography } from '../../../theme';
+import { formatDate } from '../../../format';
+import { attendanceStatusMeta } from '../../../status';
 import { api, ApiError } from '../../../api/client';
 import type { AttendanceRecord, StudentProfile } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
 import Badge from '../../../components/ui/Badge';
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function statusMeta(status: AttendanceRecord['status']): { label: string; tone: Tone } {
-  switch (status) {
-    case 'present': return { label: 'Present', tone: 'green' };
-    case 'absent': return { label: 'Absent', tone: 'red' };
-    case 'late': return { label: 'Late', tone: 'amber' };
-    default: return { label: 'Excused', tone: 'gray' };
-  }
-}
+import Dropdown from '../../../components/ui/Dropdown';
 
 export default function ParentAttendanceScreen() {
   const params = useLocalSearchParams<{ child?: string }>();
@@ -156,26 +145,20 @@ export default function ParentAttendanceScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[colors.navy700]}
+            colors={[colors.blue]}
           />
         }
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
       >
         {children.length > 1 && (
-          <View style={styles.pickerWrapper}>
-            <Picker
-              selectedValue={selectedChild ?? undefined}
-              onValueChange={(v: string) => setSelectedChild(v)}
-              itemStyle={{ color: colors.text }}
-              style={styles.picker}
-              accessibilityLabel="Choose which child to view"
-            >
-              {children.map((c) => (
-                <Picker.Item key={c.id} label={c.user.full_name} value={String(c.id)} />
-              ))}
-            </Picker>
-          </View>
+          <Dropdown
+            label="Child"
+            options={children.map((c) => ({ label: c.user.full_name, value: String(c.id) }))}
+            value={selectedChild}
+            onChange={setSelectedChild}
+            placeholder="Choose which child to view"
+          />
         )}
 
         {rows.length === 0 ? (
@@ -198,7 +181,7 @@ export default function ParentAttendanceScreen() {
 }
 
 function RecordRow({ item }: { item: AttendanceRecord }) {
-  const meta = statusMeta(item.status);
+  const meta = attendanceStatusMeta(item.status);
   const detail = item.session_detail;
 
   return (
@@ -221,16 +204,7 @@ function RecordRow({ item }: { item: AttendanceRecord }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxl },
-  pickerWrapper: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.sm,
-    overflow: 'hidden',
-  },
-  picker: { height: 48 },
-  errorText: { ...typography.muted, color: colors.red700 },
+  errorText: { ...typography.muted, color: colors.redText },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -241,13 +215,12 @@ const styles = StyleSheet.create({
   },
   rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md },
   grow: { flex: 1, minWidth: 0 },
-  subject: { ...typography.label, color: colors.navy700 },
+  subject: { ...typography.label, color: colors.blue },
   title: { ...typography.heading, color: colors.text, marginTop: 2 },
   details: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.xs },
   detail: { ...typography.subtle },
   notes: {
-    fontSize: 15,
-    color: colors.textMuted,
+    ...typography.muted,
     backgroundColor: colors.surfaceAlt,
     padding: spacing.sm,
     borderRadius: radius.sm,

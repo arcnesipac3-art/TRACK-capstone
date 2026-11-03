@@ -8,12 +8,11 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  TouchableOpacity,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 
 import { colors, spacing, radius, typography } from '../../../theme';
 import { api, ApiError } from '../../../api/client';
+import { countNoun, formatDate, formatPesoExact } from '../../../format';
 import type { StudentFeeSummary, StudentFeeAssessment } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
@@ -21,18 +20,14 @@ import Badge from '../../../components/ui/Badge';
 
 type PaymentStatus = 'paid' | 'partial' | 'unpaid';
 
-function formatCurrency(amount: number): string {
-  return '₱' + amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 function getStatusConfig(status: PaymentStatus) {
   switch (status) {
     case 'paid':
-      return { variant: 'green' as const, label: 'Paid', color: colors.green700 };
+      return { variant: 'green' as const, label: 'Paid', color: colors.greenText };
     case 'partial':
-      return { variant: 'amber' as const, label: 'Partial', color: colors.amber700 };
+      return { variant: 'amber' as const, label: 'Partial', color: colors.amberText };
     default:
-      return { variant: 'red' as const, label: 'Unpaid', color: colors.red700 };
+      return { variant: 'red' as const, label: 'Unpaid', color: colors.redText };
   }
 }
 
@@ -65,6 +60,9 @@ export default function ParentFeesScreen() {
   }, [schoolYearFilter]);
 
   useEffect(() => {
+    // Mount fetch — every setState in `load` runs after an await, which the
+    // rule cannot see because it reads the call, not the schedule.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
 
@@ -95,12 +93,12 @@ export default function ParentFeesScreen() {
         hero
         title="Children's Fees"
         subtitle={summaries.length > 0
-          ? `${summaries.length} child(ren) · Total Outstanding: ${formatCurrency(summaries.reduce((a, b) => a + b.total_outstanding, 0))}`
+          ? `${countNoun(summaries.length, 'child', 'children')} · Total Outstanding: ${formatPesoExact(summaries.reduce((a, b) => a + b.total_outstanding, 0))}`
           : 'No fee data available'}
       />
       <ScrollView
         style={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.navy700]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.blue]} />}
         contentContainerStyle={styles.content}
       >
         {schoolYears.length > 1 && (
@@ -129,15 +127,15 @@ export default function ParentFeesScreen() {
                 <View style={styles.childTotals}>
                   <View style={styles.childTotal}>
                     <Text style={styles.childTotalLabel}>Assessed</Text>
-                    <Text style={styles.childTotalValue}>{formatCurrency(summary.total_assessed)}</Text>
+                    <Text style={styles.childTotalValue}>{formatPesoExact(summary.total_assessed)}</Text>
                   </View>
                   <View style={styles.childTotal}>
                     <Text style={styles.childTotalLabel}>Paid</Text>
-                    <Text style={styles.childTotalValuePaid}>{formatCurrency(summary.total_paid)}</Text>
+                    <Text style={styles.childTotalValuePaid}>{formatPesoExact(summary.total_paid)}</Text>
                   </View>
                   <View style={styles.childTotal}>
                     <Text style={styles.childTotalLabel}>Outstanding</Text>
-                    <Text style={styles.childTotalValueOutstanding}>{formatCurrency(summary.total_outstanding)}</Text>
+                    <Text style={styles.childTotalValueOutstanding}>{formatPesoExact(summary.total_outstanding)}</Text>
                   </View>
                 </View>
               </View>
@@ -147,11 +145,7 @@ export default function ParentFeesScreen() {
               ) : (
                 <View style={styles.list}>
                   {sortAssessments(summary.assessments).map(assessment => (
-                    <TouchableOpacity
-                      key={assessment.id}
-                      style={styles.listItem}
-                      activeOpacity={0.7}
-                    >
+                    <View key={assessment.id} style={styles.listItem}>
                       <View style={styles.listItemLeft}>
                         <View style={styles.listItemHeader}>
                           <Text style={styles.listItemTitle}>{assessment.category}</Text>
@@ -162,7 +156,7 @@ export default function ParentFeesScreen() {
                         </View>
                         <Text style={styles.listItemSubtitle}>
                           {assessment.category_fee_type === 'voluntary' ? 'Voluntary · ' : 'Required · '}
-                          Due {new Date(assessment.due_date).toLocaleDateString()}
+                          Due {formatDate(assessment.due_date)}
                         </Text>
                         {assessment.description && (
                           <Text style={styles.listItemDesc}>{assessment.description}</Text>
@@ -170,20 +164,20 @@ export default function ParentFeesScreen() {
                       </View>
                       <View style={styles.listItemRight}>
                         <View style={styles.amountRow}>
-                          <Text style={styles.assessedAmount}>Assessed: {formatCurrency(assessment.amount)}</Text>
+                          <Text style={styles.assessedAmount}>Assessed: {formatPesoExact(assessment.amount)}</Text>
                           <Text style={[styles.paidAmount, { color: getStatusConfig(assessment.payment_status).color }]}>
-                            Paid: {formatCurrency(assessment.paid_amount)}
+                            Paid: {formatPesoExact(assessment.paid_amount)}
                           </Text>
-                          <Text style={styles.outstandingAmount}>Balance: {formatCurrency(assessment.outstanding)}</Text>
+                          <Text style={styles.outstandingAmount}>Balance: {formatPesoExact(assessment.outstanding)}</Text>
                         </View>
                         {assessment.receipt_number && (
                           <Text style={styles.receiptText}>Receipt: {assessment.receipt_number}</Text>
                         )}
                         {assessment.payment_date && (
-                          <Text style={styles.receiptText}>Paid: {new Date(assessment.payment_date).toLocaleDateString()}</Text>
+                          <Text style={styles.receiptText}>Paid: {formatDate(assessment.payment_date)}</Text>
                         )}
                       </View>
-                    </TouchableOpacity>
+                    </View>
                   ))}
                 </View>
               )}
@@ -215,14 +209,14 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   childInfo: { flex: 1, minWidth: 200 },
-  childName: { ...typography.heading, color: colors.navy900 },
+  childName: { ...typography.heading, color: colors.navy },
   childMeta: { ...typography.subtle, marginTop: 2 },
   childTotals: { flexDirection: 'row', gap: spacing.lg, alignItems: 'center' },
   childTotal: { alignItems: 'flex-end' },
   childTotalLabel: { ...typography.label },
-  childTotalValue: { ...typography.body, fontWeight: '600', color: colors.navy900 },
-  childTotalValuePaid: { ...typography.body, fontWeight: '600', color: colors.green700 },
-  childTotalValueOutstanding: { ...typography.body, fontWeight: '600', color: colors.red700 },
+  childTotalValue: { ...typography.body, fontWeight: '700', color: colors.navy },
+  childTotalValuePaid: { ...typography.body, fontWeight: '700', color: colors.greenText },
+  childTotalValueOutstanding: { ...typography.body, fontWeight: '700', color: colors.redText },
   list: { gap: spacing.md },
   listItem: {
     backgroundColor: colors.surface,
@@ -238,12 +232,12 @@ const styles = StyleSheet.create({
   listItemLeft: { flex: 1 },
   listItemRight: { width: 140, alignItems: 'flex-end', gap: spacing.xs },
   listItemHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  listItemTitle: { ...typography.body, fontWeight: '600', color: colors.text },
+  listItemTitle: { ...typography.body, fontWeight: '700', color: colors.text },
   listItemSubtitle: { ...typography.subtle, marginTop: 2 },
   listItemDesc: { ...typography.subtle, marginTop: spacing.xs, fontStyle: 'italic' },
   amountRow: { gap: spacing.xs },
   assessedAmount: { ...typography.subtle, color: colors.text },
-  paidAmount: { ...typography.subtle, fontWeight: '600' },
-  outstandingAmount: { ...typography.subtle, fontWeight: '600', color: colors.red700 },
+  paidAmount: { ...typography.subtle, fontWeight: '700' },
+  outstandingAmount: { ...typography.subtle, fontWeight: '700', color: colors.redText },
   receiptText: { ...typography.subtle, color: colors.textMuted },
 });

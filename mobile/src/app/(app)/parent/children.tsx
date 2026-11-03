@@ -54,7 +54,7 @@ export default function ParentChildrenScreen() {
     <View style={styles.screen}>
       <AppHeader title="My Children" subtitle="Tap a child to see their requirements and attendance." />
       <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.navy700]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.blue]} />}
         contentContainerStyle={styles.content}
       >
         <ScreenList
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   grow: { flex: 1 },
-  name: { ...typography.heading, color: colors.navy900 },
+  name: { ...typography.heading, color: colors.navy },
   meta: { ...typography.muted, marginTop: 2 },
   chevron: { marginLeft: spacing.sm },
   separator: { height: 1 },

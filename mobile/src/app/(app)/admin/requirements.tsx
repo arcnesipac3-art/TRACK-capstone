@@ -15,6 +15,7 @@ import type { Requirement, Submission } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
 import Badge from '../../../components/ui/Badge';
+import { formatDate } from '../../../format';
 
 type RowData = Requirement & {
   total: number;
@@ -22,10 +23,6 @@ type RowData = Requirement & {
   verified: number;
   returned: number;
 };
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
 
 export default function AdminRequirementsScreen() {
   const [requirements, setRequirements] = useState<Requirement[]>([]);
@@ -78,7 +75,7 @@ export default function AdminRequirementsScreen() {
       <AppHeader title="Requirements" subtitle="Every published requirement and its progress." />
       <ScrollView
         style={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.navy700]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.blue]} />}
         contentContainerStyle={styles.content}
       >
         {error && <Text style={styles.errorText}>{error}</Text>}
@@ -128,7 +125,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
-  errorText: { ...typography.muted, color: colors.red700 },
+  errorText: { ...typography.muted, color: colors.redText },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -139,7 +136,7 @@ const styles = StyleSheet.create({
   },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.sm },
   grow: { flex: 1, minWidth: 0 },
-  subject: { ...typography.label, color: colors.navy700 },
+  subject: { ...typography.label, color: colors.blue },
   title: { ...typography.heading, color: colors.text, marginTop: 2 },
   meta: { ...typography.muted },
   counts: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: spacing.sm, marginTop: spacing.xs },

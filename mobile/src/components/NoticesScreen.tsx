@@ -19,10 +19,10 @@ import {
   RefreshControl,
 } from 'react-native';
 import ScreenList from './ScreenList';
-import { Picker } from '@react-native-picker/picker';
 
 import { colors, spacing, radius, typography, tones } from '../theme';
 import { api, ApiError, type SessionUser } from '../api/client';
+import { formatDate, formatRelativeTime } from '../format';
 import type {
   Announcement,
   AnnouncementAudience,
@@ -33,6 +33,7 @@ import type {
 import { EmptyState, ErrorState, LoadingState } from './StateViews';
 import AppHeader from './ui/AppHeader';
 import Button from './ui/Button';
+import Dropdown from './ui/Dropdown';
 import SegmentedControl from './ui/SegmentedControl';
 
 type Segment = 'announcements' | 'notifications';
@@ -184,6 +185,16 @@ function AnnouncementsTab({ canPost }: { canPost: boolean }) {
     }
   };
 
+  // '' is a real option, not an empty selection: it means "no section", which
+  // the backend reads as a school-wide announcement.
+  const sectionOptions = [
+    {
+      value: '',
+      label: user?.role === 'admin' ? 'School-wide' : 'School-wide (or pick your section)',
+    },
+    ...sections.map((s) => ({ value: String(s.id), label: s.label })),
+  ];
+
   if (loading) return <LoadingState label="Loading announcements…" />;
   if (error) return <ErrorState message={error} onRetry={() => { setLoading(true); load(); }} />;
 
@@ -191,7 +202,7 @@ function AnnouncementsTab({ canPost }: { canPost: boolean }) {
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.navy700]} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.blue]} />}
       keyboardShouldPersistTaps="handled"
     >
       {canPost && (
@@ -236,32 +247,21 @@ function AnnouncementsTab({ canPost }: { canPost: boolean }) {
                 textAlignVertical="top"
               />
 
-              <Text style={styles.fieldLabel}>Audience</Text>
-              <View style={styles.pickerWrapper}>
-                <Picker
-                  selectedValue={audience}
-                  onValueChange={(v: string) => setAudience(v as AnnouncementAudience)}
-                  style={styles.picker}
-                >
-                  {AUDIENCES.map((a) => (
-                    <Picker.Item key={a.value} value={a.value} label={a.label} />
-                  ))}
-                </Picker>
-              </View>
+              <Dropdown<AnnouncementAudience>
+                label="Audience"
+                options={AUDIENCES}
+                value={audience}
+                onChange={setAudience}
+                style={styles.fieldDropdown}
+              />
 
-              <Text style={styles.fieldLabel}>Section (optional)</Text>
-              <View style={styles.pickerWrapper}>
-                <Picker
-                  selectedValue={section}
-                  onValueChange={(v: string) => setSection(v)}
-                  style={styles.picker}
-                >
-                  <Picker.Item value="" label={user?.role === 'admin' ? 'School-wide' : 'School-wide (or pick your section)'} />
-                  {sections.map((s) => (
-                    <Picker.Item key={s.id} value={String(s.id)} label={s.label} />
-                  ))}
-                </Picker>
-              </View>
+              <Dropdown<string>
+                label="Section (optional)"
+                options={sectionOptions}
+                value={section}
+                onChange={setSection}
+                style={styles.fieldDropdown}
+              />
 
               {postError && <Text style={styles.errorText}>{postError}</Text>}
 
@@ -383,7 +383,7 @@ function NotificationsTab() {
     <ScrollView
       style={styles.scroll}
       contentContainerStyle={styles.content}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.navy700]} />}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.blue]} />}
     >
       {unread > 0 && (
         <TouchableOpacity
@@ -416,7 +416,7 @@ function NotificationsTab() {
                   <Text style={[styles.cardTitle, !item.is_read && styles.unreadTitle]}>{item.title}</Text>
                   <Text style={styles.cardBody} numberOfLines={3}>{item.body}</Text>
                 </View>
-                <Text style={styles.cardMetaInline}>{formatRelative(item.created_at)}</Text>
+                <Text style={styles.cardMetaInline}>{formatRelativeTime(item.created_at)}</Text>
               </View>
             </TouchableOpacity>
           )}
@@ -430,26 +430,6 @@ function NotificationsTab() {
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
-
-function formatRelative(iso: string) {
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 6e4);
-  const hours = Math.floor(diff / 36e5);
-  const days = Math.floor(diff / 864e5);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
-  return formatDate(iso);
-}
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
@@ -468,15 +448,16 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   composeOpen: {
-    backgroundColor: colors.navy700,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
+    backgroundColor: colors.blue,
+    borderRadius: radius.sm,
+    minHeight: 44,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  composeOpenLabel: { ...typography.buttonText, color: colors.onNavy, fontSize: 15 },
+  composeOpenLabel: { ...typography.buttonText, color: colors.onNavy },
   composeForm: { gap: spacing.xs },
-  composeTitle: { ...typography.heading, color: colors.navy900, marginBottom: spacing.xs },
-  postedText: { ...typography.muted, color: colors.green700 },
+  composeTitle: { ...typography.heading, color: colors.navy, marginBottom: spacing.xs },
+  postedText: { ...typography.muted, color: colors.greenText },
   fieldLabel: { ...typography.label, marginTop: spacing.sm },
   input: {
     backgroundColor: colors.surfaceAlt,
@@ -485,32 +466,24 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
-    fontSize: 15,
-    color: colors.text,
+    ...typography.input,
     marginTop: 4,
   },
   multiline: { minHeight: 96 },
-  pickerWrapper: {
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    marginTop: 4,
-    overflow: 'hidden',
-  },
-  picker: { height: 44, color: colors.text },
-  errorText: { ...typography.muted, color: colors.red700, marginTop: spacing.sm },
+  fieldDropdown: { marginTop: spacing.sm },
+  errorText: { ...typography.muted, color: colors.redText, marginTop: spacing.sm },
   composeActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.sm, marginTop: spacing.md },
   markAll: {
     alignSelf: 'flex-end',
+    minHeight: 40,
+    justifyContent: 'center',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
+    borderRadius: radius.sm,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  markAllLabel: { ...typography.label, color: colors.navy700 },
+  markAllLabel: { ...typography.label, color: colors.blue },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -519,8 +492,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     gap: spacing.xs,
   },
-  cardPinned: { borderColor: colors.blue700, borderWidth: 1.5 },
-  cardUnread: { backgroundColor: colors.blue50 },
+  cardPinned: { borderColor: colors.blueText, borderWidth: 1.5 },
+  cardUnread: { backgroundColor: colors.blueWash },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.sm },
   grow: { flex: 1, minWidth: 0 },
   cardTitle: { ...typography.heading, color: colors.text },
@@ -529,6 +502,6 @@ const styles = StyleSheet.create({
   cardMeta: { ...typography.subtle, marginTop: spacing.xs },
   cardMetaInline: { ...typography.subtle, marginLeft: spacing.sm },
   badge: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.sm },
-  badgeText: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.3 },
+  badgeText: { ...typography.subtle, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.3 },
   separator: { height: 1 },
 });

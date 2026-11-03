@@ -1,5 +1,11 @@
 /**
  * Admin Fee Assessment Detail — View and edit a fee assessment.
+ *
+ * The four foreign keys are chosen from the reference endpoints the web app
+ * uses (`/fee-categories/`, `/school-years/`, `/grade-levels/`, `/sections/`),
+ * never typed: an administrator knows a fee category by its name, not by its
+ * primary key. Validation is reported inline because `Alert.alert` is a no-op
+ * on react-native-web, where a failed save used to look like a dead button.
  */
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -8,7 +14,6 @@ import {
   StyleSheet,
   ScrollView,
   TextInput,
-  Alert,
   TouchableOpacity,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -16,12 +21,15 @@ import { Ionicons } from '@expo/vector-icons';
 
 import { colors, spacing, radius, typography } from '../../../../../theme';
 import { api, ApiError } from '../../../../../api/client';
-import type { FeeAssessment, FeeAssessmentDetail, FeeCategory, FeePayment } from '../../../../../api/types';
-import { EmptyState, ErrorState, LoadingState } from '../../../../../components/StateViews';
+import type { FeeAssessmentDetail, FeeCategory, FeePayment, Section } from '../../../../../api/types';
+import { ErrorBanner, ErrorState, LoadingState } from '../../../../../components/StateViews';
 import AppHeader from '../../../../../components/ui/AppHeader';
 import Button from '../../../../../components/ui/Button';
 import Badge from '../../../../../components/ui/Badge';
+import ConfirmRow from '../../../../../components/ui/ConfirmRow';
+import Dropdown from '../../../../../components/ui/Dropdown';
 import SegmentedControl from '../../../../../components/ui/SegmentedControl';
+import { formatDate, formatPeso } from '../../../../../format';
 
 export default function FeeAssessmentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -72,21 +80,26 @@ export default function FeeAssessmentDetailScreen() {
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  // Reference data
+  // Reference lists behind the four foreign-key selectors.
   const [categories, setCategories] = useState<FeeCategory[]>([]);
+  const [schoolYears, setSchoolYears] = useState<{ id: number; label: string }[]>([]);
+  const [gradeLevels, setGradeLevels] = useState<{ id: number; name: string }[]>([]);
+  const [sections, setSections] = useState<Section[]>([]);
 
   const loadRefs = useCallback(async () => {
-    try {
-      const cats = await api.list<FeeCategory>('/fee-categories/');
-      setCategories(cats);
-      if (isNew) {
-        // School year will be loaded from the API when creating
-      }
-    } catch (err) {
-      console.error('Failed to load refs:', err);
-    }
-  }, [isNew]);
+    const [cats, years, levels, secs] = await Promise.allSettled([
+      api.list<FeeCategory>('/fee-categories/'),
+      api.list<{ id: number; label: string }>('/school-years/'),
+      api.list<{ id: number; name: string }>('/grade-levels/'),
+      api.list<Section>('/sections/'),
+    ]);
+    if (cats.status === 'fulfilled') setCategories(cats.value);
+    if (years.status === 'fulfilled') setSchoolYears(years.value);
+    if (levels.status === 'fulfilled') setGradeLevels(levels.value);
+    if (secs.status === 'fulfilled') setSections(secs.value);
+  }, []);
 
   const load = useCallback(async () => {
     if (isNew) {
@@ -133,18 +146,29 @@ export default function FeeAssessmentDetailScreen() {
   }, [assessmentId, isNew]);
 
   useEffect(() => {
+    // Mount fetch — `loadRefs` sets state only after its await; the rule reads
+    // the call rather than the schedule.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadRefs();
   }, [loadRefs]);
 
   useEffect(() => {
+    // A new assessment has nothing to fetch, so `load` clears the spinner inline
+    // for that one case; every other update lands after the await.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
 
   const handleSave = async () => {
     if (!assessment.category || !assessment.school_year || !assessment.amount || !assessment.due_date) {
-      Alert.alert('Error', 'Category, school year, amount, and due date are required.');
+      setFormError('Category, school year, amount and due date are required.');
       return;
     }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(assessment.due_date)) {
+      setFormError('Due date must look like 2026-06-30.');
+      return;
+    }
+    setFormError(null);
     setSaving(true);
     try {
       const payload: Record<string, any> = {
@@ -165,32 +189,29 @@ export default function FeeAssessmentDetailScreen() {
       }
       router.back();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not save assessment.');
+      setFormError(err instanceof ApiError ? err.message : 'Could not save assessment.');
     } finally {
       setSaving(false);
     }
   };
 
+  /**
+   * Archiving is destructive and `Alert.alert` does nothing on react-native-web,
+   * so the confirmation lives in the page instead of a dialog that never appears.
+   */
+  const [confirmArchive, setConfirmArchive] = useState(false);
+
   const handleArchive = async () => {
-    Alert.alert(
-      'Archive Assessment',
-      'Are you sure you want to archive this assessment? This will hide it from new payments but preserve history.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Archive',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.patch(`/fee-assessments/${assessmentId}/`, { status: 'archived' });
-              router.back();
-            } catch (err) {
-              setError(err instanceof ApiError ? err.message : 'Could not archive assessment.');
-            }
-          },
-        },
-      ]
-    );
+    setConfirmArchive(false);
+    setSaving(true);
+    try {
+      await api.patch(`/fee-assessments/${assessmentId}/`, { status: 'archived' });
+      router.back();
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : 'Could not archive assessment.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (loading) return <LoadingState label="Loading assessment…" />;
@@ -204,58 +225,62 @@ export default function FeeAssessmentDetailScreen() {
     <View style={styles.screen}>
       <AppHeader
         title={isNew ? 'New Fee Assessment' : assessment.category_name || 'Assessment'}
-        subtitle={isNew ? undefined : `${assessment.category_code} · ₱${Number(assessment.amount).toLocaleString()}`}
+        subtitle={isNew ? undefined : `${assessment.category_code} · ${formatPeso(assessment.amount ?? 0)}`}
       />
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
           activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Back to fees"
+          hitSlop={8}
         >
-          <Ionicons name="chevron-back-outline" size={24} color={colors.navy700} />
+          <Ionicons name="chevron-back-outline" size={24} color={colors.blue} />
         </TouchableOpacity>
 
+        {formError ? <ErrorBanner message={formError} /> : null}
+
         <View style={styles.section}>
-          <Text style={styles.label}>Category</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Category ID"
-            value={String(assessment.category || '')}
-            onChangeText={v => setAssessment(prev => ({...prev, category: parseInt(v) || undefined}))}
-            keyboardType="numeric"
+          <Dropdown<number>
+            label="Category"
+            options={categories.map((c) => ({ label: `${c.name} (${c.code})`, value: c.id }))}
+            value={assessment.category == null ? null : Number(assessment.category)}
+            onChange={(v) => setAssessment((prev) => ({ ...prev, category: v }))}
+            placeholder="Choose a fee category"
           />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>School Year</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="School Year ID"
-            value={String(assessment.school_year || '')}
-            onChangeText={v => setAssessment(prev => ({...prev, school_year: parseInt(v) || undefined}))}
-            keyboardType="numeric"
+          <Dropdown<number>
+            label="School year"
+            options={schoolYears.map((y) => ({ label: y.label, value: y.id }))}
+            value={assessment.school_year == null ? null : Number(assessment.school_year)}
+            onChange={(v) => setAssessment((prev) => ({ ...prev, school_year: v }))}
+            placeholder="Choose a school year"
           />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Grade Level (Optional)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Grade Level ID"
-            value={String(assessment.grade_level || '')}
-            onChangeText={v => setAssessment(prev => ({...prev, grade_level: parseInt(v) || undefined}))}
-            keyboardType="numeric"
+          <Dropdown<number>
+            label="Grade level (optional)"
+            options={gradeLevels.map((g) => ({ label: g.name, value: g.id }))}
+            value={assessment.grade_level == null ? null : Number(assessment.grade_level)}
+            onChange={(v) => setAssessment((prev) => ({ ...prev, grade_level: v }))}
+            placeholder="All grade levels"
           />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Section (Optional)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Section ID"
-            value={String(assessment.section || '')}
-            onChangeText={v => setAssessment(prev => ({...prev, section: parseInt(v) || undefined}))}
-            keyboardType="numeric"
+          <Dropdown<number>
+            label="Section (optional)"
+            options={sections.map((s) => ({
+              label: s.grade_level_name ? `${s.name} — ${s.grade_level_name}` : s.name,
+              value: s.id,
+            }))}
+            value={assessment.section == null ? null : Number(assessment.section)}
+            onChange={(v) => setAssessment((prev) => ({ ...prev, section: v }))}
+            placeholder="Every section"
           />
         </View>
 
@@ -271,13 +296,15 @@ export default function FeeAssessmentDetailScreen() {
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.label}>Due Date</Text>
+          <Text style={styles.label}>Due date</Text>
           <TextInput
             style={styles.input}
             placeholder="YYYY-MM-DD"
             value={assessment.due_date}
             onChangeText={v => setAssessment({...assessment, due_date: v})}
+            keyboardType="numbers-and-punctuation"
           />
+          <Text style={styles.help}>The day the balance falls due, e.g. 2026-06-30.</Text>
         </View>
 
         <View style={styles.section}>
@@ -314,11 +341,11 @@ export default function FeeAssessmentDetailScreen() {
                   <View style={styles.listItemLeft}>
                     <Text style={styles.listItemTitle}>{p.student_name}</Text>
                     <Text style={styles.listItemSubtitle}>
-                      {new Date(p.payment_date).toLocaleDateString()} · {p.payment_method} · {p.receipt_number}
+                      {formatDate(p.payment_date)} · {p.payment_method} · {p.receipt_number}
                     </Text>
                   </View>
                   <View style={styles.listItemRight}>
-                    <Text style={styles.listItemAmount}>₱{p.amount.toLocaleString()}</Text>
+                    <Text style={styles.listItemAmount}>{formatPeso(p.amount)}</Text>
                     <Badge
                       label={p.status}
                       tone={p.status === 'completed' ? 'green' : 'amber'}
@@ -333,15 +360,28 @@ export default function FeeAssessmentDetailScreen() {
         <View style={styles.actions}>
           {isNew ? (
             <Button variant="primary" onPress={handleSave} disabled={saving} loading={saving}>
-              Create Assessment
+              Create assessment
             </Button>
+          ) : confirmArchive ? (
+            <ConfirmRow
+              style={styles.confirm}
+              message="Archiving hides this assessment from new payments but keeps its history."
+              confirmLabel="Archive now"
+              onConfirm={handleArchive}
+              onCancel={() => setConfirmArchive(false)}
+              busy={saving}
+            />
           ) : (
             <>
               <Button variant="primary" onPress={handleSave} disabled={saving} loading={saving}>
-                Save Changes
+                Save changes
               </Button>
               {assessment.status === 'published' && (
-                <Button variant="secondary" onPress={handleArchive} style={styles.deleteBtn}>
+                <Button
+                  variant="danger"
+                  onPress={() => setConfirmArchive(true)}
+                  style={styles.deleteBtn}
+                >
                   Archive
                 </Button>
               )}
@@ -359,13 +399,16 @@ const styles = StyleSheet.create({
   content: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.lg },
   section: { gap: spacing.sm },
   label: { ...typography.label },
+  help: { ...typography.subtle },
   input: {
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    minHeight: 48,
     borderWidth: 1,
     borderColor: colors.border,
-    ...typography.body,
+    ...typography.input,
   },
   textarea: { minHeight: 100, textAlignVertical: 'top' },
   list: { gap: spacing.sm },
@@ -382,10 +425,11 @@ const styles = StyleSheet.create({
   },
   listItemLeft: { flex: 1 },
   listItemRight: { alignItems: 'flex-end', gap: spacing.xs },
-  listItemTitle: { ...typography.body, fontWeight: '600', color: colors.text },
+  listItemTitle: { ...typography.body, fontWeight: '700', color: colors.text },
   listItemSubtitle: { ...typography.subtle, marginTop: 2 },
-  listItemAmount: { ...typography.body, fontWeight: '600', color: colors.green700 },
+  listItemAmount: { ...typography.body, fontWeight: '700', color: colors.greenText },
   actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md },
+  confirm: { flex: 1 },
   deleteBtn: { flex: 1 },
-  backButton: { marginBottom: spacing.md, alignSelf: 'flex-start' },
+  backButton: { marginBottom: spacing.md, alignSelf: 'flex-start', minWidth: 44, minHeight: 44 },
 });

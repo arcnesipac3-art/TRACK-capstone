@@ -7,7 +7,9 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, RefreshControl, ScrollView } from 'react-native';
 
-import { colors, spacing, radius, typography, type Tone } from '../../../theme';
+import { colors, spacing, radius, typography } from '../../../theme';
+import { formatDate } from '../../../format';
+import { attendanceStatusMeta } from '../../../status';
 import { api, ApiError } from '../../../api/client';
 import type { AttendanceRecord } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
@@ -19,10 +21,6 @@ const MONTH_NAMES = [
   'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER',
 ];
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
 /** `YYYY-MM` grouping key in local time — matches the dates formatDate shows. */
 function monthKey(iso: string) {
   const d = new Date(iso);
@@ -32,15 +30,6 @@ function monthKey(iso: string) {
 function monthLabel(key: string) {
   const [year, month] = key.split('-');
   return `${MONTH_NAMES[Number(month) - 1]} ${year}`;
-}
-
-function statusMeta(status: AttendanceRecord['status']): { label: string; tone: Tone } {
-  switch (status) {
-    case 'present': return { label: 'Present', tone: 'green' };
-    case 'absent': return { label: 'Absent', tone: 'red' };
-    case 'late': return { label: 'Late', tone: 'amber' };
-    default: return { label: 'Excused', tone: 'gray' };
-  }
 }
 
 export default function StudentAttendanceScreen() {
@@ -94,7 +83,7 @@ export default function StudentAttendanceScreen() {
     <View style={styles.screen}>
       <AppHeader title="Attendance" subtitle="Your school-day records." />
       <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.navy700]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.blue]} />}
         contentContainerStyle={styles.content}
       >
         {error && <Text style={styles.errorText}>{error}</Text>}
@@ -123,7 +112,7 @@ export default function StudentAttendanceScreen() {
 }
 
 function RecordRow({ item }: { item: AttendanceRecord }) {
-  const meta = statusMeta(item.status);
+  const meta = attendanceStatusMeta(item.status);
   const detail = item.session_detail;
 
   return (
@@ -146,9 +135,9 @@ function RecordRow({ item }: { item: AttendanceRecord }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxl },
-  errorText: { ...typography.muted, color: colors.red700 },
+  errorText: { ...typography.muted, color: colors.redText },
   monthGroup: { gap: spacing.sm },
-  monthCaption: { ...typography.label, color: colors.navy700 },
+  monthCaption: { ...typography.label, color: colors.blue },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.md,
@@ -159,13 +148,12 @@ const styles = StyleSheet.create({
   },
   rowTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md },
   grow: { flex: 1, minWidth: 0 },
-  subject: { ...typography.label, color: colors.navy700 },
+  subject: { ...typography.label, color: colors.blue },
   title: { ...typography.heading, color: colors.text, marginTop: 2 },
   details: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md, marginTop: spacing.xs },
   detail: { ...typography.subtle },
   notes: {
-    fontSize: 15,
-    color: colors.textMuted,
+    ...typography.muted,
     backgroundColor: colors.surfaceAlt,
     padding: spacing.sm,
     borderRadius: radius.sm,

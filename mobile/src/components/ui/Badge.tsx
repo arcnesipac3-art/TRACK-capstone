@@ -1,14 +1,17 @@
 /**
  * TRACK — shared status badge.
  *
- * Pill badge with a tone tint and optional glyph prefix, mirroring the web
- * StatusBadge (frontend: green ✓ / amber ◷ / red ! / blue →). One component
- * replaces the ten hand-rolled inline badge styles that had drifted to three
- * different font sizes.
+ * A rectangular chip, not a pill: Khan Academy reserves the pill for things you
+ * tap and the 4dp square for labels that only tell you something. The tone
+ * supplies a text/tint pair that is readable at 12px, so status never depends on
+ * colour alone — the glyph still carries the shape.
+ *
+ * One component replaces the ten hand-rolled inline badge styles that had
+ * drifted to three different font sizes.
  */
 import { StyleSheet, Text, View } from 'react-native';
 
-import { spacing, tones, type Tone } from '../../theme';
+import { radius, spacing, tones, typography, type Tone } from '../../theme';
 
 const TONE_GLYPHS: Record<Tone, string> = {
   green: '✓',
@@ -42,13 +45,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    gap: 4,
-    borderRadius: 999,
+    gap: spacing.xs,
+    minHeight: 22,
+    borderRadius: radius.sm,
     paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
+    paddingVertical: 2,
   },
   text: {
-    fontSize: 11.5,
+    ...typography.subtle,
     fontWeight: '700',
     letterSpacing: 0.2,
   },
