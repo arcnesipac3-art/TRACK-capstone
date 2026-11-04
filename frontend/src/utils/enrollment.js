@@ -62,12 +62,20 @@ export function isSeniorHigh(gradeLevelName) {
   return /grade\s*1[12]/i.test(gradeLevelName || '');
 }
 
+/** The path the authorized download endpoint answers on. */
+export function documentDownloadPath(applicationId, documentId) {
+  return `enrollment/applications/${applicationId}/documents/${documentId}/download/`;
+}
+
 /**
- * Download an authorized document. A plain <a href> cannot carry the
- * Authorization header, so the file is fetched as a blob first. Guests
- * (account-less applicants) download with their guest credential.
+ * Fetch one enrollment document through its authorized endpoint.
+ *
+ * Neither an `<a href>` nor an `<iframe src>` can carry the Authorization
+ * header, and the endpoint answers with `Content-Disposition: attachment`, so
+ * the bytes are read here once and the caller decides what to do with them —
+ * hand them to a blob URL for viewing, or to a download anchor.
  */
-export async function downloadAuthorizedFile(apiBase, path, filename) {
+export async function fetchAuthorizedBlob(apiBase, path) {
   const headers = authHeader();
   const response = await fetch(`${apiBase}/${path}`, {
     headers: Object.keys(headers).length ? headers : undefined,
@@ -75,7 +83,13 @@ export async function downloadAuthorizedFile(apiBase, path, filename) {
   if (!response.ok) {
     throw new Error('The file could not be downloaded.');
   }
-  const blob = await response.blob();
+  return response.blob();
+}
+
+/** Download an authorized document. Guests (account-less applicants)
+ * download with their guest credential. */
+export async function downloadAuthorizedFile(apiBase, path, filename) {
+  const blob = await fetchAuthorizedBlob(apiBase, path);
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -85,3 +99,47 @@ export async function downloadAuthorizedFile(apiBase, path, filename) {
   anchor.remove();
   URL.revokeObjectURL(url);
 }
+
+/**
+ * What the browser can render on its own, keyed by the extension the upload
+ * endpoint accepts (`.doc`/`.docx` are deliberately absent — inline Word
+ * rendering needs a converter, so those keep the Download button).
+ *
+ * `mime` is used to re-stamp the blob: Django guesses the response type from
+ * the filename, and when its guess table has no entry the blob arrives as
+ * `application/octet-stream`, which an `<iframe>` refuses to render.
+ */
+const VIEWABLE_DOCUMENTS = {
+  '.pdf': { kind: 'pdf', mime: 'application/pdf' },
+  '.jpg': { kind: 'image', mime: 'image/jpeg' },
+  '.jpeg': { kind: 'image', mime: 'image/jpeg' },
+  '.png': { kind: 'image', mime: 'image/png' },
+  '.webp': { kind: 'image', mime: 'image/webp' },
+};
+
+/** `{ kind, mime }` for a filename, or null when it cannot be previewed. */
+export function viewableDocument(filename) {
+  const extension = String(filename || '').toLowerCase().match(/\.[a-z0-9]+$/)?.[0];
+  return (extension && VIEWABLE_DOCUMENTS[extension]) || null;
+}
+
+/** The upload endpoint's whitelist, mirrored here so a wrong file is named
+ *  before the request runs instead of coming back as a 400. */
+export const DOCUMENT_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.doc', '.docx'];
+
+export const DOCUMENT_FILE_ACCEPT = DOCUMENT_EXTENSIONS.join(',');
+
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
+/** Why this file cannot be uploaded, or null when it can. */
+export function documentFileError(file) {
+  const extension = String(file?.name || '').toLowerCase().match(/\.[a-z0-9]+$/)?.[0];
+  if (!extension || !DOCUMENT_EXTENSIONS.includes(extension)) {
+    return 'Use PDF, JPG, PNG, WEBP, DOC or DOCX.';
+  }
+  if (file.size > MAX_DOCUMENT_BYTES) {
+    return `${file.name} is over the 10 MB limit.`;
+  }
+  return null;
+}
+

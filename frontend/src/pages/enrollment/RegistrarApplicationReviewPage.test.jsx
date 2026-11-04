@@ -195,6 +195,33 @@ describe('RegistrarApplicationReviewPage', () => {
     )
   })
 
+  it('previews a document inline from the review page', async () => {
+    mockApi()
+    URL.createObjectURL = vi.fn(() => 'blob:preview')
+    URL.revokeObjectURL = vi.fn()
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: () =>
+        Promise.resolve(new Blob(['%PDF-1.4'], { type: 'application/pdf' })),
+    })
+    global.fetch = fetchMock
+    const user = userEvent.setup()
+    renderPage()
+
+    const docCard = (await screen.findByText('PSA Birth Certificate')).closest(
+      '.doc-item'
+    )
+    await user.click(within(docCard).getByRole('button', { name: 'View' }))
+
+    const frame = await screen.findByTitle('Preview of PSA Birth Certificate')
+    expect(frame.getAttribute('src')).toBe('blob:preview')
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/enrollment/applications/9/documents/3/download/',
+      { headers: undefined }
+    )
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
   it('confirms enrollment only when accepted, assigned and permitted', async () => {
     mockApi({
       detail: {

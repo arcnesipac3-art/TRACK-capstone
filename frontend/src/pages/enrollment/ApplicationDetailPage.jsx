@@ -3,6 +3,8 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { useAuth } from '../../context/AuthContext'
 import Button from '../../components/Button'
 import ButtonLink from '../../components/ButtonLink'
+import DocumentUploader from '../../components/enrollment/DocumentUploader'
+import DocumentViewerModal from '../../components/enrollment/DocumentViewerModal'
 import ErrorMessage from '../../components/ErrorMessage'
 import Icon from '../../components/Icon'
 import { ButtonLoader, PageLoader } from '../../components/loading'
@@ -14,13 +16,12 @@ import useFetch from '../../hooks/useFetch'
 import {
   ENROLLMENT_TYPES,
   applicationStatus,
+  documentDownloadPath,
   documentStatus,
   downloadAuthorizedFile,
 } from '../../utils/enrollment'
 import { formatDate, formatDateTime } from '../../utils/format'
 import './EnrollmentPages.css'
-
-const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.doc,.docx'
 
 /** Applicant-facing configuration for each workflow action. `endpoint` maps
  *  the target-status key from available_actions onto the real URL segment. */
@@ -280,6 +281,8 @@ export default function ApplicationDetailPage() {
 
   const [uploads, setUploads] = useState({})
   const [downloadError, setDownloadError] = useState(null)
+  // The document row open in the preview dialog.
+  const [viewing, setViewing] = useState(null)
 
   async function confirmAction() {
     if (busyRef.current || !pendingAction) return
@@ -334,7 +337,7 @@ export default function ApplicationDetailPage() {
     try {
       await downloadAuthorizedFile(
         API_BASE,
-        `enrollment/applications/${id}/documents/${doc.id}/download/`,
+        documentDownloadPath(id, doc.id),
         doc.original_filename
       )
     } catch (err) {
@@ -589,13 +592,17 @@ export default function ApplicationDetailPage() {
                   {doc.review_note && (
                     <span className="subtle">Reviewer note: {doc.review_note}</span>
                   )}
-                  {upload.error && (
-                    <span className="enr-doc-error" role="alert">
-                      {upload.error}
-                    </span>
-                  )}
                 </div>
                 <div className="row row-wrap gap-xs">
+                  {doc.original_filename && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => setViewing(doc)}
+                    >
+                      <Icon name="eye" size={14} /> View
+                    </Button>
+                  )}
                   {doc.original_filename && (
                     <Button
                       variant="secondary"
@@ -606,19 +613,13 @@ export default function ApplicationDetailPage() {
                     </Button>
                   )}
                   {editableDocs && (
-                    <input
-                      type="file"
-                      accept={FILE_ACCEPT}
-                      aria-label={`Upload ${doc.name}`}
-                      disabled={upload.busy}
-                      onChange={(e) => {
-                        const input = e.target
-                        const file = input.files && input.files[0]
-                        // Clear the value so picking the SAME file again after
-                        // a failed upload still fires change.
-                        input.value = ''
-                        if (file) handleUpload(doc.id, file)
-                      }}
+                    <DocumentUploader
+                      id={`detail-doc-${doc.id}`}
+                      docName={doc.name}
+                      hasFile={Boolean(doc.original_filename)}
+                      busy={upload.busy}
+                      error={upload.error}
+                      onSelect={(file) => handleUpload(doc.id, file)}
                     />
                   )}
                 </div>
@@ -729,6 +730,13 @@ export default function ApplicationDetailPage() {
           {pendingAction ? ACTION_CONFIG[pendingAction].body : ''}
         </p>
       </Modal>
+
+      <DocumentViewerModal
+        open={Boolean(viewing)}
+        doc={viewing}
+        applicationId={id}
+        onClose={() => setViewing(null)}
+      />
     </div>
   )
 }

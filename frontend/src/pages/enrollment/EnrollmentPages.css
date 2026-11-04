@@ -125,16 +125,6 @@
   font-size: 0.92rem;
 }
 
-.enr-doc input[type='file'] {
-  max-width: 100%;
-  font-size: 0.8rem;
-}
-
-.enr-doc-error {
-  color: var(--red-700);
-  font-size: 0.82rem;
-}
-
 /* --- Progress timeline (detail page) ---------------------------------- */
 
 .enr-timeline {

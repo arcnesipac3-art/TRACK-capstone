@@ -1,0 +1,50 @@
+.doc-drop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+  padding: 8px 10px;
+  transition:
+    border-color var(--ease),
+    background-color var(--ease);
+}
+
+/* The hidden input is the control that takes keyboard focus, so the zone
+   around it lights up instead of a focus ring inside nothing. */
+.doc-drop:focus-within,
+.doc-drop.is-drag {
+  border-color: var(--blue-600);
+  background: var(--blue-50);
+}
+
+.doc-drop-cta {
+  gap: 6px;
+  cursor: pointer;
+}
+
+.doc-drop-cta.btn-disabled {
+  cursor: not-allowed;
+}
+
+.doc-drop-text {
+  font-size: var(--text-xs);
+  color: var(--ink);
+}
+
+.doc-drop-hint {
+  flex-basis: 100%;
+  font-size: var(--text-2xs);
+  color: var(--ink-muted);
+}
+
+.doc-drop-error {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--text-xs);
+  color: var(--red-700);
+}

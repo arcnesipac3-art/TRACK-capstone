@@ -1,0 +1,72 @@
+/* Document preview dialog. The body is given a taller budget than a form
+   dialog because a page of A4 is what has to fit in it. */
+
+.modal-body:has(> .doc-viewer) {
+  max-height: min(80vh, 760px);
+}
+
+.doc-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.doc-viewer-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.doc-viewer-file {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-md);
+  color: var(--text-muted);
+}
+
+.doc-viewer-frame {
+  width: 100%;
+  height: min(68vh, 640px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+}
+
+.doc-viewer-image-wrap {
+  max-height: min(68vh, 640px);
+  overflow: auto;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  /* A light field behind the page, so a scanned document with a white
+     background still has a visible edge. */
+  background: var(--surface-2);
+}
+
+.doc-viewer-image {
+  max-width: 100%;
+  margin: 0 auto;
+  transform-origin: top center;
+  box-shadow: var(--shadow-sm);
+}
+
+.doc-viewer-zoom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.doc-viewer-state {
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--text-md);
+}

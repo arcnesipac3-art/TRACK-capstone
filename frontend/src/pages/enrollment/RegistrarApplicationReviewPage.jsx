@@ -6,6 +6,7 @@ import StatusBadge from '../../components/StatusBadge'
 import ButtonLoader from '../../components/loading/ButtonLoader'
 import CardSkeleton from '../../components/loading/CardSkeleton'
 import TableSkeleton from '../../components/loading/TableSkeleton'
+import DocumentViewerModal from '../../components/enrollment/DocumentViewerModal'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
@@ -13,6 +14,7 @@ import api, { API_BASE } from '../../services/api'
 import {
   ENROLLMENT_TYPES,
   applicationStatus,
+  documentDownloadPath,
   documentStatus,
   downloadAuthorizedFile,
 } from '../../utils/enrollment'
@@ -138,6 +140,9 @@ export default function RegistrarApplicationReviewPage() {
   const [busy, setBusy] = useState(null)
   const [alert, setAlert] = useState(null)
   const [modal, setModal] = useState(null)
+  // The document row open in the preview dialog. Held as the row itself so the
+  // viewer reads the same filename and status the list showed.
+  const [viewing, setViewing] = useState(null)
   const [notes, setNotes] = useState({ note: '', internal_note: '', reason: '' })
   const [modalErrors, setModalErrors] = useState({})
   // Server-side failure of the last modal submit — shown INSIDE the modal so
@@ -346,7 +351,7 @@ export default function RegistrarApplicationReviewPage() {
     try {
       await downloadAuthorizedFile(
         API_BASE,
-        `enrollment/applications/${id}/documents/${doc.id}/download/`,
+        documentDownloadPath(id, doc.id),
         doc.original_filename || doc.name
       )
     } catch (err) {
@@ -733,48 +738,62 @@ export default function RegistrarApplicationReviewPage() {
                         {doc.review_note && (
                           <p className="subtle">Note: {doc.review_note}</p>
                         )}
-                        {canManage && (
-                          <div className="doc-actions">
-                            {hasFile && (
+                        <div className="doc-actions">
+                          {/* Reading a file is not a management action — anyone
+                              who can open the application can preview it. */}
+                          {hasFile && (
+                            <Button
+                              variant="secondary"
+                              size="xs"
+                              onClick={() => setViewing(doc)}
+                            >
+                              <Icon name="eye" size={13} />
+                              View
+                            </Button>
+                          )}
+                          {canManage && (
+                            <>
+                              {hasFile && (
+                                <Button
+                                  variant="secondary"
+                                  size="xs"
+                                  disabled={Boolean(busy)}
+                                  onClick={() => downloadDocument(doc)}
+                                >
+                                  <Icon name="download" size={13} />
+                                  {busy === `download-${doc.id}` ? 'Downloading…' : 'Download'}
+                                </Button>
+                              )}
+                              {hasFile && (
+                                <Button
+                                  variant="primary"
+                                  size="xs"
+                                  disabled={Boolean(busy)}
+                                  onClick={() => verifyDocument(doc)}
+                                >
+                                  {busy === 'verify' ? <ButtonLoader /> : <Icon name="check" size={13} />}
+                                  Verify
+                                </Button>
+                              )}
                               <Button
                                 variant="secondary"
                                 size="xs"
                                 disabled={Boolean(busy)}
-                                onClick={() => downloadDocument(doc)}
+                                onClick={() => openModal({ type: 'returnDoc', docId: doc.id })}
                               >
-                                <Icon name="download" size={13} />
-                                {busy === `download-${doc.id}` ? 'Downloading…' : 'Download'}
+                                Return
                               </Button>
-                            )}
-                            {hasFile && (
                               <Button
-                                variant="primary"
+                                variant="ghost"
                                 size="xs"
                                 disabled={Boolean(busy)}
-                                onClick={() => verifyDocument(doc)}
+                                onClick={() => openModal({ type: 'waiveDoc', docId: doc.id })}
                               >
-                                {busy === 'verify' ? <ButtonLoader /> : <Icon name="check" size={13} />}
-                                Verify
+                                Waive
                               </Button>
-                            )}
-                            <Button
-                              variant="secondary"
-                              size="xs"
-                              disabled={Boolean(busy)}
-                              onClick={() => openModal({ type: 'returnDoc', docId: doc.id })}
-                            >
-                              Return
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="xs"
-                              disabled={Boolean(busy)}
-                              onClick={() => openModal({ type: 'waiveDoc', docId: doc.id })}
-                            >
-                              Waive
-                            </Button>
-                          </div>
-                        )}
+                            </>
+                          )}
+                        </div>
                       </article>
                     )
                   })}
@@ -1251,6 +1270,13 @@ export default function RegistrarApplicationReviewPage() {
           )}
         </form>
       </Modal>
+
+      <DocumentViewerModal
+        open={Boolean(viewing)}
+        doc={viewing}
+        applicationId={id}
+        onClose={() => setViewing(null)}
+      />
     </div>
   )
 }

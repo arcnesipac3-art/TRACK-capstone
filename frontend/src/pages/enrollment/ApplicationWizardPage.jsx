@@ -7,6 +7,7 @@ import Modal from '../../components/Modal'
 import { ButtonLoader } from '../../components/loading'
 import PageHeader from '../../components/PageHeader'
 import StatusBadge from '../../components/StatusBadge'
+import DocumentUploader from '../../components/enrollment/DocumentUploader'
 import api, {
   API_BASE,
   authHeader,
@@ -32,8 +33,6 @@ const STEPS = [
   { key: 4, label: 'Documents' },
   { key: 5, label: 'Review & submit' },
 ]
-
-const FILE_ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.doc,.docx'
 
 const EMPTY_DETAILS = {
   period: '',
@@ -1059,8 +1058,8 @@ export default function ApplicationWizardPage() {
             Documents
           </h2>
           <p className="subtle" style={{ margin: 0 }}>
-            Upload a clear scan or photo of each requirement. Accepted formats: PDF,
-            JPG, PNG, WEBP or DOC.
+            Upload a clear scan or photo of each requirement — choose a file or
+            drop it on its slot below.
           </p>
 
           {!application || (application.documents || []).length === 0 ? (
@@ -1088,32 +1087,16 @@ export default function ApplicationWizardPage() {
                     {doc.review_note && (
                       <span className="subtle">Reviewer note: {doc.review_note}</span>
                     )}
-                    {upload.error && (
-                      <span className="enr-doc-error" role="alert">
-                        {upload.error}
-                      </span>
-                    )}
                   </div>
-                  <div className="stack stack-xs">
-                    <input
-                      type="file"
-                      id={`wiz-doc-${doc.id}`}
-                      accept={FILE_ACCEPT}
-                      aria-label={`Upload ${doc.name}`}
-                      disabled={upload.busy || !applicationId}
-                      onChange={(e) => {
-                        const input = e.target
-                        const file = input.files && input.files[0]
-                        // Clear the value so picking the SAME file again after
-                        // a failed upload still fires change.
-                        input.value = ''
-                        if (file) handleUpload(doc.id, file)
-                      }}
-                    />
-                    <span className="subtle" style={{ fontSize: '0.75rem' }}>
-                      {upload.busy ? 'Uploading…' : 'Upload or replace this file'}
-                    </span>
-                  </div>
+                  <DocumentUploader
+                    id={`wiz-doc-${doc.id}`}
+                    docName={doc.name}
+                    hasFile={Boolean(doc.original_filename)}
+                    busy={upload.busy}
+                    error={upload.error}
+                    disabled={!applicationId}
+                    onSelect={(file) => handleUpload(doc.id, file)}
+                  />
                 </div>
               )
             })
