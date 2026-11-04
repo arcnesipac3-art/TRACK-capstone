@@ -25,7 +25,8 @@ export default function ConfirmDialog({
   busy = false,
   danger = false,
 }) {
-  if (!open) return null
+  // `open` goes straight to Modal, which keeps the node for the length of the
+  // exit keyframe — returning early here would cut that short.
 
   return (
     <Modal

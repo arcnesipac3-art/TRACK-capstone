@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import useFocusTrap from '../hooks/useFocusTrap'
+import usePresence from '../hooks/usePresence'
 
 /**
  * Trigger button plus a floating panel that closes on an outside click, on
@@ -7,6 +8,9 @@ import useFocusTrap from '../hooks/useFocusTrap'
  *
  * `children` may be a function receiving `{ close }` — a menu item that
  * navigates has to close the panel on its way out.
+ *
+ * The panel holds the tree for the length of its exit keyframe (see
+ * `usePresence`); a popover that only ever appears is half of the gesture.
  */
 export default function Popover({
   trigger,
@@ -21,6 +25,7 @@ export default function Popover({
   const [open, setOpen] = useState(false)
   const wrapRef = useRef(null)
   const panelRef = useRef(null)
+  const { mounted, exiting } = usePresence(open, 130)
 
   useFocusTrap(panelRef, { active: open, onEscape: () => setOpen(false) })
 
@@ -46,12 +51,13 @@ export default function Popover({
         {trigger}
       </button>
 
-      {open && (
+      {mounted && (
         <div
           ref={panelRef}
-          className={panelClassName}
+          className={exiting ? `${panelClassName} popover-exiting` : panelClassName}
           role={panelRole}
           aria-label={panelLabel}
+          inert={exiting || undefined}
         >
           {typeof children === 'function' ? children({ close: () => setOpen(false) }) : children}
         </div>

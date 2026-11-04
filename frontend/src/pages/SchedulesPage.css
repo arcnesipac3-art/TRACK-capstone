@@ -923,6 +923,24 @@
   }
 }
 
+/* Undoing the delete dismisses the card the way it arrived — down and out —
+   instead of removing it mid-sentence. See UndoToast.jsx → usePresence. */
+.sched-undo-toast.sched-undo-toast-out {
+  animation: sched-toast-out var(--dur-2) var(--ease-out) both;
+  pointer-events: none;
+}
+
+@keyframes sched-toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(var(--space-5));
+  }
+}
+
 .sched-undo-toast-inner {
   display: flex;
   align-items: center;
@@ -1064,7 +1082,9 @@
     transform: none;
   }
 
-  .sched-undo-toast {
+  .sched-undo-toast,
+  .sched-undo-toast.sched-undo-toast-out,
+  .timetable-card-dropdown.popover-exiting {
     animation: none;
   }
 }

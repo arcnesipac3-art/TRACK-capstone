@@ -8,6 +8,7 @@ import PageLoader from '../loading/PageLoader'
 import RouteTransition from '../loading/RouteTransition'
 import { contextPanelFor } from '../context/registry'
 import useFetch from '../../hooks/useFetch'
+import usePresence from '../../hooks/usePresence'
 import { useAuth } from '../../context/AuthContext'
 import { NotificationsContext } from '../../context/NotificationsContext'
 
@@ -89,6 +90,11 @@ export default function AppLayout() {
   const portal = PORTAL_ROLES.includes(user?.role) ? user.role : undefined
   const panel = contextPanelFor(location.pathname)
 
+  // Both slide-overs hold their node for the length of their exit keyframe, so
+  // dismissing one is seen leaving the way it arrived.
+  const navDrawer = usePresence(drawerOpen, 200)
+  const contextSlide = usePresence(contextDrawer, 220)
+
   function toggleRail(next) {
     setRail(next)
     window.localStorage.setItem(RAIL_KEY, next ? '1' : '0')
@@ -119,15 +125,19 @@ export default function AppLayout() {
       >
         <Sidebar rail={rail} onToggleRail={toggleRail} />
 
-        {drawerOpen && (
+        {navDrawer.mounted && (
           <>
             <button
               type="button"
-              className="drawer-overlay"
+              className={navDrawer.exiting ? 'drawer-overlay drawer-overlay-out' : 'drawer-overlay'}
               aria-label="Close menu"
               onClick={() => setDrawerOpen(false)}
             />
-            <Sidebar variant="drawer" onNavigate={() => setDrawerOpen(false)} />
+            <Sidebar
+              variant="drawer"
+              exiting={navDrawer.exiting}
+              onNavigate={() => setDrawerOpen(false)}
+            />
           </>
         )}
 
@@ -170,17 +180,22 @@ export default function AppLayout() {
         )}
 
         {/* …and a slide-over on tablet/mobile. */}
-        {panel && contextDrawer && (
+        {panel && contextSlide.mounted && (
           <>
             <button
               type="button"
-              className="drawer-overlay"
+              className={
+                contextSlide.exiting
+                  ? 'drawer-overlay drawer-overlay-out'
+                  : 'drawer-overlay'
+              }
               aria-label="Close context panel"
               onClick={() => setContextDrawer(false)}
             />
             <ContextPanel
               title={panel.title}
               variant="drawer"
+              exiting={contextSlide.exiting}
               onClose={() => setContextDrawer(false)}
             >
               {panel.element}

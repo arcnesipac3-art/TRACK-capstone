@@ -506,9 +506,12 @@
   border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: pointer;
-  transition: background var(--ease), color var(--ease);
+  transition: background var(--ease), color var(--ease), transform var(--ease);
 }
 .bell-btn:hover { background: var(--surface-alt); color: var(--navy-800); }
+/* Same 1px press the buttons in a row get, so the topbar answers a click
+   instead of only changing colour under the cursor. */
+.bell-btn:active:not(:disabled) { transform: translateY(1px); }
 
 .bell-count {
   position: absolute;
@@ -549,6 +552,19 @@
   to { opacity: 1; transform: none; }
 }
 
+/* Leaving is the mirror of arriving (see Popover.jsx → usePresence), and the
+   panel stops taking clicks the moment it starts to go. */
+.popover.popover-exiting,
+.timetable-card-dropdown.popover-exiting {
+  animation: popover-out var(--dur-1) var(--ease-out) both;
+  pointer-events: none;
+}
+
+@keyframes popover-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(-4px); }
+}
+
 .popover-head {
   display: flex;
   align-items: center;
@@ -573,10 +589,13 @@
   border-bottom: 1px solid var(--border);
   font: inherit;
   cursor: pointer;
+  transition: background var(--ease);
 }
 .notif-item:last-child { border-bottom: none; }
 .notif-item:hover { background: var(--surface-alt); }
 .notif-item.unread { background: var(--blue-50); }
+/* Placed after `.unread` so the press tint wins the tie on an unread row. */
+.notif-item:active { background: var(--surface-2); }
 .notif-item .notif-title { font-size: 0.87rem; font-weight: 650; color: var(--text); }
 .notif-item .notif-body { font-size: 0.8rem; color: var(--text-muted); }
 .notif-item .notif-time { font-size: 0.72rem; color: var(--text-subtle); }
@@ -709,9 +728,10 @@
   background: var(--surface);
   color: var(--text-muted);
   cursor: pointer;
-  transition: background var(--ease), color var(--ease);
+  transition: background var(--ease), color var(--ease), transform var(--ease);
 }
 .icon-btn:hover { background: var(--surface-alt); color: var(--text); }
+.icon-btn:active:not(:disabled) { transform: translateY(1px); }
 
 .modal-body {
   padding: 18px 20px;
@@ -743,6 +763,23 @@
   to { opacity: 1; transform: none; }
 }
 
+/* The dialog leaves the way it arrived. Modal.jsx holds the node mounted for
+   these 170ms and marks it inert, so the frames it spends disappearing are
+   neither focusable nor announced. */
+.modal-backdrop.modal-backdrop-out {
+  animation: fade-out var(--dur-1) var(--ease-out) both;
+}
+.modal-panel.modal-panel-out {
+  animation: modal-out var(--dur-1) var(--ease-out) both;
+  pointer-events: none;
+}
+
+@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes modal-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(-6px) scale(0.99); }
+}
+
 /* Row action buttons in management tables */
 .row-actions {
   display: flex;
@@ -770,6 +807,12 @@
   padding: 0;
   width: 100%;
   cursor: pointer;
+  animation: fade-in var(--dur-1) ease;
+}
+
+.drawer-overlay.drawer-overlay-out {
+  animation: fade-out var(--dur-1) var(--ease-out) both;
+  pointer-events: none;
 }
 
 .drawer {
@@ -789,6 +832,17 @@
 @keyframes drawer-in {
   from { transform: translateX(-100%); }
   to { transform: translateX(0); }
+}
+
+/* Slide-over exit — the navigation and context drawers in AppLayout share it. */
+.drawer.drawer-out {
+  animation: drawer-out var(--dur-2) var(--ease-in-out) both;
+  pointer-events: none;
+}
+
+@keyframes drawer-out {
+  from { transform: translateX(0); }
+  to { transform: translateX(-100%); }
 }
 
 .drawer-close {
@@ -4458,12 +4512,16 @@
   border-radius: var(--radius-sm);
   cursor: pointer;
   white-space: nowrap;
-  transition: background var(--ease), color var(--ease);
+  transition: background var(--ease), color var(--ease), transform var(--ease);
 }
 
 .tab:hover {
   background: var(--surface-2);
   color: var(--navy-900);
+}
+
+.tab:active {
+  transform: translateY(1px);
 }
 
 .tab:focus-visible {
@@ -6643,6 +6701,18 @@
   to { transform: none; }
 }
 
+/* The right-hand drawer leaves to the right; the nav drawer's keyframe would
+   slide it across the whole screen. */
+.context-drawer.context-drawer-out {
+  animation: context-out var(--dur-2) var(--ease-in-out) both;
+  pointer-events: none;
+}
+
+@keyframes context-out {
+  from { transform: none; }
+  to { transform: translateX(100%); }
+}
+
 /* Toggle in the topbar, styled like the bell/profile controls. */
 .topbar-context-btn {
   flex: 0 0 auto;
@@ -6655,10 +6725,11 @@
   border-radius: var(--radius-sm);
   color: var(--text-muted);
   cursor: pointer;
-  transition: background var(--ease), color var(--ease);
+  transition: background var(--ease), color var(--ease), transform var(--ease);
 }
 
 .topbar-context-btn:hover { background: var(--surface-alt); color: var(--text); }
+.topbar-context-btn:active:not(:disabled) { transform: translateY(1px); }
 .topbar-context-btn.active { color: var(--brand-navy); background: var(--blue-50); }
 
 .topbar-context-btn:focus-visible {

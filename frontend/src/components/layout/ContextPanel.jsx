@@ -17,6 +17,7 @@ export default function ContextPanel({
   children,
   variant = 'inline',
   open = true,
+  exiting = false,
   onCollapse,
   onClose,
 }) {
@@ -27,12 +28,14 @@ export default function ContextPanel({
       className={[
         'context-panel',
         drawer ? 'context-drawer' : '',
+        drawer && exiting ? 'context-drawer-out' : '',
         !drawer && !open ? 'context-closed' : '',
       ]
         .filter(Boolean)
         .join(' ')}
       aria-label={`${title} — contextual information`}
       aria-hidden={!open}
+      inert={exiting || undefined}
       role="complementary"
     >
       <div className="context-head">

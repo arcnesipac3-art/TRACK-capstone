@@ -141,6 +141,7 @@ export default function Sidebar({
   onNavigate,
   variant = 'fixed',
   rail = false,
+  exiting = false,
   onToggleRail,
 }) {
   const { user } = useAuth()
@@ -150,8 +151,11 @@ export default function Sidebar({
   return (
     <nav
       className={
-        variant === 'drawer' ? 'drawer' : `sidebar${collapsed ? ' rail' : ''}`
+        variant === 'drawer'
+          ? `drawer${exiting ? ' drawer-out' : ''}`
+          : `sidebar${collapsed ? ' rail' : ''}`
       }
+      inert={exiting || undefined}
       aria-label="Main navigation"
     >
       <div className="sidebar-brand">
