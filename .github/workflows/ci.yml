@@ -1,8 +1,12 @@
 name: CI
 
 # Runs the full verification suite on every push to main and on every pull
-# request, so the backend tests (324), frontend tests (368), lint and the
-# production build are enforced before code lands on main.
+# request, so the backend tests, the frontend lint/tests/build and the mobile
+# typecheck/lint/bundle are enforced before code lands on main.
+#
+# Test counts deliberately are not quoted here: the last number written into
+# this comment (324 backend / 368 frontend) rotted two phases ago. The current
+# counts live in docs/TESTING_REPORT.md, which each phase rewrites.
 on:
   push:
     branches: [main]
@@ -71,3 +75,49 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+  mobile:
+    name: Mobile typecheck, lint and bundle (Expo)
+    runs-on: ubuntu-latest
+    # The slowest job in the file: a cold `npm ci` of the React Native tree
+    # plus a cold Metro bundle. 20 minutes fitted a warm local run and would
+    # occasionally not fit a runner, and a timeout fails a gate that was green.
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      CI: 'true'
+      EXPO_NO_TELEMETRY: '1'
+      # The shape a release build needs — an HTTPS origin, not the localhost
+      # value committed in `.env.development`. Nothing in this job consumes it:
+      # `expo export` only bundles, so the release-mode guard on
+      # `EXPO_PUBLIC_API_URL` in src/api/client.ts never evaluates here (it fires
+      # when the app boots, which CI does not do), and workflow env outranks
+      # Expo's per-mode dotenv files regardless. It is set so the job also
+      # passes if a future step imports the module for real.
+      EXPO_PUBLIC_API_URL: https://track.example.invalid/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The app has no test runner yet, so these three are the whole gate — and
+      # the bundle is the only step that proves every module resolves for the
+      # native target, not just for TypeScript.
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Bundle for Android
+        run: npx expo export --platform android
