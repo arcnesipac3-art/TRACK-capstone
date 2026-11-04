@@ -82,6 +82,69 @@ img, svg { display: block; }
 }
 
 /* ---------------------------------------------------------------------
+   Scrollbars
+   ---------------------------------------------------------------------
+   Nothing here paints a track. The gutter stays the colour of whatever the
+   surface under it is, and only the thumb is drawn — a translucent pill
+   floating inside the gutter — so a scroll area reads as part of the layout
+   instead of as a hole cut in it. Values live in the Scrollbars block of
+   tokens.css; a surface that is dark re-points --scroll-thumb /
+   --scroll-thumb-active and inherits the whole treatment (see .sidebar-nav).
+
+   Two engines, two APIs, and they are mutually exclusive: setting
+   scrollbar-color or scrollbar-width to anything other than `auto` makes
+   Chromium ignore every ::-webkit-scrollbar rule on that element (measured —
+   a 30px pseudo gutter becomes 10px the moment scrollbar-width: thin is
+   added). So each branch is gated on whether the browser understands the
+   pseudo-element at all, which is exactly the split between Blink/WebKit and
+   Gecko.
+   --------------------------------------------------------------------- */
+
+@supports selector(::-webkit-scrollbar) {
+  ::-webkit-scrollbar {
+    width: var(--scroll-gutter);
+    height: var(--scroll-gutter);
+  }
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-track-piece,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+  /* No stepper arrows: they are the loudest part of the classic bar and the
+     wheel, the drag and the keyboard all still work without them. */
+  ::-webkit-scrollbar-button {
+    width: 0;
+    height: 0;
+  }
+  ::-webkit-scrollbar-thumb {
+    /* `background` first — the shorthand would reset the clip below it. */
+    background: var(--scroll-thumb);
+    background-clip: content-box;
+    border: 2px solid transparent;
+    border-radius: var(--radius-pill);
+    min-height: 28px;
+    min-width: 28px;
+  }
+  ::-webkit-scrollbar-thumb:hover,
+  ::-webkit-scrollbar-thumb:active {
+    background-color: var(--scroll-thumb-active);
+  }
+}
+
+@supports not (selector(::-webkit-scrollbar)) {
+  /* Firefox has no per-part hooks, so the whole bar is addressed at once and
+     the "quiet at rest, solid when in use" step is keyed to the pointer or
+     keyboard being inside the scroll area rather than on the thumb itself. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scroll-thumb) transparent;
+  }
+  :where(*:hover, *:focus-within) {
+    scrollbar-color: var(--scroll-thumb-active) transparent;
+  }
+}
+
+/* ---------------------------------------------------------------------
    Typography helpers
    --------------------------------------------------------------------- */
 

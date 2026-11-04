@@ -96,6 +96,29 @@
   --navy-line: rgba(255, 255, 255, 0.1);
   --navy-hover: rgba(255, 255, 255, 0.08);
 
+  /* --- Scrollbars -------------------------------------------------------- */
+  /* The gutter is not painted at all — only the thumb is, as a translucent
+     pill floating inside it, so a scroll area reads as the surface it sits on
+     instead of as a hole cut in the layout.
+     The two tones are not symmetric on purpose:
+       rest   1.5:1 against every light surface (1.6:1 against navy) —
+              deliberately below WCAG 1.4.11's 3:1, because "blends with the
+              background" is the brief and the bar is not the only way to
+              scroll (wheel, keys, touch all work without it).
+       active 4.2:1 on white, 4.1:1 on --surface-2, 6.9:1 on navy — once the
+              pointer is over the thumb, the control must be plainly
+              perceivable, and there it clears 3:1.
+     Both are --ink and white at alpha, so one pair of values works on every
+     light surface and every navy one without a per-background variant. */
+  --scroll-thumb: rgba(23, 43, 77, 0.22);
+  --scroll-thumb-active: rgba(23, 43, 77, 0.62);
+  --scroll-thumb-navy: rgba(255, 255, 255, 0.16);
+  --scroll-thumb-navy-active: rgba(255, 255, 255, 0.62);
+  /* The reserved gutter. The pill drawn inside it is 6px — the other 2px on
+     each side is transparent border, which is what keeps a quiet-looking bar
+     comfortably hittable. */
+  --scroll-gutter: 10px;
+
   /* --- Semantic roles ---------------------------------------------------- */
   --success: var(--green-700);
   --success-bg: var(--green-100);
