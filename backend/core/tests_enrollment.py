@@ -1521,6 +1521,102 @@ class StaffQueueAndReportTests(EnrollmentTestCase):
 
 
 # ---------------------------------------------------------------------------
+# Reads behind the registrar student record page
+# ---------------------------------------------------------------------------
+
+class StudentRecordReadsTests(EnrollmentTestCase):
+    """The record page is three ordinary list endpoints narrowed to one
+    learner. The narrowing must stay inside the scope each endpoint already
+    applies, so `?id=`/`?student=` can never reach a row the caller could not
+    already see."""
+
+    def build_application(self, applicant):
+        application = self.make_draft(user=applicant)
+        self.fill_required_documents(application)
+        self.login_as(applicant)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+        )
+        return application
+
+    def test_student_directory_narrows_to_one_profile(self):
+        self.login_as(self.registrar)
+        response = self.client.get(f"/api/students/?id={self.student1.pk}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [row["id"] for row in response.data["results"]], [self.student1.pk]
+        )
+
+    def test_student_directory_id_filter_cannot_escape_the_callers_scope(self):
+        # teacher1 is assigned section_a only, so student2 is invisible even
+        # when asked for by primary key.
+        self.login_as(self.teacher1)
+        response = self.client.get(f"/api/students/?id={self.student2.pk}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 0)
+
+        response = self.client.get(f"/api/students/?id={self.student1.pk}")
+        self.assertEqual(
+            [row["id"] for row in response.data["results"]], [self.student1.pk]
+        )
+
+    def test_student_directory_id_filter_ignores_junk_as_no_matches(self):
+        self.login_as(self.registrar)
+        response = self.client.get("/api/students/?id=not-a-number")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 0)
+
+    def test_user_directory_rows_carry_the_student_profile_id(self):
+        # Directory rows are Users and the record page is keyed on the
+        # profile, so every student row must hand over the link.
+        self.login_as(self.registrar)
+        rows = self.client.get("/api/users/").data["results"]
+        by_username = {row["username"]: row for row in rows}
+        self.assertEqual(
+            by_username["t_student1"]["student_profile_id"], self.student1.pk
+        )
+        self.assertIsNone(by_username["t_registrar"]["student_profile_id"])
+
+    def test_staff_applications_narrow_to_one_student(self):
+        linked = self.build_application(self.applicant1)
+        unrelated = self.build_application(self.applicant2)
+        linked.student = self.student1
+        linked.save()
+        self.login_as(self.registrar)
+
+        response = self.client.get(
+            f"/api/enrollment/applications/?student={self.student1.pk}"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [row["id"] for row in response.data["results"]], [linked.pk]
+        )
+        self.assertNotIn(unrelated.pk, [row["id"] for row in response.data["results"]])
+
+        response = self.client.get("/api/enrollment/applications/?student=999999")
+        self.assertEqual(response.data["count"], 0)
+
+    def test_enrollments_narrow_to_one_student(self):
+        mine = Enrollment.objects.create(
+            student=self.student1, school_year=self.school_year,
+            grade_level=self.grade7, section=self.section_a,
+            confirmed_by=self.registrar, status=Enrollment.Status.ACTIVE,
+        )
+        Enrollment.objects.create(
+            student=self.student2, school_year=self.school_year,
+            grade_level=self.grade7, section=self.section_b,
+            confirmed_by=self.registrar, status=Enrollment.Status.ACTIVE,
+        )
+        self.login_as(self.registrar)
+
+        response = self.client.get(
+            f"/api/enrollment/enrollments/?student={self.student1.pk}"
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([row["id"] for row in response.data["results"]], [mine.pk])
+
+
+# ---------------------------------------------------------------------------
 # Public (account-less) applications
 # ---------------------------------------------------------------------------
 

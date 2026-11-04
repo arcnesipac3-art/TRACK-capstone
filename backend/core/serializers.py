@@ -400,6 +400,9 @@ class AdminUserSerializer(serializers.ModelSerializer):
         data["section"] = student.section_id if student else None
         data["section_name"] = str(student.section) if student and student.section else None
         data["lrn"] = student.lrn if student else ""
+        # The directory row is a User; the student record page is keyed on the
+        # profile, so the link between the two travels with the row.
+        data["student_profile_id"] = student.id if student else None
         data["children"] = (
             list(parent.children.values_list("id", flat=True)) if parent else []
         )

@@ -809,6 +809,12 @@ class StudentProfileListView(generics.ListAPIView):
         section_id = _clean_int(params, "section")
         if section_id is not None:
             queryset = queryset.filter(section_id=section_id)
+        # The student record page reads one learner out of the same scoped
+        # queryset the directory uses, so `?id=` can never reach a student the
+        # caller is not allowed to see.
+        student_id = _clean_int(params, "id")
+        if student_id is not None:
+            queryset = queryset.filter(id=student_id)
         search = (params.get("search") or "").strip()
         if search:
             queryset = queryset.filter(

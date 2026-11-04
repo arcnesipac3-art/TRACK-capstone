@@ -14,6 +14,7 @@ import { roleLabel } from '../utils/format'
 import { useAuth } from '../context/AuthContext'
 import { useConfirm } from '../context/ConfirmContext'
 import Button from '../components/Button'
+import { Link } from 'react-router-dom'
 
 const TITLES = {
   teacher: ['Teachers', 'Teaching accounts on record.'],
@@ -211,6 +212,18 @@ export default function UsersPage({ role }) {
                       </td>
                       <td data-label="Actions">
                         <div className="row-actions">
+                          {/* Opening a record is a read, not a management
+                              action — it is offered to anyone who can see the
+                              directory row. */}
+                          {user.student_profile_id && (
+                            <Link
+                              className="btn btn-ghost btn-sm"
+                              to={`/admin/students/${user.student_profile_id}`}
+                            >
+                              <Icon name="user" size={14} />
+                              Record
+                            </Link>
+                          )}
                           {canTouch && (
                             <>
                           <Button

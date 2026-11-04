@@ -31,6 +31,7 @@ const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 const RequirementsPage = lazy(() => import('./pages/RequirementsPage'))
 const SchedulesPage = lazy(() => import('./pages/SchedulesPage'))
 const SectionsPage = lazy(() => import('./pages/SectionsPage'))
+const StudentRecordPage = lazy(() => import('./pages/StudentRecordPage'))
 const SubmissionsPage = lazy(() => import('./pages/SubmissionsPage'))
 const SystemSettingsPage = lazy(() => import('./pages/SystemSettingsPage'))
 const TeacherClassesPage = lazy(() => import('./pages/TeacherClassesPage'))
@@ -151,6 +152,9 @@ export default function App() {
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route element={<ProtectedRoute permission="users.view" />}>
               <Route path="/admin/students" element={<UsersPage role="student" />} />
+              {/* One learner's record, keyed on the StudentProfile id the
+                  directory row carries. */}
+              <Route path="/admin/students/:id" element={<StudentRecordPage />} />
               <Route path="/admin/teachers" element={<UsersPage role="teacher" />} />
               <Route path="/admin/parents" element={<UsersPage role="parent" />} />
             </Route>

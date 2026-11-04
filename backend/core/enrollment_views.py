@@ -852,7 +852,7 @@ class StaffApplicationListView(generics.ListAPIView):
         ).order_by("-created_at")
 
         params = self.request.query_params
-        for field in ("school_year", "grade_level", "enrollment_type", "status", "period"):
+        for field in ("school_year", "grade_level", "enrollment_type", "status", "period", "student"):
             value = params.get(field)
             if value:
                 qs = qs.filter(**{field: value})
@@ -1360,7 +1360,7 @@ class EnrollmentListView(generics.ListAPIView):
             "-school_year__start_date", "grade_level__order", "student__user__last_name"
         )
         params = self.request.query_params
-        for field in ("school_year", "grade_level", "section", "status"):
+        for field in ("school_year", "grade_level", "section", "status", "student"):
             value = params.get(field)
             if value:
                 qs = qs.filter(**{field: value})

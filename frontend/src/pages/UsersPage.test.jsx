@@ -1,5 +1,6 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import UsersPage from './UsersPage'
 import AuthContext from '../context/AuthContext'
@@ -58,6 +59,9 @@ const STUDENT = {
   is_active: false,
   email: 'learner9@knhs.edu.ph',
   department_detail: [],
+  // The record page is keyed on the profile, not the account, so the row has
+  // to carry the link the server sends.
+  student_profile_id: 41,
 }
 
 const DIRECTORY = [ADMIN_WITH_DEPT, ADMIN_SUPER, TEACHER, STUDENT]
@@ -74,10 +78,14 @@ function mockUsers(users = DIRECTORY, failure = null) {
 function renderPage({ role = 'teacher', permissions = [], users, failure } = {}) {
   mockUsers(users, failure)
   const can = vi.fn((key) => permissions.includes(key))
+  // The student rows now link out to the record page, so the directory needs
+  // the router the shell gives it.
   renderConfirmed(
-    <AuthContext.Provider value={{ user: ME, can, signOut: vi.fn() }}>
-      <UsersPage role={role} />
-    </AuthContext.Provider>
+    <MemoryRouter initialEntries={['/admin/students']}>
+      <AuthContext.Provider value={{ user: ME, can, signOut: vi.fn() }}>
+        <UsersPage role={role} />
+      </AuthContext.Provider>
+    </MemoryRouter>
   )
   return { can }
 }
@@ -201,6 +209,23 @@ describe('UsersPage', () => {
     expect(within(teacher).queryByRole('button', { name: /Edit/ })).toBeNull()
     expect(within(superAdmin).queryByRole('button', { name: /Edit/ })).toBeNull()
     expect(within(learner).getByRole('button', { name: /Edit/ })).toBeInTheDocument()
+  })
+
+  it('links a student row to the record page without needing write rights', async () => {
+    // Opening a record is a read, so a plain directory viewer gets it.
+    renderPage({ role: 'student', permissions: ['users.view'] })
+
+    const learner = await row('learner9')
+    const record = within(learner).getByRole('link', { name: 'Record' })
+    expect(record).toHaveAttribute('href', '/admin/students/41')
+    expect(within(learner).queryByRole('button', { name: /Edit/ })).toBeNull()
+  })
+
+  it('offers the record link only to rows that are learners', async () => {
+    renderPage({ role: 'teacher', permissions: MANAGE })
+
+    const teacher = await row('Tina Teacher')
+    expect(within(teacher).queryByRole('link', { name: 'Record' })).toBeNull()
   })
 
   it('refuses to let an administrator deactivate their own account', async () => {
