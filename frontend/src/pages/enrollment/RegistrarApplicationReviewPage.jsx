@@ -6,6 +6,7 @@ import StatusBadge from '../../components/StatusBadge'
 import ButtonLoader from '../../components/loading/ButtonLoader'
 import CardSkeleton from '../../components/loading/CardSkeleton'
 import TableSkeleton from '../../components/loading/TableSkeleton'
+import DocumentStaffActions from '../../components/enrollment/DocumentStaffActions'
 import DocumentViewerModal from '../../components/enrollment/DocumentViewerModal'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -342,6 +343,22 @@ export default function RegistrarApplicationReviewPage() {
     } finally {
       setBusy(null)
     }
+  }
+
+  /**
+   * A ruling made from inside the viewer. The endpoint answers with the whole
+   * document, so the open file keeps its place and only its status changes.
+   */
+  async function ruleFromViewer(updated, action) {
+    setViewing({ ...updated })
+    setAlert({
+      kind: 'success',
+      text:
+        action === 'verify'
+          ? `Verified — ${updated.name}.`
+          : `Document updated — ${updated.name}.`,
+    })
+    await loadDetail()
   }
 
   async function downloadDocument(doc) {
@@ -1276,6 +1293,18 @@ export default function RegistrarApplicationReviewPage() {
         doc={viewing}
         applicationId={id}
         onClose={() => setViewing(null)}
+        // The same rulings the document rows carry, on the file itself, so a
+        // read and the decision about it happen in one place.
+        actions={
+          canManage && viewing ? (
+            <DocumentStaffActions
+              key={viewing.id}
+              applicationId={id}
+              doc={viewing}
+              onDone={ruleFromViewer}
+            />
+          ) : null
+        }
       />
     </div>
   )

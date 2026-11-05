@@ -1,0 +1,43 @@
+.doc-staff-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The dialog footer wraps and right-aligns; taking the full width drops the
+   question onto its own row under the buttons instead of squeezing it between
+   Download and Close. */
+.doc-staff-panel {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  text-align: left;
+}
+
+.doc-staff-panel .textarea {
+  min-height: 64px;
+}
+
+.doc-staff-question {
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+
+.doc-staff-panel-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* The server's refusal after a plain Verify has no question panel to sit in,
+   so it takes the panel's row instead. */
+.doc-staff-failure {
+  flex-basis: 100%;
+  text-align: left;
+}

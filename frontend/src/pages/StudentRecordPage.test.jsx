@@ -221,6 +221,75 @@ describe('StudentRecordPage', () => {
     )
   })
 
+  it('rules on a filed document from the record, in place', async () => {
+    mockReads()
+    URL.createObjectURL = vi.fn(() => 'blob:record')
+    URL.revokeObjectURL = vi.fn()
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: () => Promise.resolve(new Blob(['%PDF-1.4'], { type: 'application/pdf' })),
+    })
+    api.post.mockResolvedValue({
+      ...BIRTH_CERTIFICATE,
+      status: 'verified',
+      status_display: 'Verified',
+      verified_at: '2026-06-02T09:00:00+08:00',
+      verified_by_name: 'Ria Registrar',
+    })
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('tab', { name: 'Documents' }))
+    const docCard = (await screen.findByText('PSA Birth Certificate')).closest('.doc-item')
+    await user.click(within(docCard).getByRole('button', { name: 'View' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'PSA Birth Certificate' })
+    await user.click(within(dialog).getByRole('button', { name: 'Verify' }))
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith(
+        '/enrollment/applications/9/documents/3/action/',
+        { action: 'verify' }
+      )
+    )
+    // The open preview stays open, its bar and the row behind it both flip.
+    expect(within(dialog).getByText('Verified')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(within(docCard).getByText('Verified')).toBeInTheDocument()
+    )
+    expect(within(docCard).getByText(/Ria Registrar/)).toBeInTheDocument()
+    // The checklist was re-read, not rebuilt from the client's guess: the mount
+    // read is the first, the ruling behind it is the second.
+    const appReads = () =>
+      api.list.mock.calls.filter(([path]) => path === '/enrollment/applications/').length
+    await waitFor(() => expect(appReads()).toBeGreaterThan(1))
+    expect(screen.getByText('Form 137')).toBeInTheDocument()
+  })
+
+  it('gives a record viewer without enrollment.manage no ruling controls', async () => {
+    mockAuth.can = (key) => key !== 'enrollment.manage'
+    mockReads()
+    URL.createObjectURL = vi.fn(() => 'blob:record')
+    URL.revokeObjectURL = vi.fn()
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: () => Promise.resolve(new Blob(['%PDF-1.4'], { type: 'application/pdf' })),
+    })
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('tab', { name: 'Documents' }))
+    const docCard = (await screen.findByText('PSA Birth Certificate')).closest('.doc-item')
+    await user.click(within(docCard).getByRole('button', { name: 'View' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'PSA Birth Certificate' })
+    expect(await within(dialog).findByTitle('Preview of PSA Birth Certificate')).toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'Verify' })).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: 'Return' })).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: 'Waive' })).toBeNull()
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
   it('withholds the enrollment half from an account without enrollment.view', async () => {
     mockAuth.can = (key) => key === 'users.view'
     mockReads()

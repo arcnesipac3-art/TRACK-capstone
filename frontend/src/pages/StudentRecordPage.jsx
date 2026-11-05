@@ -1,5 +1,6 @@
 import Button from '../components/Button'
 import CardSkeleton from '../components/loading/CardSkeleton'
+import DocumentStaffActions from '../components/enrollment/DocumentStaffActions'
 import DocumentViewerModal from '../components/enrollment/DocumentViewerModal'
 import EmptyState from '../components/EmptyState'
 import ErrorMessage from '../components/ErrorMessage'
@@ -44,6 +45,9 @@ export default function StudentRecordPage() {
   // enrollment half of it stays behind the enrollment key that guards every
   // other Registrar screen.
   const canEnrollment = can('enrollment.view')
+  // Ruling on a document is the same write the review screen does, so it is
+  // guarded by the same permission the endpoint checks.
+  const canManage = can('enrollment.manage')
   const [tab, setTab] = useState('overview')
   const [viewing, setViewing] = useState(null)
 
@@ -106,6 +110,30 @@ export default function StudentRecordPage() {
       applications.reload()
       enrollments.reload()
     }
+  }
+
+  /**
+   * A ruling made from inside the viewer. The action endpoint answers with the
+   * whole document, so the open preview and its row update from that response
+   * and stay in place; the application counts are re-read behind it.
+   */
+  function ruleFromViewer(updated) {
+    const applicationId = viewing?.applicationId
+    if (!applicationId) return
+    setViewing((current) => (current ? { ...updated, applicationId } : current))
+    setDocGroups((groups) =>
+      (groups || []).map((group) =>
+        group.id === applicationId
+          ? {
+              ...group,
+              documents: group.documents.map((doc) =>
+                doc.id === updated.id ? { ...doc, ...updated } : doc
+              ),
+            }
+          : group
+      )
+    )
+    applications.reload()
   }
 
   async function download(applicationId, doc) {
@@ -455,7 +483,8 @@ export default function StudentRecordPage() {
               />
             )}
 
-            {(docLoading || applications.loading) && <TableSkeleton rows={3} />}
+            {/* A re-read behind an already-painted list must not blank it. */}
+            {(docLoading || (applications.loading && !docGroups)) && <TableSkeleton rows={3} />}
 
             {!docLoading && !applications.loading && apps.length === 0 && (
               <EmptyState
@@ -466,7 +495,7 @@ export default function StudentRecordPage() {
               />
             )}
 
-            {!docLoading && !applications.loading && docGroups?.length > 0 && docGroups.map((group) => {
+            {!docLoading && docGroups?.length > 0 && docGroups.map((group) => {
               const filed = group.documents.filter((doc) => doc.file || doc.download_url)
               return (
                 <div className="stack stack-xs" key={group.id}>
@@ -547,6 +576,18 @@ export default function StudentRecordPage() {
         doc={viewing}
         applicationId={viewing?.applicationId}
         onClose={() => setViewing(null)}
+        // The Registrar rules on the file from the record itself — no trip back
+        // to the application to change one document's status.
+        actions={
+          canManage && viewing ? (
+            <DocumentStaffActions
+              key={viewing.id}
+              applicationId={viewing.applicationId}
+              doc={viewing}
+              onDone={ruleFromViewer}
+            />
+          ) : null
+        }
       />
     </div>
   )

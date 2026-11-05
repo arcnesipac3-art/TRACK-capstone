@@ -130,4 +130,37 @@ describe('DocumentViewerModal', () => {
     expect(global.fetch).not.toHaveBeenCalled()
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
+
+  it('keeps the open file and shows the new status when the same document is ruled on', async () => {
+    global.fetch.mockResolvedValue(
+      jsonResponse(new Blob(['%PDF-1.4'], { type: 'application/pdf' }))
+    )
+    const view = render(
+      <DocumentViewerModal
+        open
+        doc={PDF_DOC}
+        applicationId={9}
+        onClose={() => {}}
+        actions={<button type="button">Verify</button>}
+      />
+    )
+    await screen.findByTitle('Preview of PSA Birth Certificate')
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+
+    // The caller replaces the row with the server's answer: same id, new status.
+    view.rerender(
+      <DocumentViewerModal
+        open
+        doc={{ ...PDF_DOC, status: 'verified', status_display: 'Verified' }}
+        applicationId={9}
+        onClose={() => {}}
+        actions={<button type="button">Verify</button>}
+      />
+    )
+
+    expect(screen.getByText('Verified')).toBeInTheDocument()
+    // Ruling is not re-uploading the file — the preview is the one already read.
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Verify' })).toBeInTheDocument()
+  })
 })

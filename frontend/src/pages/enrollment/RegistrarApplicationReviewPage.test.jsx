@@ -222,6 +222,120 @@ describe('RegistrarApplicationReviewPage', () => {
     expect(api.post).not.toHaveBeenCalled()
   })
 
+  it('verifies the document it is showing, without closing the preview', async () => {
+    mockApi()
+    URL.createObjectURL = vi.fn(() => 'blob:viewer')
+    URL.revokeObjectURL = vi.fn()
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: () =>
+        Promise.resolve(new Blob(['%PDF-1.4'], { type: 'application/pdf' })),
+    })
+    api.post.mockResolvedValue({
+      ...DOCUMENT,
+      status: 'verified',
+      status_display: 'Verified',
+      verified_at: '2026-06-02T09:00:00+08:00',
+      verified_by_name: 'Ria Registrar',
+    })
+    const user = userEvent.setup()
+    renderPage()
+
+    const docCard = (await screen.findByText('PSA Birth Certificate')).closest(
+      '.doc-item'
+    )
+    await user.click(within(docCard).getByRole('button', { name: 'View' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'PSA Birth Certificate' })
+    // The row's Verify and the viewer's are the same write; this one is inside
+    // the dialog, so the click cannot land on the row behind it.
+    await user.click(within(dialog).getByRole('button', { name: 'Verify' }))
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith(
+        '/enrollment/applications/9/documents/3/action/',
+        { action: 'verify' }
+      )
+    )
+    expect(within(dialog).getByText('Verified')).toBeInTheDocument()
+    expect(screen.getByTitle('Preview of PSA Birth Certificate')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Verified — PSA Birth Certificate.')
+    ).toBeInTheDocument()
+  })
+
+  it('returns the document from the viewer only with a note', async () => {
+    mockApi()
+    URL.createObjectURL = vi.fn(() => 'blob:viewer')
+    URL.revokeObjectURL = vi.fn()
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: () =>
+        Promise.resolve(new Blob(['%PDF-1.4'], { type: 'application/pdf' })),
+    })
+    api.post.mockResolvedValue({
+      ...DOCUMENT,
+      status: 'returned',
+      status_display: 'Returned',
+      review_note: 'Re-scan the reverse side.',
+    })
+    const user = userEvent.setup()
+    renderPage()
+
+    const docCard = (await screen.findByText('PSA Birth Certificate')).closest(
+      '.doc-item'
+    )
+    await user.click(within(docCard).getByRole('button', { name: 'View' }))
+    const dialog = await screen.findByRole('dialog', { name: 'PSA Birth Certificate' })
+
+    await user.click(within(dialog).getByRole('button', { name: 'Return' }))
+    const panel = await within(dialog).findByText(/what must be corrected/i)
+    expect(panel).toBeInTheDocument()
+
+    // An empty note is the one thing the endpoint must not file.
+    await user.click(within(dialog).getByRole('button', { name: 'Return document' }))
+    expect(
+      within(dialog).getByText(/the applicant sees this note/i)
+    ).toBeInTheDocument()
+    expect(api.post).not.toHaveBeenCalled()
+
+    await user.type(within(dialog).getByLabelText(/what must be corrected/i), 'Re-scan the reverse side.')
+    await user.click(within(dialog).getByRole('button', { name: 'Return document' }))
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith(
+        '/enrollment/applications/9/documents/3/action/',
+        { action: 'return', note: 'Re-scan the reverse side.' }
+      )
+    )
+    expect(await within(dialog).findByText('Returned')).toBeInTheDocument()
+  })
+
+  it('gives a reviewer without enrollment.manage no ruling controls in the viewer', async () => {
+    mockApi()
+    mockAuth.can = (key) => key !== 'enrollment.manage'
+    URL.createObjectURL = vi.fn(() => 'blob:viewer')
+    URL.revokeObjectURL = vi.fn()
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: () =>
+        Promise.resolve(new Blob(['%PDF-1.4'], { type: 'application/pdf' })),
+    })
+    const user = userEvent.setup()
+    renderPage()
+
+    const docCard = (await screen.findByText('PSA Birth Certificate')).closest(
+      '.doc-item'
+    )
+    await user.click(within(docCard).getByRole('button', { name: 'View' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'PSA Birth Certificate' })
+    expect(within(dialog).getByRole('button', { name: /download/i })).toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'Verify' })).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: 'Return' })).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: 'Waive' })).toBeNull()
+  })
+
   it('confirms enrollment only when accepted, assigned and permitted', async () => {
     mockApi({
       detail: {

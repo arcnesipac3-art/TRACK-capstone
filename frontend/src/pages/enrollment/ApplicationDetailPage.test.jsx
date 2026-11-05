@@ -131,6 +131,31 @@ describe('ApplicationDetailPage', () => {
     expect(screen.queryByText('77')).not.toBeInTheDocument()
   })
 
+  it('previews a filed document, and rules on nothing', async () => {
+    // The applicant's viewer is the staff viewer with the ruling controls left
+    // out — Verify / Return / Waive belong to the Registrar, never here.
+    URL.createObjectURL = vi.fn(() => 'blob:applicant')
+    URL.revokeObjectURL = vi.fn()
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: () => Promise.resolve(new Blob(['%PDF-1.4'], { type: 'application/pdf' })),
+    })
+    const user = userEvent.setup()
+    renderDetail(makeDetail())
+
+    await user.click(screen.getByRole('button', { name: /^view$/i }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Birth Certificate' })
+    expect(
+      within(dialog).getByTitle('Preview of Birth Certificate')
+    ).toHaveAttribute('src', 'blob:applicant')
+    expect(within(dialog).getByRole('button', { name: /download/i })).toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'Verify' })).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: 'Return' })).toBeNull()
+    expect(within(dialog).queryByRole('button', { name: 'Waive' })).toBeNull()
+    expect(api.post).not.toHaveBeenCalled()
+  })
+
   it('withdraws through a confirmation dialog without double submission', async () => {
     // Never-resolving promise keeps the button in its busy state so the
     // double-click guard can be observed.
