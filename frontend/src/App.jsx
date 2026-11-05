@@ -58,6 +58,7 @@ const ApplicationWizardPage = lazy(() => import('./pages/enrollment/ApplicationW
 const MyApplicationsPage = lazy(() => import('./pages/enrollment/MyApplicationsPage'))
 const ApplicationDetailPage = lazy(() => import('./pages/enrollment/ApplicationDetailPage'))
 const MyEnrollmentsPage = lazy(() => import('./pages/enrollment/MyEnrollmentsPage'))
+const LearnerDocumentsPage = lazy(() => import('./pages/enrollment/LearnerDocumentsPage'))
 const RegistrarDashboard = lazy(() => import('./pages/enrollment/RegistrarDashboard'))
 const RegistrarApplicationsPage = lazy(() => import('./pages/enrollment/RegistrarApplicationsPage'))
 const RegistrarApplicationReviewPage = lazy(() => import('./pages/enrollment/RegistrarApplicationReviewPage'))
@@ -219,6 +220,8 @@ export default function App() {
               <Route path="new" element={<ApplicationWizardPage />} />
               <Route path="applications" element={<MyApplicationsPage />} />
               <Route path="applications/:id" element={<ApplicationDetailPage />} />
+              {/* Every filed document across this account's applications. */}
+              <Route path="documents" element={<LearnerDocumentsPage />} />
               <Route path="history" element={<MyEnrollmentsPage />} />
             </Route>
             <Route path="/student/requirements" element={<RequirementsPage scope="student" />} />
@@ -235,6 +238,8 @@ export default function App() {
               <Route path="new" element={<ApplicationWizardPage />} />
               <Route path="applications" element={<MyApplicationsPage />} />
               <Route path="applications/:id" element={<ApplicationDetailPage />} />
+              {/* A parent sees the same list for every linked child. */}
+              <Route path="documents" element={<LearnerDocumentsPage />} />
               <Route path="history" element={<MyEnrollmentsPage />} />
             </Route>
             <Route path="/parent/children" element={<ParentChildrenPage />} />

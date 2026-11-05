@@ -121,6 +121,9 @@ export default function EnrollmentLandingPage() {
             <ButtonLink variant="ghost" size="xs" to="applications">
               View all applications
             </ButtonLink>
+            <ButtonLink variant="ghost" size="xs" to="documents">
+              My documents
+            </ButtonLink>
             <ButtonLink variant="ghost" size="xs" to="history">
               My enrollments
             </ButtonLink>
