@@ -22,6 +22,7 @@ const AnnouncementsPage = lazy(() => import('./pages/AnnouncementsPage'))
 const AttendancePage = lazy(() => import('./pages/AttendancePage'))
 const AssignmentsPage = lazy(() => import('./pages/AssignmentsPage'))
 const AuditLogsPage = lazy(() => import('./pages/AuditLogsPage'))
+const ClassTimetablePage = lazy(() => import('./pages/ClassTimetablePage'))
 const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage'))
 const MessagesPage = lazy(() => import('./pages/MessagesPage'))
 const NotificationsPage = lazy(() => import('./pages/NotificationsPage'))
@@ -205,6 +206,9 @@ export default function App() {
                 requirements, submissions, attendance and grades never
                 remounts the class or refetches its rows. */}
             <Route path="/teacher/classes/:assignmentId/*" element={<TeacherClassWorkspace />} />
+            {/* The Registrar's timetable, read-only: the server answers
+                /schedules/ with this teacher's own classes and nothing else. */}
+            <Route path="/teacher/schedule" element={<ClassTimetablePage scope="teacher" />} />
             {/* Kept live for bookmarks, the dashboard shortcuts and roles that
                 share these screens. My Classes is the normal way in. */}
             <Route path="/teacher/requirements" element={<RequirementsPage scope="teacher" />} />
@@ -228,6 +232,9 @@ export default function App() {
             <Route path="/student/submissions" element={<SubmissionsPage mode="mine" />} />
             <Route path="/student/attendance" element={<AttendancePage mode="student" />} />
             <Route path="/student/fees" element={<StudentFeesPage />} />
+            {/* The section's timetable, read-only: the server answers
+                /schedules/ with this learner's own section and nothing else. */}
+            <Route path="/student/schedule" element={<ClassTimetablePage scope="student" />} />
           </Route>
 
           {/* Parent */}
@@ -246,6 +253,8 @@ export default function App() {
             <Route path="/parent/requirements" element={<RequirementsPage scope="parent" />} />
             <Route path="/parent/attendance" element={<AttendancePage mode="parent" />} />
             <Route path="/parent/fees" element={<ParentFeesPage />} />
+            {/* One child's week at a time; the server checks the linkage. */}
+            <Route path="/parent/schedule" element={<ClassTimetablePage scope="parent" />} />
           </Route>
         </Route>
       </Route>

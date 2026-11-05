@@ -37,12 +37,15 @@ describe('NAVIGATION', () => {
     })
   })
 
-  it('never renders a disabled item as a fake link', () => {
+  it('offers no item that is only a promise', () => {
+    // `enabled: false` used to grey out the learner's Schedule; every entry
+    // now opens a real screen. Reintroducing a placeholder is a deliberate
+    // act — add it to this list only when the item truly has no route, and
+    // keep it route-less so the sidebar renders it disabled.
     const disabled = ROLES.flatMap((role) =>
       NAVIGATION[role].filter((i) => i.enabled === false)
     )
-    expect(disabled.length).toBeGreaterThan(0)
-    disabled.forEach((item) => expect(item.to).toBeUndefined())
+    expect(disabled).toEqual([])
   })
 
   it('uses unique routes within each role so active-state matching is unambiguous', () => {
@@ -67,16 +70,59 @@ describe('navForRole', () => {
   })
 })
 
+describe('student navigation — the week is a page, not a placeholder', () => {
+  it('links the timetable entry the learner used to only see greyed out', () => {
+    expect(navForRole('student')).toEqual(
+      expect.arrayContaining([{ label: 'My Schedule', to: '/student/schedule', icon: 'clock' }])
+    )
+    expect(navForRole('student').some((item) => item.enabled === false)).toBe(false)
+    expect(titleForPath('/student/schedule', 'student')).toBe('My Schedule')
+  })
+})
+
+describe('parent navigation', () => {
+  it('offers the timetable beside the other things a parent reads about a child', () => {
+    expect(navForRole('parent').map((item) => item.to)).toEqual([
+      '/parent/dashboard',
+      '/parent/enrollment',
+      '/parent/children',
+      '/parent/requirements',
+      '/parent/attendance',
+      '/parent/fees',
+      '/parent/schedule',
+      '/announcements',
+      '/messages',
+      '/notifications',
+      '/profile',
+    ])
+    expect(titleForPath('/parent/schedule', 'parent')).toBe('Schedule')
+    expect(trailForPath('/parent/schedule', 'parent')).toEqual([
+      { label: 'Dashboard', to: '/parent/dashboard' },
+      { label: 'Schedule', to: '/parent/schedule' },
+    ])
+  })
+})
+
 describe('teacher navigation — My Classes is the workspace', () => {
-  it('offers only the six entries a teacher navigates by', () => {
+  it('offers only the seven entries a teacher navigates by', () => {
     expect(navForRole('teacher').map((item) => item.label)).toEqual([
       'Dashboard',
       'My Classes',
+      'Schedule',
       'Announcements',
       'Messages',
       'Notifications',
       'Profile',
     ])
+  })
+
+  it('gives the week its own entry, outside any single class', () => {
+    // My Classes owns what happens inside one section; the timetable is the
+    // teacher's whole week across sections, so it is not a class activity.
+    expect(navForRole('teacher')).toEqual(
+      expect.arrayContaining([{ label: 'Schedule', to: '/teacher/schedule', icon: 'clock' }])
+    )
+    expect(titleForPath('/teacher/schedule', 'teacher')).toBe('Schedule')
   })
 
   it('keeps the modules that moved inside a class off the sidebar but reachable', () => {

@@ -22,7 +22,7 @@ const BLOCKED_PERIODS = [
   [4, 2],
 ]
 
-function TimetableCard({ schedule, hasConflict, conflictReasons, onOpen, onEdit, onDelete }) {
+function TimetableCard({ schedule, hasConflict, conflictReasons, onOpen, onEdit, onDelete, readOnly }) {
   const detail = schedule.teacher_assignment_detail
   const tooltip = conflictReasons.join('; ')
 
@@ -67,42 +67,44 @@ function TimetableCard({ schedule, hasConflict, conflictReasons, onOpen, onEdit,
         )}
       </button>
 
-      <Popover
-        wrapClassName="timetable-card-menu"
-        triggerClassName="timetable-card-menu-trigger"
-        panelClassName="timetable-card-dropdown"
-        panelRole="menu"
-        panelLabel="Schedule actions"
-        triggerLabel="Schedule actions"
-        trigger={<Icon name="moreVertical" size={16} />}
-      >
-        {({ close }) => (
-          <>
-            <button
-              type="button"
-              className="timetable-card-dropdown-item"
-              onClick={() => {
-                close()
-                onEdit(schedule)
-              }}
-            >
-              <Icon name="pencil" size={14} />
-              Edit
-            </button>
-            <button
-              type="button"
-              className="timetable-card-dropdown-item danger"
-              onClick={() => {
-                close()
-                onDelete(schedule)
-              }}
-            >
-              <Icon name="trash" size={14} />
-              Delete
-            </button>
-          </>
-        )}
-      </Popover>
+      {!readOnly && (
+        <Popover
+          wrapClassName="timetable-card-menu"
+          triggerClassName="timetable-card-menu-trigger"
+          panelClassName="timetable-card-dropdown"
+          panelRole="menu"
+          panelLabel="Schedule actions"
+          triggerLabel="Schedule actions"
+          trigger={<Icon name="moreVertical" size={16} />}
+        >
+          {({ close }) => (
+            <>
+              <button
+                type="button"
+                className="timetable-card-dropdown-item"
+                onClick={() => {
+                  close()
+                  onEdit(schedule)
+                }}
+              >
+                <Icon name="pencil" size={14} />
+                Edit
+              </button>
+              <button
+                type="button"
+                className="timetable-card-dropdown-item danger"
+                onClick={() => {
+                  close()
+                  onDelete(schedule)
+                }}
+              >
+                <Icon name="trash" size={14} />
+                Delete
+              </button>
+            </>
+          )}
+        </Popover>
+      )}
     </div>
   )
 }
@@ -115,6 +117,7 @@ export default function TimetableGrid({
   onScheduleClick,
   onEdit,
   onDelete,
+  readOnly = false,
 }) {
   const days = timetableDays(schedules)
   const periods = generatePeriodGrid(schedules)
@@ -131,7 +134,11 @@ export default function TimetableGrid({
         <EmptyState
           icon="calendar"
           title="No periods to display"
-          message="Add schedules with start and end times to see the weekly timetable."
+          message={
+            readOnly
+              ? 'These classes carry no start and end times yet, so there is nothing to lay out.'
+              : 'Add schedules with start and end times to see the weekly timetable.'
+          }
         />
       </div>
     )
@@ -200,6 +207,7 @@ export default function TimetableGrid({
                           onOpen={onScheduleClick}
                           onEdit={onEdit}
                           onDelete={onDelete}
+                          readOnly={readOnly}
                         />
                       </td>
                     )
@@ -219,6 +227,7 @@ export default function TimetableGrid({
                             onOpen={onScheduleClick}
                             onEdit={onEdit}
                             onDelete={onDelete}
+                            readOnly={readOnly}
                           />
                         ))}
                       </div>

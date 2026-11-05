@@ -1176,19 +1176,70 @@ class SubmissionDetailView(generics.RetrieveUpdateAPIView):
 # ---------------------------------------------------------------------------
 
 class ClassScheduleListCreateView(generics.ListCreateAPIView):
-    """Admin can create schedules, teachers can view their own."""
+    """
+    The week's classes, scoped to whoever is asking.
+
+    Admin sees every period (and is the only role that may create one), a
+    teacher sees the periods they teach, a learner sees the periods of the
+    section they belong to, and a parent sees the week of one linked child
+    (`?child=`). The same scoping the requirements list already uses, so a
+    student's timetable is their section's timetable.
+    """
+
     permission_classes = [IsAuthenticated]
     serializer_class = ClassScheduleSerializer
+
+    @staticmethod
+    def _for_assignments(assignments):
+        # The serializer reads teacher name, subject, and the full section
+        # label ("Grade 7 — Sampaguita (2026-2027)") off every row, so those
+        # joins are pulled in one go: a week is dozens of periods and this
+        # screen is read-only, so it should answer in a single query.
+        return ClassSchedule.objects.filter(
+            teacher_assignment__in=assignments
+        ).select_related(
+            "teacher_assignment__teacher",
+            "teacher_assignment__subject",
+            "teacher_assignment__section__grade_level",
+            "teacher_assignment__section__school_year",
+        )
 
     def get_queryset(self):
         user = self.request.user
         if user.is_admin:
             return ClassSchedule.objects.select_related("teacher_assignment")
         if user.is_teacher:
-            assignments = TeacherAssignment.objects.filter(teacher=user)
-            return ClassSchedule.objects.filter(
-                teacher_assignment__in=assignments
-            ).select_related("teacher_assignment")
+            return self._for_assignments(TeacherAssignment.objects.filter(teacher=user))
+        if user.is_student:
+            try:
+                section = user.student_profile.section
+            except StudentProfile.DoesNotExist:
+                return ClassSchedule.objects.none()
+            if not section:
+                return ClassSchedule.objects.none()
+            return self._for_assignments(TeacherAssignment.objects.filter(section=section))
+        if user.is_parent:
+            # A parent reads the week of a child on their own account. `?child=`
+            # picks one of the linked children; a child that is not linked, or
+            # an id that is not a child at all, answers with an empty week
+            # rather than another family's schedule — enforced here, not in the
+            # browser, and the same rule the requirements list already follows.
+            try:
+                children = user.parent_profile.children.all()
+            except ParentProfile.DoesNotExist:
+                return ClassSchedule.objects.none()
+            child_id = self.request.query_params.get("child")
+            if child_id:
+                try:
+                    children = children.filter(pk=int(child_id))
+                except (TypeError, ValueError):
+                    return ClassSchedule.objects.none()
+            sections = [c.section_id for c in children if c.section_id]
+            if not sections:
+                return ClassSchedule.objects.none()
+            return self._for_assignments(
+                TeacherAssignment.objects.filter(section_id__in=sections)
+            )
         return ClassSchedule.objects.none()
 
     def perform_create(self, serializer):

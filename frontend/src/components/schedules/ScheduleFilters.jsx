@@ -11,18 +11,29 @@ const FILTERS = [
 ]
 
 /**
- * The four timetable filters.
+ * The timetable filters.
  *
  * They narrow the view only: the conflict panel and the KPI strip keep reading
  * every schedule, because a double-booking does not stop existing just because
  * one of its two classes is filtered out.
+ *
+ * `fields` limits which of the four are offered — a learner has one section and
+ * one teacher roster, so asking them to filter by either is noise.
  */
-export default function ScheduleFilters({ options, values, onChange, onClear, disabled }) {
-  const active = FILTERS.some((filter) => values[filter.key])
+export default function ScheduleFilters({
+  options,
+  values,
+  onChange,
+  onClear,
+  disabled,
+  fields,
+}) {
+  const shown = fields ? FILTERS.filter((filter) => fields.includes(filter.key)) : FILTERS
+  const active = shown.some((filter) => values[filter.key])
 
   return (
     <div className="sched-filters">
-      {FILTERS.map((filter) => {
+      {shown.map((filter) => {
         const listId = `filter-${filter.key}`
         return (
           <div className="field" key={filter.key}>

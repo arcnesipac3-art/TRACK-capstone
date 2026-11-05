@@ -3,7 +3,12 @@ import Icon from '../Icon'
 import Modal from '../Modal'
 import { dayLabel, timeRange } from '../../utils/schedules'
 
-/** Read-only view of one period, opened by clicking its block in the grid. */
+/**
+ * Read-only view of one period, opened by clicking its block in the grid.
+ *
+ * Editing belongs to whoever holds `structure.manage`, so the two authoring
+ * actions appear only when the caller passes their handlers.
+ */
 export default function ScheduleDetailModal({ schedule, onClose, onEdit, onDelete }) {
   if (!schedule) return null
   const detail = schedule.teacher_assignment_detail
@@ -26,18 +31,22 @@ export default function ScheduleDetailModal({ schedule, onClose, onEdit, onDelet
       width={500}
       footer={
         <>
-          <Button variant="danger" size="sm" onClick={() => onDelete(schedule)}>
-            <Icon name="trash" size={14} />
-            Delete
-          </Button>
+          {onDelete && (
+            <Button variant="danger" size="sm" onClick={() => onDelete(schedule)}>
+              <Icon name="trash" size={14} />
+              Delete
+            </Button>
+          )}
           <span className="grow" />
           <Button variant="secondary" size="sm" onClick={onClose}>
             Close
           </Button>
-          <Button variant="primary" size="sm" onClick={() => onEdit(schedule)}>
-            <Icon name="pencil" size={14} />
-            Edit
-          </Button>
+          {onEdit && (
+            <Button variant="primary" size="sm" onClick={() => onEdit(schedule)}>
+              <Icon name="pencil" size={14} />
+              Edit
+            </Button>
+          )}
         </>
       }
     >

@@ -5,7 +5,7 @@ Run from the backend folder:
     python manage.py test core
 """
 
-from datetime import timedelta
+from datetime import time, timedelta
 from decimal import Decimal
 from io import StringIO
 
@@ -21,6 +21,7 @@ from .models import (
     AuditLog,
     AttendanceRecord,
     AttendanceSession,
+    ClassSchedule,
     Department,
     DepartmentPermission,
     FeeAssessment,
@@ -512,6 +513,106 @@ class ParentScopedDataTests(TrackTestCase):
         )
         self.assertEqual(allowed.status_code, 200)
         self.assertEqual(allowed.json()["results"], [])
+
+
+class ScheduleScopeTests(TrackTestCase):
+    """Who may read which rows of the weekly timetable.
+
+    The read-only timetable screens (`/teacher/schedule`, `/student/schedule`,
+    `/parent/schedule`) all ask `GET /api/schedules/`, so the scoping that
+    keeps one learner's week away from another lives here, on the server.
+    """
+
+    def setUp(self):
+        ClassSchedule.objects.create(
+            teacher_assignment=self.assignment1,
+            day_of_week=ClassSchedule.DayOfWeek.MONDAY,
+            start_time=time(7, 30),
+            end_time=time(8, 30),
+        )
+        ClassSchedule.objects.create(
+            teacher_assignment=self.assignment2,
+            day_of_week=ClassSchedule.DayOfWeek.MONDAY,
+            start_time=time(8, 30),
+            end_time=time(9, 30),
+        )
+
+    def rows(self):
+        response = self.client.get("/api/schedules/")
+        self.assertEqual(response.status_code, 200)
+        return response.json()["results"]
+
+    def test_student_sees_only_their_sections_week(self):
+        self.login_as(self.student1_user)
+        sections = {row["teacher_assignment_detail"]["section_name"] for row in self.rows()}
+        self.assertEqual(sections, {"Grade 7 — Sampaguita (2026-2027)"})
+
+    def test_the_timetable_row_names_the_class_the_grid_draws(self):
+        self.login_as(self.student1_user)
+        detail = self.rows()[0]["teacher_assignment_detail"]
+        for key in ("teacher_name", "subject_name", "section_name", "grade_level"):
+            self.assertIn(key, detail)
+
+    def test_student_without_a_section_has_no_week_to_read(self):
+        self.student1.section = None
+        self.student1.save()
+        self.login_as(self.student1_user)
+        self.assertEqual(self.rows(), [])
+
+    def test_student_without_a_profile_is_not_an_error(self):
+        User.objects.create_user(
+            username="t_orphan", password="pass-Orph123", role=User.Role.STUDENT,
+            first_name="Ol", last_name="Orphan",
+        )
+        self.client.login(username="t_orphan", password="pass-Orph123")
+        self.assertEqual(self.rows(), [])
+
+    def test_a_learner_cannot_book_a_period(self):
+        self.login_as(self.student1_user)
+        response = self.client.post(
+            "/api/schedules/",
+            {
+                "teacher_assignment": self.assignment1.id,
+                "day_of_week": ClassSchedule.DayOfWeek.FRIDAY,
+                "start_time": "15:00",
+                "end_time": "16:00",
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_parent_reads_the_week_of_a_linked_child(self):
+        self.login_as(self.parent)
+        sections = {
+            row["teacher_assignment_detail"]["section_name"] for row in self.rows()
+        }
+        self.assertEqual(sections, {"Grade 7 — Sampaguita (2026-2027)"})
+
+    def test_parent_may_name_a_linked_child_on_the_read(self):
+        self.login_as(self.parent)
+        response = self.client.get(f"/api/schedules/?child={self.student1.id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()["results"]), 1)
+
+    def test_an_unlinked_child_answers_no_week_rather_than_another_family(self):
+        self.login_as(self.parent)
+        response = self.client.get(f"/api/schedules/?child={self.student2.id}")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["results"], [])
+
+    def test_a_malformed_child_id_is_an_empty_week_not_a_server_error(self):
+        # A blank `child=` is no filter at all (the parent's whole family), so
+        # only values that cannot name a child are tested here.
+        self.login_as(self.parent)
+        for value in ("abc", "1.5", "0", "-1"):
+            response = self.client.get(f"/api/schedules/?child={value}")
+            self.assertEqual(response.status_code, 200, value)
+            self.assertEqual(response.json()["results"], [], value)
+
+    def test_a_parent_with_no_children_has_no_timetable_to_read(self):
+        self.parent_profile.children.clear()
+        self.login_as(self.parent)
+        self.assertEqual(self.rows(), [])
 
 
 class DashboardTests(TrackTestCase):

@@ -70,6 +70,7 @@ export const NAVIGATION = {
     // students, not around a system module. The three standalone screens stay
     // routed for bookmarks and for the other roles that share them.
     { label: 'My Classes', to: '/teacher/classes', icon: 'book' },
+    { label: 'Schedule', to: '/teacher/schedule', icon: 'clock' },
     { label: 'Announcements', to: '/announcements', icon: 'megaphone' },
     { label: 'Messages', to: '/messages', icon: 'chat' },
     { label: 'Notifications', to: '/notifications', icon: 'bell' },
@@ -82,7 +83,8 @@ export const NAVIGATION = {
     { label: 'My Submissions', to: '/student/submissions', icon: 'file' },
     { label: 'My Attendance', to: '/student/attendance', icon: 'calendar' },
     { label: 'My Fees', to: '/student/fees', icon: 'creditCard' },
-    { label: 'Schedule', icon: 'clock', enabled: false },
+    // The section's own week, read from the same schedules the Registrar sets.
+    { label: 'My Schedule', to: '/student/schedule', icon: 'clock' },
     { label: 'Announcements', to: '/announcements', icon: 'megaphone' },
     { label: 'Messages', to: '/messages', icon: 'chat' },
     { label: 'Notifications', to: '/notifications', icon: 'bell' },
@@ -95,6 +97,8 @@ export const NAVIGATION = {
     { label: 'Requirements', to: '/parent/requirements', icon: 'clipboard' },
     { label: 'Attendance', to: '/parent/attendance', icon: 'calendar' },
     { label: 'Fees', to: '/parent/fees', icon: 'creditCard' },
+    // One linked child's week, picked with the chips at the top of the page.
+    { label: 'Schedule', to: '/parent/schedule', icon: 'clock' },
     { label: 'Announcements', to: '/announcements', icon: 'megaphone' },
     { label: 'Messages', to: '/messages', icon: 'chat' },
     { label: 'Notifications', to: '/notifications', icon: 'bell' },
