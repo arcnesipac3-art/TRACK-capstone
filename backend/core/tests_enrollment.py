@@ -19,8 +19,9 @@ from unittest import mock
 
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
 from django.test import override_settings
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -1131,7 +1132,8 @@ class SectionCapacityTests(EnrollmentTestCase):
 # ---------------------------------------------------------------------------
 
 class ConfirmEnrollmentTests(EnrollmentTestCase):
-    def build_confirmed(self, **kwargs):
+    def prepare_confirmation(self, **kwargs):
+        """Drive one application to exactly the state confirmation requires."""
         application = self.make_draft(**kwargs)
         self.fill_required_documents(application)
         applicant = application.applicant
@@ -1152,12 +1154,42 @@ class ConfirmEnrollmentTests(EnrollmentTestCase):
             f"/api/enrollment/applications/{application.pk}/assign-section/",
             {"section": self.section_a.pk}, format="json",
         )
+        return application
+
+    def confirm(self, application):
+        self.login_as(self.registrar)
         with self.captureOnCommitCallbacks(execute=True):
-            response = self.client.post(
+            return self.client.post(
                 f"/api/enrollment/applications/{application.pk}/confirm/", format="json"
             )
+
+    def build_confirmed(self, **kwargs):
+        application = self.prepare_confirmation(**kwargs)
+        response = self.confirm(application)
         assert response.status_code == 201, response.content
         return application, response.data["enrollment"]
+
+    def test_confirmation_locking_read_outer_joins_nothing(self):
+        """`FOR UPDATE` over the nullable side of an outer join is an outright
+        error on Postgres, and SQLite ignores `FOR UPDATE` completely — so a
+        nullable relation in the lock's `select_related` (the approved section)
+        breaks confirmation only on the deployed database. Join type is
+        backend-independent, so this catches it while tests run on SQLite."""
+        application = self.prepare_confirmation()
+        with CaptureQueriesContext(connection) as queries:
+            response = self.confirm(application)
+        self.assertEqual(response.status_code, 201, response.content)
+        locking_reads = [
+            q["sql"]
+            for q in queries.captured_queries
+            if '"core_enrollmentapplication"' in q["sql"]
+            and '"core_enrollmentperiod"' in q["sql"]
+        ]
+        self.assertTrue(
+            locking_reads, "confirmation never read the application with its period"
+        )
+        for sql in locking_reads:
+            self.assertNotIn("OUTER JOIN", sql, sql)
 
     def test_confirmation_creates_student_enrollment_and_audit(self):
         application, enrollment = self.build_confirmed()

@@ -578,7 +578,12 @@ def confirm_enrollment(application, registrar, ip_address=None):
     with transaction.atomic():
         locked = (
             EnrollmentApplication.objects.select_for_update()
-            .select_related("period", "school_year", "grade_level", "assigned_section")
+            # `assigned_section` is deliberately not select_related here: it is a
+            # nullable FK, so joining it makes the query a LEFT OUTER JOIN, and
+            # Postgres rejects `FOR UPDATE` over the nullable side of an outer
+            # join. SQLite ignores `FOR UPDATE` entirely, so only a deployed
+            # instance fails. The section itself is re-locked by primary key below.
+            .select_related("period", "school_year", "grade_level")
             .filter(pk=application.pk)
             .first()
         )
