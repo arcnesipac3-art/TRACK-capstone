@@ -1575,7 +1575,7 @@ extend the existing legal pages in place with a footer on every public surface.
 | 16 | Business details | Yes | `/privacy` §1 names the controller (Kiwalan National High School), its address (Purok 10 Mato-og, Kiwalan, Iligan City, Lanao del Norte 9200) and the office that receives every data request; `PublicFooter` repeats the controller line on all eight public surfaces. No telephone number or email address is published, because none is recorded anywhere in this repository — `PublicFooter.jsx:12` says so in a comment, and inventing an inbox to satisfy a checklist was rejected |
 | 17 | Age consent for minors | Yes | Enrollment is filed by the adult, and the tick they give is stamped with `POLICY_VERSION` (`consent_given_at`, `consent_policy_version` on `EnrollmentApplication`); Privacy §7 states the under-18 rule in the school's own voice |
 | 18 | Unsubscribe link | No marketing mail | Outgoing mail is one transactional thread — enrollment confirmation and the account-setup link (`core/emails.py`). There is no newsletter, so there is no list to leave; in-app and push notifications are opt-in per category |
-| 19 | License stock images | Partly — the imagery is back, the record is not | Reopened on 2026-11-08 at the user's request ("bring them back"), so this row no longer describes the state this pass left. What is true now: every picture ships inside the bundle and the browser makes no image request off-origin. The hero backdrop is `public/campus-hero.jpg`, downloaded once from the Unsplash source that `/researchers` used to hotlink and served locally — that file is the one whose licence is settled (Unsplash License, no attribution required, self-hosting is permitted). What is still not settled: `public/student.png` and `public/student2.webp` are back in `public/`, and nothing in the repository records where they came from or what rights the school holds — see the subsection below. The earlier version of this row claimed they had been taken out of the shipped bundle; they have not been |
+| 19 | License stock images | Partly — the imagery ships, the record still does not | Reopened on 2026-11-08 at the user's request ("bring them back"), then worked a second time the same day and reopened again: after "replace the unlicensed images with licensed alternatives" three project-generated images were built, wired in and verified, and the user then asked for "student 1 and 2" back, so both originals are restored and `frontend/src` and `frontend/public` are byte-identical to the last commit. What is true now: every picture ships inside the bundle and the browser makes no image request off-origin. The hero backdrop is `public/campus-hero.jpg`, downloaded once from the Unsplash source that `/researchers` used to hotlink and served locally — that file is the one whose licence is settled (Unsplash License, no attribution required, self-hosting is permitted). What is still not settled: `public/student.png` and `public/student2.webp` ship, and nothing in the repository records where they came from or what rights the school holds — and `student.png`, used as the Partner Researcher's portrait, is a photograph of a real and different minor. A rights-clean set of replacements exists and is parked unreferenced in `vibe_images/`; see the subsection below |
 | 20 | Data deletion option | Yes | `GET /api/account/export/` returns the requester's own records as a JSON document; `/account/data-requests/` files a correction, objection or erasure ask; the enrollment office answers it in writing at `/admin/enrollment/data-requests`, and academic history is retained with the legal reason stated rather than deleted by a button |
 
 ### Consent, as it is stored
@@ -1691,6 +1691,79 @@ until the animation is finished by hand. That was checked and is a probe artifac
 not a broken image — the same layer reaches `opacity: 1` when the transition is
 allowed to complete.
 
+### A rights-clean replacement was built, then set back on the user's request — 2026-11-08
+
+The row above left one thing open: `public/student.png` and `public/student2.webp`
+shipped with no record of where they came from or what rights the school holds.
+Three replacements were generated for this project, wired in, verified and shipped
+— and then the user asked for "student 1 and 2" back, so **both originals are
+restored and are what the bundle serves today.** `frontend/src` and
+`frontend/public` are byte-identical to the last commit; nothing about the
+licensing exposure changed from the state the restore pass left.
+
+What the replacement attempt established is worth keeping, because it is the work
+of settling this row for good:
+
+| Slot | Ships today | Built and parked in `vibe_images/` |
+|---|---|---|
+| Landing hero figure | `/student.png` — a photograph of a real pupil, identifiable, wearing a lanyard printed with school markings and an ID card carrying a smaller portrait and a name | `student-figure.png` — a generated photoreal student, blank unprinted ID badge, keyed to transparency, 418 KB against the original's 412 KB |
+| Lead Developer card | `/student2.webp` | `researcher-lead.png` — generated flat illustration, 150 KB |
+| Partner Researcher card | `/student.png` again | `researcher-partner.png` — generated flat illustration, same style, 132 KB |
+
+The three built files are unreferenced by any source file, so they cost the bundle
+nothing; they sit outside `public/` until someone decides whether to ship them.
+
+Two findings from that work survive the reversal.
+
+**The named researchers should get illustrations, not photographs.** A photoreal
+replacement would have re-created the claim the compliance pass removed: a stock
+face captioned as a specific person. The two cards keep `alt=""` and the name in
+the card text stays the only identity claim the page makes — but note that
+`/student.png`, which ships as the Partner Researcher's portrait, is a photograph
+of a real and different minor. That is a licensing question *and* a privacy one,
+and restoring the file re-opens both.
+
+**The anonymous hero figure has to stay a hips-up bust at 2:3.** The CSS sizes it
+by `height: 119%` of the visual column with `object-fit: contain`, and the
+floating role cards are positioned against that geometry, so any replacement must
+match the original's framing (620×930 against 528×792) or the layout moves.
+
+Cutting a photoreal figure out of its backdrop is the part worth recording,
+because the obvious method fails here: the studio backdrop and the blouse are the
+same white, so no colour threshold separates them. A border-seeded flood fill got
+a clean silhouette but left a white triangle of un-keyed backdrop in the gap
+between the elbow and the waist, and widening the tolerance ate the blouse. The
+figure was therefore regenerated against an even green cyclorama and keyed on
+*green excess* (`g − max(r,b)`), which is linear in coverage — so the matte is
+`1 − obs/backdrop` with the local backdrop sampled on a 32 px grid, and the white
+uniform is unambiguously foreground against it. Rim pixels are un-mixed from the
+estimated backdrop and despill-clamped. The result held up under measurement: of
+576,600 pixels, 466,578 were fully transparent, 4,512 formed the feathered edge
+and 0 of the kept pixels carried any green cast.
+
+The build was a one-off Node script — this workspace has no image library (no
+`sharp`, `jimp` or `pngjs` in `frontend/node_modules`, no PIL in the virtualenv),
+so it carries its own PNG codec on top of the built-in `zlib`. It was deleted
+after the assets were written; `vibe_images/` holds the raw generations and is not
+part of the bundle.
+
+While the replacements were wired in, verification was arithmetic and structural,
+not visual: lint, the 1076-test frontend suite and `npm run build` all passed,
+`dist/` was listed to confirm the three new files shipped and the two old ones did
+not, the dev server answered 200 for each new URL, and a live probe of `/` and
+`/researchers` reported `student-figure.png` decoded at 620×930 and both portraits
+decoded at 640×800 inside their 463×347 wraps, with no broken image on either
+page. Screenshots were never available — the in-app Browser surface reports
+`visibilityState=hidden` — so the judgement that the cut-out looked right was made
+by compositing the finished alpha over the hero's navy wash offline, not by
+looking at the running page.
+
+The same swap briefly simplified the CSS: the two researcher cards carry different
+`object-position` values because one source is a bust and the other a full-body
+plate, and both replacements shared one framing, so the per-card overrides came
+out. With the originals back, those two rules are back too, unchanged.
+
+
 ### What the live sweep covered
 
 Signed in as `admin`, `teacher1`, `juandelacruz` (learner) and `parent1` against
@@ -1760,13 +1833,17 @@ a pass.
   academic history, because DepEd retention is the school's obligation to keep it.
   `L-017` in KNOWN_LIMITATIONS stays open for that reason: the software now
   supports the rights, a data protection officer still has to sign off on them.
-- The two student images are back in `frontend/public/` and their licence is still
+- The two student images are in `frontend/public/` and their licence is still
   unrecorded. Nothing in the repository says who made them or that the school may
-  publish them, and `public/` is copied verbatim into `dist/`. `frontend/unshipped/`
-  — the folder that held them while they were out of the bundle — was deleted when
-  they came back, so the audit trail is this row and nothing else. Before any
-  public deployment, either record the provenance next to the files or take them
-  out again.
+  publish them, and `public/` is copied verbatim into `dist/`. A rights-clean
+  replacement set was built for them on 2026-11-08, wired in and verified, then
+  set back at the user's request — the three generated files now sit unreferenced
+  in `vibe_images/`, outside the bundle, and `frontend/unshipped/` no longer
+  exists. So the audit trail is this row and that subsection and nothing else.
+  Before any public deployment, either record the provenance next to the files or
+  ship the parked replacements. One more thing this row now owes: `student.png` is
+  a photograph of an identifiable real pupil, and it is captioned beside a named
+  adult's card — that is a consent question as well as a licence question.
 - The map facade still reaches Google once pressed. That is disclosed in Privacy §5
   in the same words a reviewer would need, and it is the only outbound request the
   frontend makes to a third party.
