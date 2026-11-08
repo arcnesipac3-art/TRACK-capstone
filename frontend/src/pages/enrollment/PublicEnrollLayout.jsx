@@ -1,4 +1,5 @@
 import PublicNav from '../../components/PublicNav'
+import PublicFooter from '../../components/PublicFooter'
 import EnrollmentPortal from './EnrollmentPortal'
 import './EnrollmentPages.css'
 
@@ -9,6 +10,11 @@ import './EnrollmentPages.css'
  * stage, sticky PublicNav, light content area) so anonymous visitors get the
  * same look as /about and /researchers, while every child route renders
  * inside the same stack the signed-in applicant portal uses.
+ *
+ * The footer is mounted here rather than on each child because this portal
+ * collects the most personal data of any surface in the app — names, LRN,
+ * contact details and uploaded documents, filed by people who do not have an
+ * account and are not looking at any other page of the school's site.
  */
 export default function PublicEnrollLayout() {
   return (
@@ -19,6 +25,7 @@ export default function PublicEnrollLayout() {
           <EnrollmentPortal />
         </div>
       </main>
+      <PublicFooter variant="compact" />
     </div>
   )
 }

@@ -302,6 +302,61 @@ export function recordQuery({
 export const SESSION_STATUS_CHOICES = SESSION_FILTER_STATUSES
 
 /**
+ * The four reads that let a history list step one date at a time.
+ *
+ * A step asks for the single nearest row on the far side of the day on screen
+ * and takes that row's date as the next stop, so the arrows only ever land on a
+ * day that really has records — a school calendar is mostly weekends, and a
+ * day-at-a-time view that stops on each empty Saturday is a screen of nothing.
+ *
+ * Two details matter and are easy to get wrong:
+ * - the server's `date_after` / `date_before` are inclusive, so a probe has to
+ *   start from the day *past* the one being shown or "next" reports the current
+ *   day's own row and the screen never moves;
+ * - the probe is sorted away from the current day (`-date` when walking back,
+ *   `date` when walking forward), because the nearest row is the first one.
+ *
+ * `page_size: 1` keeps each probe the cheapest read on the screen, and the
+ * active filters ride along so the walk stays inside whatever the user narrowed
+ * the history to.
+ */
+function dayStepProbes(query, { day = '', filters = {} } = {}) {
+  const probe = (ordering, extra) => query({ page: 1, pageSize: 1, ordering, ...filters, ...extra })
+  return {
+    newest: probe('-date'),
+    oldest: probe('date'),
+    earlier: day ? probe('-date', { dateBefore: shiftDay(day, -1) }) : null,
+    later: day ? probe('date', { dateAfter: shiftDay(day, 1) }) : null,
+  }
+}
+
+export function sessionDaySteps(options = {}) {
+  return dayStepProbes(sessionQuery, options)
+}
+
+export function recordDaySteps(options = {}) {
+  return dayStepProbes(recordQuery, options)
+}
+
+/**
+ * The day a history screen is showing, spelled out: "Mon, Nov 10, 2026".
+ *
+ * Built from the ISO parts rather than `new Date(iso)`, because a bare ISO
+ * string parses as UTC and would print Sunday for a Monday in this timezone.
+ */
+export function dayHeading(iso) {
+  if (!iso) return 'No date'
+  const [year, month, day] = String(iso).split('-').map(Number)
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return 'No date'
+  return new Date(year, month - 1, day).toLocaleDateString('en-PH', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+/**
  * Rows whose mark differs from what the server holds.
  *
  * The sheet stages edits in `pending` and keeps the saved state in `records`;

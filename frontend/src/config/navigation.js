@@ -49,6 +49,7 @@ export const NAVIGATION = {
         { label: 'Enrollment Periods', to: '/admin/enrollment/periods', icon: 'calendar', perm: 'enrollment.view' },
         { label: 'Document Requirements', to: '/admin/enrollment/requirements', icon: 'clipboard', perm: 'enrollment.view' },
         { label: 'Enrollment Reports', to: '/admin/enrollment/reports', icon: 'file', perm: 'enrollment.view' },
+        { label: 'Data Requests', to: '/admin/enrollment/data-requests', icon: 'shield', perm: 'enrollment.view' },
       ],
     },
     { label: 'Fees', to: '/admin/fees', icon: 'creditCard', perm: 'fees.view' },

@@ -6,8 +6,8 @@ import PublicNav from '../components/PublicNav'
 import dashboardShot from '../assets/dashboard.webp'
 import { useAuth } from '../context/AuthContext'
 import { dashboardPath } from '../utils/format'
+import PublicFooter from '../components/PublicFooter'
 
-const SITE_YEAR = new Date().getFullYear()
 const REVEAL_SETTLE_MS = 600
 
 /* ── Animated counter hook ────────────────────────────────────────────────── */
@@ -63,12 +63,14 @@ function StatCounter({ value, label, sublabel }) {
   )
 }
 
-/* Campus backdrop for the hero. Kept here (not in the stylesheet) so the URL
-   can be handed to the browser *after* first paint — a CSS background would be
-   fetched the moment the stylesheet is parsed, competing with the app bundle
-   and delaying the hero's first paint. */
-const HERO_BG_URL =
-  'https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Wide%20architectural%20photograph%20of%20a%20Philippine%20public%20high%20school%20campus%2C%20Kiwalan%20National%20High%20School%2C%20two-storey%20concrete%20classroom%20building%20painted%20white%20and%20green%2C%20open%20walkway%20with%20no%20roof%20or%20canopy%2C%20flagpole%2C%20tropical%20palm%20trees%2C%20blue%20sky%2C%20bright%20daylight&image_size=landscape_16_9'
+/* Campus backdrop for the hero — `public/campus-hero.jpg`, a photograph that
+   ships inside the bundle. It used to be a cross-origin hotlink, which meant
+   the landing page asked a third-party host for its decoration on every visit;
+   self-hosting keeps the picture and drops that request. It is still handed
+   over after first paint and faded in, so the navy hero paints before the
+   photograph does. The navy washes in App.css sit on top of it and carry the
+   text contrast, so this image is never what the words are read against. */
+const HERO_BG_URL = '/campus-hero.jpg';
 
 /* ── Content data ─────────────────────────────────────────────────────────── */
 
@@ -99,12 +101,12 @@ const FEATURES = [
   {
     icon: 'checkSquare',
     title: 'Submission Review',
-    body: 'Students upload their work before the deadline. Teachers verify or return it for revision, and the status updates for everyone instantly.',
+    body: 'Students upload their work before the deadline. Teachers verify or return it for revision, and the new status is what the student and their parents see.',
   },
   {
     icon: 'calendar',
     title: 'Attendance Monitoring',
-    body: 'Teachers record attendance per session. Advisers and administrators get the school-wide roll-up in real time.',
+    body: 'Teachers record attendance per session. Advisers and administrators see the roll-up for the sections they are authorized for.',
   },
   {
     icon: 'clock',
@@ -123,8 +125,8 @@ const FEATURES = [
   },
   {
     icon: 'bell',
-    title: 'Real-time Notifications',
-    body: 'New requirements, verified submissions, absences and approaching deadlines each raise an in-app notification automatically.',
+    title: 'Notifications',
+    body: 'New requirements, verified submissions, absences and approaching deadlines each raise an in-app notification automatically — and a browser push where one is registered for it.',
   },
   {
     icon: 'creditCard',
@@ -147,7 +149,7 @@ const STEPS = [
   {
     icon: 'chart',
     title: 'Track Everything in One Place',
-    body: 'Requirements, submissions, attendance, fees and announcements — all updated in real time, no refreshing, no chasing.',
+    body: 'Requirements, submissions, attendance, fees and announcements — each screen reads the same records the office works in.',
   },
 ]
 
@@ -155,16 +157,16 @@ const TRUST = [
   {
     icon: 'shield',
     title: 'Role-scoped Records',
-    body: 'Every account can only see the records it is authorized for. A parent sees their own children. A student sees their own work. Nothing crosses.',
+    body: 'Every account can only see the records it is authorized for. A parent sees their own children. A student sees their own work. The check runs on the server for every request, not just in the screens.',
   },
   {
     icon: 'checkCircle',
     title: 'Audit Trail',
-    body: 'Every significant action — account changes, permission grants, fee voids — is written to an immutable audit log with timestamp and actor.',
+    body: 'Every significant action — account changes, permission grants, fee voids, sign-ins — is written to an audit log with its timestamp, actor and address.',
   },
   {
     icon: 'clock',
-    title: 'Real-time Updates',
+    title: 'One Source Of Data',
     body: 'Submissions, attendance records, payment status and notifications reflect the latest server data. No stale caches, no guessing.',
   },
   {
@@ -232,7 +234,7 @@ const FAQS = [
   },
   {
     q: 'What happens after a student submits work?',
-    a: 'The submission enters "awaiting verification." The teacher then marks it verified or returns it for revision with a reason. The student and their parent see the updated status immediately.',
+    a: 'The submission enters "awaiting verification." The teacher then marks it verified or returns it for revision with a reason. The student and their parent see that new status in their own lists, and an in-app notification is raised.',
   },
   {
     q: 'How is attendance recorded?',
@@ -244,7 +246,7 @@ const FAQS = [
   },
   {
     q: 'Is my data safe?',
-    a: 'All records are scoped strictly by role and enforced server-side. Every significant action is logged in an audit trail. Accounts are issued and revoked by the school — the only public entry point is the enrollment application at /enroll.',
+    a: 'Records are scoped strictly by role and the check runs on the server, not just in the screens. Every significant action is logged in an audit trail. Accounts are issued and revoked by the school — the enrollment application at /enroll is the only way to reach the system without one.',
   },
   {
     q: 'Where do announcements and reminders appear?',
@@ -473,15 +475,14 @@ export default function LandingPage() {
               </span>
 
               <h1 id="hero-heading" className="hero-heading">
-                <span className="hero-heading-line1">All school records.</span>
+                <span className="hero-heading-line1">One school year.</span>
                 <span className="hero-heading-line2">One portal.</span>
               </h1>
 
               <p className="hero-sub">
-                TRACK gives Kiwalan National High School a single, secure
-                place for requirements, attendance, fees and communication —
-                accessible to administrators, teachers, students and parents,
-                anytime, anywhere.
+                TRACK gives Kiwalan National High School one place for
+                requirements, attendance, fees and communication — for
+                administrators, teachers, students and parents.
               </p>
 
               <div className="hero-actions">
@@ -532,7 +533,7 @@ export default function LandingPage() {
 
               <img
                 src="/student.png"
-                alt="A KNHS student in school uniform holding a tablet"
+                alt="A student in school uniform holding a tablet"
                 className="hero-student-img"
                 style={{ transform: `translate(${parallax.x * 8}px, ${parallax.y * 5}px)` }}
               />
@@ -552,7 +553,7 @@ export default function LandingPage() {
                   </div>
                   <div className="hero-card-body">
                     <div className="hero-card-title">Student</div>
-                    <div className="hero-card-desc">Grades · Attendance · Schedule · Notifications</div>
+                    <div className="hero-card-desc">Requirements · Attendance · Schedule · Messages</div>
                   </div>
                 </div>
               </div>
@@ -571,7 +572,7 @@ export default function LandingPage() {
                   </div>
                   <div className="hero-card-body">
                     <div className="hero-card-title">Teacher</div>
-                    <div className="hero-card-desc">Attendance · Grades · Materials · Messages</div>
+                    <div className="hero-card-desc">Attendance · Requirements · Review · Messages</div>
                   </div>
                 </div>
               </div>
@@ -590,7 +591,7 @@ export default function LandingPage() {
                   </div>
                   <div className="hero-card-body">
                     <div className="hero-card-title">Parent</div>
-                    <div className="hero-card-desc">Child Grades · Attendance · Schedule · Notifications</div>
+                    <div className="hero-card-desc">Child's Submissions · Attendance · Schedule</div>
                   </div>
                 </div>
               </div>
@@ -649,10 +650,10 @@ export default function LandingPage() {
               <span aria-hidden="true">→</span> The Solution
             </p>
             <h2 id="solution-heading">
-              TRACK brings every school record into one secure, easy-to-use portal.
+              TRACK brings the records that run a school year into one portal.
             </h2>
             <p className="solution-quote">
-              &ldquo;No more chasing teachers on chat. Your school, in your browser.&rdquo;
+              &ldquo;What is due, what is filed and what is signed — in your browser.&rdquo;
             </p>
           </div>
         </section>
@@ -679,6 +680,10 @@ export default function LandingPage() {
                     key={feature.title}
                     onClick={() => setExpandedFeature((prev) => prev === feature.title ? null : feature.title)}
                     style={{ cursor: 'pointer' }}
+                    // A card that opens on click is a control, so it says so:
+                    // without the role, Tab reaches it and a screen reader
+                    // announces an ordinary paragraph that does nothing.
+                    role="button"
                     aria-expanded={isExpanded}
                     tabIndex={0}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedFeature((prev) => prev === feature.title ? null : feature.title) } }}
@@ -707,7 +712,7 @@ export default function LandingPage() {
                 Get Started in{' '}
                 <span className="how-heading-accent">3 Easy Steps</span>
               </h2>
-              <p className="how-subheading">From sign-in to full access — it only takes minutes.</p>
+              <p className="how-subheading">Once the school has issued your account, the same three steps apply to every role.</p>
             </div>
             <div className="how-steps-wrap">
               <ol className="how-steps">
@@ -744,6 +749,7 @@ export default function LandingPage() {
                 key={role.title}
                 onClick={() => setActiveRole((prev) => prev === role.title ? null : role.title)}
                 style={{ cursor: 'pointer' }}
+                role="button"
                 aria-pressed={activeRole === role.title}
                 tabIndex={0}
                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveRole((prev) => prev === role.title ? null : role.title) } }}
@@ -774,12 +780,13 @@ export default function LandingPage() {
             <div className="trust-left">
               <p className="trust-eyebrow">Trust &amp; Security</p>
               <h2 id="trust-heading">
-                Your Data is{' '}
-                <span className="trust-heading-accent">Safe With Us</span>
+                Your Data{' '}
+                <span className="trust-heading-accent">Belongs to the School</span>
               </h2>
               <p className="trust-lede">
-                TRACK is built on the highest standards of security and privacy.
-                Official. Secure. School-controlled.
+                TRACK is a school system, not a public app. Accounts come from the
+                registrar, every request is checked against your role on the server,
+                and nothing here is sold, advertised or profiled.
               </p>
               <div className="trust-badge">
                 <Icon name="shield" size={14} aria-hidden="true" />
@@ -839,68 +846,7 @@ export default function LandingPage() {
       </main>
 
       {/* ── Footer ────────────────────────────────────────────── */}
-      <footer className="landing-foot">
-        <div className="landing-foot-inner">
-
-          {/* Brand column */}
-          <div className="foot-brand">
-            <button
-              type="button"
-              className="foot-logo-btn"
-              aria-label="Back to top"
-              onClick={() => {
-                const container = document.querySelector('.landing')
-                if (container) container.scrollTo({ top: 0, behavior: 'smooth' })
-              }}
-            >
-              <img src="/knhs-seal.png" alt="KNHS seal" className="foot-knhs-seal" />
-              <Logo variant="light" />
-            </button>
-            <p className="foot-tagline">
-              Tracking Requirements, Attendance &amp; Communication for
-              Kiwalan National High School.
-            </p>
-            <p className="foot-dept">
-              Purok 10 Mato-og, Kiwalan, Iligan City, Philippines
-            </p>
-          </div>
-
-          {/* On this page */}
-          <nav className="foot-col" aria-label="Page sections">
-            <p className="foot-col-title">On This Page</p>
-            <a href="#problem">The Problem</a>
-            <a href="#features">Features</a>
-            <a href="#how-it-works">How it Works</a>
-            <a href="#roles">Who it&rsquo;s for</a>
-            <a href="#security">Security</a>
-            <a href="#faq">FAQ</a>
-          </nav>
-
-          {/* Account */}
-          <nav className="foot-col" aria-label="Account links">
-            <p className="foot-col-title">Account</p>
-            <Link to={dashboardHref}>{signedIn ? 'Open dashboard' : 'Sign in to TRACK'}</Link>
-            <a href="#faq">How to get an account</a>
-            <a href="#security">Data &amp; Privacy</a>
-          </nav>
-
-          {/* About us column — matching the eGovPH footer structure */}
-          <nav className="foot-col" aria-label="About us links">
-            <p className="foot-col-title">ABOUT US</p>
-            <Link to="/about">About TRACK</Link>
-            <Link to="/location">Location</Link>
-            <Link to="/researchers">Researchers</Link>
-            <Link to="/terms">Terms &amp; Conditions</Link>
-            <Link to="/privacy">Privacy Policy</Link>
-          </nav>
-
-        </div>
-
-        <div className="foot-bottom">
-          <p>© {SITE_YEAR} TRACK · Purok 10 Mato-og, Kiwalan, Iligan City, Philippines</p>
-          <p>Accounts are created after enrollment is confirmed and controlled by the school registrar.</p>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   )
 }

@@ -703,6 +703,7 @@ class Notification(models.Model):
         ENROLLMENT_DECISION = "enrollment_decision", "Enrollment Application Decision"
         ENROLLMENT_CONFIRMED = "enrollment_confirmed", "Enrollment Confirmed"
         MESSAGE_RECEIVED = "message_received", "New Message"
+        DATA_REQUEST_ANSWERED = "data_request_answered", "Data Request Answered"
 
     recipient = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="notifications"
@@ -1335,12 +1336,32 @@ class EnrollmentApplication(models.Model):
     )
     address = models.TextField(blank=True)
     contact_number = models.CharField(max_length=20, blank=True)
+    applicant_email = models.EmailField(
+        "applicant email",
+        blank=True,
+        help_text=(
+            "Where the enrollment confirmation and account-setup link are sent. "
+            "Falls back to the guardian email when left blank."
+        ),
+    )
 
     # -- parent / guardian
     guardian_name = models.CharField(max_length=150, blank=True)
     guardian_relationship = models.CharField(max_length=60, blank=True)
     guardian_contact = models.CharField(max_length=100, blank=True)
     guardian_email = models.EmailField(blank=True)
+
+    # -- consent (RA 10173)
+    # Stamped when the applicant ticks the box on the submit dialog, so the
+    # school can show *which* privacy notice a given filing agreed to and when.
+    # Nullable on purpose: applications filed before this existed have no
+    # recorded consent, and inventing one would be worse than leaving it blank.
+    consent_given_at = models.DateTimeField(null=True, blank=True)
+    consent_policy_version = models.CharField(
+        max_length=20,
+        blank=True,
+        help_text="Version of the privacy notice shown when consent was given.",
+    )
 
     # -- workflow
     status = models.CharField(
@@ -1636,6 +1657,80 @@ class Enrollment(models.Model):
 
     def __str__(self):
         return f"{self.student} — {self.school_year} [{self.get_status_display()}]"
+
+
+# ---------------------------------------------------------------------------
+# Data privacy requests
+# ---------------------------------------------------------------------------
+#
+# The Privacy Notice promises a written answer to a request about someone's
+# own records, so a request is a row with an owner, an outcome and a note —
+# not an email nobody can prove was answered. `GET /api/account/export/`
+# covers the access and portability rights on its own, which is why the kinds
+# here start where self-service stops.
+#
+# `requester` is SET_NULL: closing an account is one of the things a person
+# can ask for, and the request that caused it has to survive as the record
+# that the school answered.
+
+
+class DataRequest(models.Model):
+    """A request to correct, object to, or erase what TRACK holds about one
+    person, worked through by the enrollment office."""
+
+    class Kind(models.TextChoices):
+        CORRECTION = "correction", "Correct and update"
+        OBJECTION = "objection", "Object to processing"
+        ERASURE = "erasure", "Delete my record"
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        ANSWERED = "answered", "Answered"
+        REFUSED = "refused", "Refused"
+
+    requester = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="data_requests",
+    )
+    # The address the office writes to even if the account is closed first.
+    requester_email = models.EmailField(blank=True)
+    kind = models.CharField(max_length=20, choices=Kind.choices, db_index=True)
+    detail = models.TextField(
+        help_text="What the requester asked for, in their own words.",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=Status.choices,
+        default=Status.PENDING,
+        db_index=True,
+    )
+    # The written answer the Privacy Notice promises — including which records
+    # the school is required to keep, when the answer is partly no.
+    response_note = models.TextField(blank=True)
+    handled_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="handled_data_requests",
+    )
+    handled_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["status", "-created_at"]
+
+    def __str__(self):
+        who = self.requester.username if self.requester else "(account closed)"
+        return f"{self.get_kind_display()} by {who} [{self.get_status_display()}]"
+
+    @property
+    def is_open(self):
+        return self.status == self.Status.PENDING
 
 
 # ---------------------------------------------------------------------------

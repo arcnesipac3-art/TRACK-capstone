@@ -8,9 +8,9 @@ import './EnrollmentPages.css'
 
 /**
  * Public application tracking (/enroll/track). Matches the reference number
- * against the guardian email or any contact number typed on the application;
- * a hit stores the guest credential and opens the applicant's own view of
- * the application — still without an account.
+ * against the applicant or guardian email, or any contact number typed on the
+ * application; a hit stores the guest credential and opens the applicant's own
+ * view of the application — still without an account.
  */
 export default function PublicTrackPage() {
   const navigate = useNavigate()
@@ -25,7 +25,7 @@ export default function PublicTrackPage() {
     if (busy) return
     const errors = {}
     if (!reference.trim()) errors.reference = 'Enter your application reference.'
-    if (!contact.trim()) errors.contact = 'Enter the guardian email or contact number.'
+    if (!contact.trim()) errors.contact = 'Enter the email or contact number.'
     setFieldErrors(errors)
     setFormError(null)
     if (Object.keys(errors).length > 0) return
@@ -59,8 +59,8 @@ export default function PublicTrackPage() {
     <div className="stack stack-md">
       <PageHeader
         title="Track my application"
-        subtitle="Enter the reference number from your application together with the
-          guardian email or any contact number you wrote on it. No account is
+        subtitle="Enter the reference number from your application together with an
+          email or any contact number you wrote on it. No account is
           needed."
       />
 
@@ -88,7 +88,7 @@ export default function PublicTrackPage() {
         </div>
 
         <div className="field">
-          <label htmlFor="track-contact">Guardian email or contact number</label>
+          <label htmlFor="track-contact">Email or contact number</label>
           <input
             id="track-contact"
             className="input"

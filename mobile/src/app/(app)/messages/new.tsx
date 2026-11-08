@@ -10,25 +10,34 @@
  * administers) and only the people `/api/messaging/contacts/` returned, which
  * is already the server's answer to "who may this person message". Creating
  * anything else is refused by the endpoint regardless of what is rendered here.
+ *
+ * What the phone version now does differently is show one question at a time:
+ * the person list is a directory you tap once, and the group form reveals only
+ * the control its chosen type needs — a class picks a class, not a name field
+ * plus two disabled pickers.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { router } from 'expo-router';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
-import { colors, radius, spacing, typography } from '../../../theme';
+import { colors, radius, spacing, touch, typography } from '../../../theme';
+import { countNoun } from '../../../format';
 import { messaging } from '../../../api/messaging';
 import type { ContactRow, ConversationDetail, MessagingOptions } from '../../../api/types';
 import AppHeader from '../../../components/ui/AppHeader';
 import Badge from '../../../components/ui/Badge';
-import ScreenList from '../../../components/ScreenList';
-import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
+import Button from '../../../components/ui/Button';
+import Card from '../../../components/ui/Card';
+import Chip from '../../../components/ui/Chip';
+import Dropdown from '../../../components/ui/Dropdown';
+import Field from '../../../components/ui/Field';
+import ListRow from '../../../components/ui/ListRow';
+import Screen from '../../../components/ui/Screen';
+import SearchField from '../../../components/ui/SearchField';
+import SectionHeader from '../../../components/ui/SectionHeader';
+import SegmentedControl from '../../../components/ui/SegmentedControl';
+import { EmptyState, ErrorBanner, ErrorState, LoadingState } from '../../../components/StateViews';
 
 type Mode = 'person' | 'group';
 type GroupKind = 'group' | 'class' | 'department';
@@ -92,6 +101,7 @@ export default function NewConversationScreen() {
     (kind === 'department' && departmentId == null);
 
   async function create(open: () => Promise<ConversationDetail>) {
+    if (busy) return;
     setBusy(true);
     setFormError(null);
     try {
@@ -120,191 +130,150 @@ export default function NewConversationScreen() {
 
   if (error && !options) return <ErrorState message={error} onRetry={load} />;
   // Derived, not state: the screen is loading until the options call lands.
-  if (!options) return <LoadingState label="Loading who you can message…" />;
+  if (!options) return <LoadingState label="Loading who you can message…" rows={4} />;
+
+  const searchable = mode === 'person' || kind === 'group';
+  const onlineCount = matches.filter((row) => row.online).length;
+
+  const bar = (
+    <AppHeader
+      title="New conversation"
+      eyebrow="Messages"
+      back
+      subtitle={
+        mode === 'person'
+          ? `${countNoun(matches.length, 'reachable person', 'reachable people')} · ${onlineCount} online`
+          : 'Only people TRACK lets this account write to are listed.'
+      }
+    />
+  );
 
   return (
-    <View style={styles.screen}>
-      <AppHeader
-        title="New conversation"
-        eyebrow="Messages"
-        subtitle="Only people TRACK lets this account write to are listed."
-      />
+    <Screen header={bar} animationKey={mode}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        {options?.can_create_group ? (
-          <View style={styles.segment}>
-            {(['person', 'group'] as Mode[]).map((value) => (
-              <TouchableOpacity
-                key={value}
-                style={[styles.segmentItem, mode === value && styles.segmentItemActive]}
-                activeOpacity={0.8}
-                onPress={() => setMode(value)}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: mode === value }}
-              >
-                <Text style={[styles.segmentLabel, mode === value && styles.segmentLabelActive]}>
-                  {value === 'person' ? 'A person' : 'A group'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+        {formError ? <ErrorBanner message={formError} /> : null}
+
+        {options.can_create_group ? (
+          <SegmentedControl
+            value={mode}
+            onChange={setMode}
+            options={[
+              { label: 'A person', value: 'person' },
+              { label: 'A group', value: 'group' },
+            ]}
+          />
         ) : null}
 
-        {formError ? <Text style={styles.errorText}>{formError}</Text> : null}
-
-        <TextInput
-          value={term}
-          onChangeText={setTerm}
-          placeholder={mode === 'person' ? 'Name, username or class' : 'Filter the people listed below'}
-          placeholderTextColor={colors.textSubtle}
-          style={styles.search}
-          accessibilityLabel="Find a person"
-          autoCorrect={false}
-          returnKeyType="search"
-        />
+        {searchable ? (
+          <SearchField
+            value={term}
+            onChange={setTerm}
+            testID="new-conversation-search"
+            placeholder={mode === 'person' ? 'Name, username or class' : 'Filter the people listed below'}
+          />
+        ) : null}
 
         {mode === 'person' ? (
           matches.length === 0 ? (
-            <EmptyState inline title="No reachable person by that name" body="Try part of a name instead." />
-          ) : (
-            <ScreenList
-              data={matches}
-              keyExtractor={(item) => String(item.id)}
-              renderItem={(row) => (
-                <TouchableOpacity
-                  style={styles.row}
-                  activeOpacity={0.7}
-                  disabled={busy}
-                  onPress={() => create(() => messaging.createDirect(row.id))}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Message ${row.full_name}`}
-                >
-                  <View style={styles.rowTexts}>
-                    <Text style={styles.rowName} numberOfLines={1}>
-                      {row.full_name}
-                    </Text>
-                    <Text style={styles.rowDetail} numberOfLines={1}>
-                      {row.role}
-                      {row.detail ? ` · ${row.detail}` : ''}
-                    </Text>
-                  </View>
-                  {row.online ? <Badge label="Online" tone="green" glyph={false} /> : null}
-                  <Text style={styles.rowAction}>{busy ? '…' : 'Message'}</Text>
-                </TouchableOpacity>
-              )}
+            <EmptyState
+              inline
+              icon="person-outline"
+              title="No reachable person by that name"
+              body="Try part of a name instead."
             />
+          ) : (
+            <Card padded={false}>
+              {matches.map((row, index) => (
+                <ListRow
+                  key={row.id}
+                  divider={index > 0}
+                  avatar={row.full_name}
+                  hue={row.online ? colors.green : colors.navy}
+                  title={row.full_name}
+                  subtitle={row.detail ? `${row.role} · ${row.detail}` : row.role}
+                  trailing={row.online ? <Badge label="Online" tone="green" glyph={false} /> : null}
+                  onPress={() => create(() => messaging.createDirect(row.id))}
+                />
+              ))}
+            </Card>
           )
         ) : (
           <View style={styles.form}>
-            <Text style={styles.fieldLabel}>Type</Text>
-            <View style={styles.chips}>
-              {kinds.map((row) => (
-                <TouchableOpacity
-                  key={row.id}
-                  style={[styles.chip, kind === row.id && styles.chipActive]}
-                  activeOpacity={0.8}
-                  onPress={() => {
-                    setKind(row.id);
-                    setMemberIds([]);
-                  }}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: kind === row.id }}
-                >
-                  <Text style={[styles.chipLabel, kind === row.id && styles.chipLabelActive]}>
-                    {row.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            <Text style={styles.fieldLabel}>Name</Text>
-            <TextInput
+            <Field
+              label="Name"
               value={title}
               onChangeText={setTitle}
               placeholder="Chess club"
-              placeholderTextColor={colors.textSubtle}
-              maxLength={120}
-              style={styles.input}
-              accessibilityLabel="Conversation name"
+              inputProps={{ maxLength: 120 }}
+              testID="new-conversation-name"
+              hint="What readers see at the top of their inbox."
             />
 
+            <View style={styles.block}>
+              <Text style={styles.fieldLabel}>Type</Text>
+              <View style={styles.chips}>
+                {kinds.map((row) => (
+                  <Chip
+                    key={row.id}
+                    label={row.label}
+                    selected={kind === row.id}
+                    onPress={() => {
+                      setKind(row.id);
+                      setMemberIds([]);
+                    }}
+                  />
+                ))}
+              </View>
+            </View>
+
             {kind === 'class' ? (
-              <>
-                <Text style={styles.fieldLabel}>Class</Text>
-                <View style={styles.picker}>
-                  {(options?.sections || []).map((row) => (
-                    <TouchableOpacity
-                      key={row.id}
-                      style={[styles.pickerItem, sectionId === row.id && styles.pickerItemActive]}
-                      activeOpacity={0.8}
-                      onPress={() => setSectionId(row.id)}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: sectionId === row.id }}
-                    >
-                      <Text style={[styles.pickerLabel, sectionId === row.id && styles.pickerLabelActive]}>
-                        {row.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </>
+              <Dropdown
+                label="Class"
+                placeholder="Choose a class"
+                value={sectionId}
+                onChange={setSectionId}
+                options={(options.sections || []).map((row) => ({ label: row.name, value: row.id }))}
+              />
             ) : null}
 
             {kind === 'department' ? (
-              <>
-                <Text style={styles.fieldLabel}>Department</Text>
-                <View style={styles.picker}>
-                  {(options?.departments || []).map((row) => (
-                    <TouchableOpacity
-                      key={row.id}
-                      style={[styles.pickerItem, departmentId === row.id && styles.pickerItemActive]}
-                      activeOpacity={0.8}
-                      onPress={() => setDepartmentId(row.id)}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: departmentId === row.id }}
-                    >
-                      <Text style={[styles.pickerLabel, departmentId === row.id && styles.pickerLabelActive]}>
-                        {row.name}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </>
+              <Dropdown
+                label="Department"
+                placeholder="Choose a department"
+                value={departmentId}
+                onChange={setDepartmentId}
+                options={(options.departments || []).map((row) => ({ label: row.name, value: row.id }))}
+              />
             ) : null}
 
             {kind === 'group' ? (
-              <>
-                <Text style={styles.fieldLabel}>First members</Text>
+              <View style={styles.block}>
+                <SectionHeader
+                  title="First members"
+                  detail={memberIds.length ? `${memberIds.length} selected` : 'Optional — anyone can be added later'}
+                />
                 {matches.length === 0 ? (
                   <Text style={styles.hint}>No reachable person by that name.</Text>
                 ) : (
-                  <View style={styles.members}>
-                    {matches.map((row) => {
-                      const selected = memberIds.includes(row.id);
-                      return (
-                        <TouchableOpacity
-                          key={row.id}
-                          style={styles.memberRow}
-                          activeOpacity={0.8}
-                          onPress={() =>
-                            setMemberIds((current) =>
-                              selected
-                                ? current.filter((id) => id !== row.id)
-                                : [...current, row.id]
-                            )
-                          }
-                          accessibilityRole="checkbox"
-                          accessibilityState={{ checked: selected }}
-                        >
-                          <View style={[styles.checkbox, selected && styles.checkboxOn]} />
-                          <Text style={styles.memberName} numberOfLines={1}>
-                            {row.full_name}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
+                  <Card padded={false}>
+                    {matches.map((row, index) => (
+                      <MemberToggle
+                        key={row.id}
+                        row={row}
+                        index={index}
+                        checked={memberIds.includes(row.id)}
+                        onToggle={() =>
+                          setMemberIds((current) =>
+                            current.includes(row.id)
+                              ? current.filter((id) => id !== row.id)
+                              : [...current, row.id]
+                          )
+                        }
+                      />
+                    ))}
+                  </Card>
                 )}
-              </>
+              </View>
             ) : null}
 
             <Text style={styles.hint}>
@@ -315,131 +284,94 @@ export default function NewConversationScreen() {
                   : 'Only people you may message can be added.'}
             </Text>
 
-            <TouchableOpacity
-              style={[styles.submit, blocked && styles.submitDisabled]}
-              activeOpacity={0.85}
-              disabled={blocked || busy}
+            <Button
+              variant="primary"
+              block
+              loading={busy}
+              disabled={blocked}
               onPress={() => create(submitGroup)}
-              accessibilityRole="button"
+              testID="new-conversation-submit"
             >
-              <Text style={styles.submitLabel}>{busy ? 'Creating…' : 'Create conversation'}</Text>
-            </TouchableOpacity>
+              Create conversation
+            </Button>
           </View>
         )}
       </ScrollView>
-    </View>
+    </Screen>
+  );
+}
+
+/** A checkbox row, because selecting five people is a yes/no per person. */
+function MemberToggle({
+  row,
+  index,
+  checked,
+  onToggle,
+}: {
+  row: ContactRow;
+  index: number;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onToggle}
+      style={({ pressed }) => [
+        styles.memberRow,
+        index > 0 && styles.divider,
+        pressed && styles.memberPressed,
+        checked && styles.memberChecked,
+      ]}
+      accessibilityRole="checkbox"
+      accessibilityState={{ checked }}
+      accessibilityLabel={`${checked ? 'Remove' : 'Add'} ${row.full_name}`}
+    >
+      <View style={[styles.checkbox, checked && styles.checkboxOn]}>
+        {checked ? <Ionicons name="checkmark" size={14} color={colors.onNavy} /> : null}
+      </View>
+      <View style={styles.memberTexts}>
+        <Text style={styles.memberName} numberOfLines={1}>
+          {row.full_name}
+        </Text>
+        <Text style={styles.memberDetail} numberOfLines={1}>
+          {row.role}
+          {row.detail ? ` · ${row.detail}` : ''}
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
-  content: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xxl },
-  segment: {
-    flexDirection: 'row',
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: 3,
-    gap: 3,
-  },
-  segmentItem: { flex: 1, paddingVertical: spacing.sm, borderRadius: radius.sm, alignItems: 'center' },
-  segmentItemActive: { backgroundColor: colors.blue },
-  segmentLabel: { ...typography.label, color: colors.textMuted },
-  segmentLabelActive: { color: colors.onNavy },
-  search: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 1,
-    ...typography.body,
-    color: colors.text,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    padding: spacing.md,
-  },
-  rowTexts: { flex: 1, gap: 2 },
-  rowName: { ...typography.body, fontWeight: '700' },
-  rowDetail: { ...typography.subtle },
-  rowAction: { ...typography.label, color: colors.blue },
-  form: { gap: spacing.sm },
-  fieldLabel: { ...typography.label, color: colors.textMuted, marginTop: spacing.xs },
-  chips: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
-  chip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs + 2,
-  },
-  chipActive: { backgroundColor: colors.blueTint, borderColor: colors.blueText },
-  chipLabel: { ...typography.label, color: colors.textMuted },
-  chipLabelActive: { color: colors.blueText },
-  input: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 1,
-    ...typography.body,
-    color: colors.text,
-  },
-  picker: { gap: spacing.xs },
-  pickerItem: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  pickerItemActive: { borderColor: colors.blue, backgroundColor: colors.blueWash },
-  pickerLabel: { ...typography.body, color: colors.textMuted },
-  pickerLabelActive: { color: colors.blue, fontWeight: '700' },
-  members: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    paddingVertical: spacing.xs,
-  },
+  content: { padding: spacing.lg, paddingBottom: spacing.xxl, gap: spacing.md },
+  form: { gap: spacing.lg },
+  block: { gap: spacing.sm },
+  fieldLabel: { ...typography.label, color: colors.textMuted },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  hint: { ...typography.subtle, color: colors.textSubtle },
+  divider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    minHeight: touch.target + 8,
   },
+  memberPressed: { backgroundColor: colors.blueTint },
+  memberChecked: { backgroundColor: colors.blueWash },
   checkbox: {
-    width: 18,
-    height: 18,
+    width: 24,
+    height: 24,
     borderRadius: radius.sm,
     borderWidth: 2,
     borderColor: colors.borderStrong,
-  },
-  checkboxOn: { backgroundColor: colors.blue, borderColor: colors.blue },
-  memberName: { ...typography.body, color: colors.text, flex: 1 },
-  hint: { ...typography.subtle },
-  errorText: { ...typography.muted, color: colors.redText },
-  submit: {
-    backgroundColor: colors.blue,
-    borderRadius: radius.md,
-    paddingVertical: spacing.md,
     alignItems: 'center',
-    marginTop: spacing.sm,
+    justifyContent: 'center',
+    backgroundColor: colors.surface,
   },
-  submitDisabled: { backgroundColor: colors.borderStrong },
-  submitLabel: { ...typography.buttonText, color: colors.onNavy },
+  checkboxOn: { backgroundColor: colors.navy, borderColor: colors.navy },
+  memberTexts: { flex: 1, gap: 2 },
+  memberName: { ...typography.body, color: colors.text, fontWeight: '700' },
+  memberDetail: { ...typography.subtle },
 });

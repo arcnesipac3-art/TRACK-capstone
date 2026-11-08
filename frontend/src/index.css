@@ -555,7 +555,7 @@ img, svg { display: block; }
 .badge-neutral { background: var(--gray-100); color: #47516b; border-color: var(--border); }
 .badge-neutral::before { content: "•"; }
 
-.badge-green { background: var(--green-100); color: var(--green-700); border-color: #c4e6d0; }
+.badge-green { background: var(--green-100); color: var(--green-800); border-color: #c4e6d0; }
 .badge-green::before { content: "✓"; }
 
 .badge-amber { background: var(--amber-100); color: var(--amber-700); border-color: var(--amber-200); }
@@ -615,7 +615,7 @@ img, svg { display: block; }
 .alert-error { background: var(--red-100); border-color: #f4cbc7; color: #8f1d17; }
 .alert-info { background: var(--blue-50); border-color: #c6dbfb; color: #1a3f8f; }
 .alert-warning { background: var(--amber-100); border-color: var(--amber-200); color: var(--amber-800); }
-.alert-success { background: var(--green-100); border-color: #c4e6d0; color: var(--green-700); }
+.alert-success { background: var(--green-100); border-color: #c4e6d0; color: var(--green-800); }
 
 .empty-state {
   display: flex;

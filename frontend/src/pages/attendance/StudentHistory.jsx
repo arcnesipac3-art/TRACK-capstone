@@ -6,13 +6,16 @@ import ListSkeleton from '../../components/loading/ListSkeleton'
 import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'
 import TableSkeleton from '../../components/loading/TableSkeleton'
+import useRecordedDay from '../../hooks/useRecordedDay'
 import useServerList from '../../hooks/useServerList'
-import { SearchField, SelectField } from './parts'
+import { DateStepper, SearchField, SelectField } from './parts'
 import { SessionDetailModal } from './SessionHistory'
 import { attendanceStatus, formatDate } from '../../utils/format'
 import {
   DATE_SORT_OPTIONS,
   MARK_STATUSES,
+  dayHeading,
+  recordDaySteps,
   recordQuery,
   sessionRowFromRecord,
 } from '../../utils/attendance'
@@ -159,14 +162,40 @@ export default function StudentHistory({ refreshKey = 0 }) {
  * One learner's marks: filtered, sorted and paginated by the server, with the
  * session behind each mark one click away.
  */
+/**
+ * One learner's marks, a single day at a time.
+ *
+ * The same walk as the session history, on the same rules: the arrows move
+ * between days that actually hold a mark for this learner, because a learner's
+ * register is mostly days with nothing to see. The record endpoint narrows on
+ * the session's date through the same filter helper the session list uses, so
+ * no new surface is needed for it.
+ */
 export function StudentRecords({ student, refreshKey = 0, onEdit }) {
   const [status, setStatus] = useState('')
   const [ordering, setOrdering] = useState(DATE_SORT_OPTIONS[0].value)
   const [page, setPage] = useState(1)
   const [detailFor, setDetailFor] = useState(null)
 
+  const filters = { student: student.id, status }
+
+  const walk = useRecordedDay('/attendance/records/', {
+    probesFor: (day) => {
+      const steps = recordDaySteps({ day, filters })
+      return {
+        landing: ordering === 'date' ? steps.oldest : steps.newest,
+        earlier: steps.earlier,
+        later: steps.later,
+      }
+    },
+    // A mark is not dated itself; the day it belongs to is its session's.
+    dateOf: (row) => row?.session_detail?.date,
+    refreshKey,
+  })
+
   const list = useServerList('/attendance/records/', {
-    params: recordQuery({ student: student.id, status, ordering, page }),
+    params: recordQuery({ page, ordering, date: walk.day, ...filters }),
+    enabled: Boolean(walk.day),
     refreshKey,
   })
 
@@ -179,6 +208,24 @@ export function StudentRecords({ student, refreshKey = 0, onEdit }) {
 
   return (
     <div className="stack stack-sm">
+      <div className="att-day-head">
+        {walk.day ? (
+          <DateStepper
+            day={walk.day}
+            onStep={walk.go}
+            canEarlier={Boolean(walk.neighbours.earlier)}
+            canLater={Boolean(walk.neighbours.later)}
+            busy={walk.walking || list.loading}
+            onLanding={walk.landing && walk.day !== walk.landing ? walk.jumpToLanding : undefined}
+          />
+        ) : null}
+        <span className="subtle" aria-live="polite">
+          {walk.day
+            ? `${list.count} mark${list.count === 1 ? '' : 's'} on this day`
+            : 'One day at a time'}
+        </span>
+      </div>
+
       <div className="att-filters">
         <SelectField
           id="stud-status"
@@ -193,7 +240,7 @@ export function StudentRecords({ student, refreshKey = 0, onEdit }) {
         />
         <SelectField
           id="stud-sort"
-          label="Sort records"
+          label="Start records from"
           value={ordering}
           onChange={(value) => narrow(() => setOrdering(value))}
           disabled={list.loading}
@@ -201,23 +248,26 @@ export function StudentRecords({ student, refreshKey = 0, onEdit }) {
         />
       </div>
 
-      {list.error && (
+      {(walk.error || list.error) && (
         <ErrorMessage
-          error={list.error}
+          error={walk.error || list.error}
           title="Could not load this student’s records"
-          onRetry={list.reload}
+          onRetry={() => {
+            walk.reload()
+            list.reload()
+          }}
         />
       )}
 
-      {!list.error && list.loading && marks.length === 0 && (
+      {!walk.error && !list.error && (!walk.landed || walk.walking || (list.loading && marks.length === 0)) && (
         <TableSkeleton
-          headers={['Date', 'Subject', 'Class', 'Status', 'Notes']}
+          headers={['Subject', 'Class', 'Status', 'Notes']}
           rows={5}
           label="Loading attendance records…"
         />
       )}
 
-      {!list.error && !list.loading && list.count === 0 && (
+      {!walk.error && !list.error && walk.landed && !walk.day && !walk.walking && (
         <EmptyState
           icon="calendar"
           title="No attendance recorded"
@@ -228,9 +278,12 @@ export function StudentRecords({ student, refreshKey = 0, onEdit }) {
       {marks.length > 0 && (
         <div className="table-wrap">
           <table className="table responsive-table">
+            <caption className="sr-only">
+              {`${dayHeading(walk.day)} — ${list.count} mark${list.count === 1 ? '' : 's'}`}
+            </caption>
             <thead>
               <tr>
-                <th scope="col">Date</th>
+                {/* The day is in the heading above, so it is not a column. */}
                 <th scope="col">Subject</th>
                 <th scope="col">Class</th>
                 <th scope="col">Status</th>
@@ -240,9 +293,6 @@ export function StudentRecords({ student, refreshKey = 0, onEdit }) {
             <tbody>
               {marks.map((record) => (
                 <tr key={record.id}>
-                  <td data-label="Date">
-                    <strong>{formatDate(record.session_detail?.date)}</strong>
-                  </td>
                   <td data-label="Subject">{record.session_detail?.subject_name || '—'}</td>
                   <td data-label="Class" className="cell-main">
                     {record.session_detail?.section_name || '—'}
@@ -273,7 +323,7 @@ export function StudentRecords({ student, refreshKey = 0, onEdit }) {
         </div>
       )}
 
-      {list.count > 0 && (
+      {list.count > marks.length && (
         <div className="att-pager">
           <Pagination
             idPrefix="att-stud"
@@ -281,7 +331,7 @@ export function StudentRecords({ student, refreshKey = 0, onEdit }) {
             totalPages={list.totalPages}
             onPage={setPage}
             loading={list.loading}
-            info={`Showing ${marks.length} of ${list.count} records`}
+            info={`Showing ${marks.length} of ${list.count} marks on ${dayHeading(walk.day)}`}
           />
         </div>
       )}

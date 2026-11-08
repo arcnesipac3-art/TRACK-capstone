@@ -24,6 +24,7 @@ import type { AdminUser, Section, StudentProfile } from '../../../../api/types';
 import { canKey, useSessionUser } from '../../../../session-user';
 import { ErrorBanner, LoadingState } from '../../../../components/StateViews';
 import AppHeader from '../../../../components/ui/AppHeader';
+import Screen from '../../../../components/ui/Screen';
 import BackLink from '../../../../components/ui/BackLink';
 import Badge from '../../../../components/ui/Badge';
 import Button from '../../../../components/ui/Button';
@@ -257,12 +258,15 @@ export default function AdminAccountEditorScreen() {
   };
 
   return (
-    <View style={styles.screen}>
-      <AppHeader
-        eyebrow={isNew ? `New ${draft.role} account` : ROLE_LABEL[roleForKeys]}
-        title={isNew ? 'New account' : account?.full_name || account?.username || 'Account'}
-        subtitle={isNew ? undefined : account?.username ? `@${account.username}` : undefined}
-      />
+    <Screen
+      header={
+        <AppHeader
+          eyebrow={isNew ? `New ${draft.role} account` : ROLE_LABEL[roleForKeys]}
+          title={isNew ? 'New account' : account?.full_name || account?.username || 'Account'}
+          subtitle={isNew ? undefined : account?.username ? `@${account.username}` : undefined}
+        />
+      }
+    >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <BackLink label="Back" onPress={() => router.back()} />
 
@@ -437,12 +441,11 @@ export default function AdminAccountEditorScreen() {
           </View>
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md },
   card: {
     backgroundColor: colors.surface,

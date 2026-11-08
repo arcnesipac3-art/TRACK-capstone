@@ -1,45 +1,63 @@
 /**
- * Admin Fee Category Detail — View and edit a fee category.
+ * Admin fee category editor.
  *
- * Validation and the destructive delete are reported in-page: `Alert.alert` is
- * a no-op on react-native-web, so on a browser build the old dialog made
- * "Save" and "Delete" look dead rather than refusing the input.
+ * A category is three facts — a name, a code and whether students have to pay it — and
+ * the code is the one that outlives the name, because it is what lands on the receipt.
+ * It gets its own hint line for that reason, and the compulsory/voluntary choice gets a
+ * sentence explaining what the distinction is worth, rather than two labels an
+ * administrator has to guess between.
+ *
+ * Save and Delete are pinned under the scroll so they never travel with the keyboard.
+ * Validation and the destructive delete are reported in-page: `Alert.alert` is a no-op on
+ * react-native-web, so on a browser build the old dialog made "Save" and "Delete" look
+ * dead rather than refusing the input.
  */
 import { useCallback, useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-  TouchableOpacity,
-} from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 
-import { colors, spacing, radius, typography } from '../../../../../theme';
+import { colors, spacing } from '../../../../../theme';
 import { countNoun } from '../../../../../format';
 import { api, ApiError } from '../../../../../api/client';
 import type { FeeCategory } from '../../../../../api/types';
 import { ErrorBanner, ErrorState, LoadingState } from '../../../../../components/StateViews';
 import AppHeader from '../../../../../components/ui/AppHeader';
-import Button from '../../../../../components/ui/Button';
 import Badge from '../../../../../components/ui/Badge';
+import Button from '../../../../../components/ui/Button';
+import Card from '../../../../../components/ui/Card';
 import ConfirmRow from '../../../../../components/ui/ConfirmRow';
+import Field from '../../../../../components/ui/Field';
+import MetricsCard from '../../../../../components/ui/MetricsCard';
+import Screen from '../../../../../components/ui/Screen';
+import SectionHeader from '../../../../../components/ui/SectionHeader';
 import SegmentedControl from '../../../../../components/ui/SegmentedControl';
 
-export default function FeeCategoryDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const categoryId = parseInt(id!, 10);
-  const isNew = id === 'new';
+type FeeType = 'compulsory' | 'voluntary';
 
-  const [category, setCategory] = useState<Partial<FeeCategory>>({
-    name: '',
-    code: '',
-    fee_type: 'compulsory',
-    description: '',
-    is_active: true,
-  });
+/** Draft state. `is_active` is only ever edited on an existing category. */
+interface CategoryForm {
+  name: string;
+  code: string;
+  fee_type: FeeType;
+  description: string;
+  is_active: boolean;
+}
+
+const EMPTY: CategoryForm = {
+  name: '',
+  code: '',
+  fee_type: 'compulsory',
+  description: '',
+  is_active: true,
+};
+
+export default function FeeCategoryEditorScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const isNew = id === 'new';
+  const categoryId = parseInt(id!, 10);
+
+  const [form, setForm] = useState<CategoryForm>(EMPTY);
+  const [record, setRecord] = useState<FeeCategory | null>(null);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,10 +71,17 @@ export default function FeeCategoryDetailScreen() {
     }
     try {
       const data = await api.get<FeeCategory>(`/fee-categories/${categoryId}/`);
-      setCategory(data);
+      setRecord(data);
+      setForm({
+        name: data.name,
+        code: data.code,
+        fee_type: data.fee_type,
+        description: data.description ?? '',
+        is_active: data.is_active,
+      });
       setError(null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not load category.');
+      setError(err instanceof ApiError ? err.message : 'Could not load the category.');
     } finally {
       setLoading(false);
     }
@@ -69,8 +94,10 @@ export default function FeeCategoryDetailScreen() {
     load();
   }, [load]);
 
+  const patch = (next: Partial<CategoryForm>) => setForm((previous) => ({ ...previous, ...next }));
+
   const handleSave = async () => {
-    if (!category.name || !category.code) {
+    if (!form.name || !form.code) {
       setFormError('Name and code are required.');
       return;
     }
@@ -78,181 +105,242 @@ export default function FeeCategoryDetailScreen() {
     setSaving(true);
     try {
       if (isNew) {
-        await api.post('/fee-categories/', category);
+        await api.post('/fee-categories/', form);
       } else {
-        await api.patch(`/fee-categories/${categoryId}/`, category);
+        await api.patch(`/fee-categories/${categoryId}/`, form);
       }
       router.back();
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Could not save category.');
+      setFormError(err instanceof ApiError ? err.message : 'Could not save the category.');
     } finally {
       setSaving(false);
     }
   };
 
+  /** The same in-page reason as the assessment editor: a refused delete has to say so. */
   const handleDelete = async () => {
-    setConfirmDelete(false);
     setSaving(true);
     try {
       await api.delete(`/fee-categories/${categoryId}/`);
       router.back();
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : 'Could not delete category.');
+      setConfirmDelete(false);
+      setFormError(err instanceof ApiError ? err.message : 'Could not delete the category.');
     } finally {
       setSaving(false);
     }
   };
 
   if (loading) return <LoadingState label="Loading category…" />;
-  if (error && !category.name) {
+  if (error && !record) {
     return (
-      <ErrorState message={error} onRetry={load} />
+      <View style={styles.full}>
+        <ErrorState message={error} onRetry={load} />
+      </View>
     );
   }
 
+  const usage = record?.assessment_count ?? 0;
+
   return (
-    <View style={styles.screen}>
-      <AppHeader
-        title={isNew ? 'New Fee Category' : category.name || ''}
-        subtitle={isNew ? undefined : category.code || ''}
-      />
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-          activeOpacity={0.7}
-          accessibilityRole="button"
-          accessibilityLabel="Back to fees"
-          hitSlop={8}
+    <Screen
+      animationKey={isNew ? 'new' : String(categoryId)}
+      header={
+        <AppHeader
+          title={isNew ? 'New Category' : record?.name || 'Category'}
+          subtitle={
+            isNew
+              ? 'A fee the school can assess against students'
+              : `${record?.code} · ${record?.fee_type}`
+          }
+          back
+        />
+      }
+    >
+      <View style={styles.frame}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
         >
-          <Ionicons name="chevron-back-outline" size={24} color={colors.blue} />
-        </TouchableOpacity>
+          {formError ? <ErrorBanner message={formError} /> : null}
 
-        {formError ? <ErrorBanner message={formError} /> : null}
-        <View style={styles.section}>
-          <Text style={styles.label}>Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Tuition Fee"
-            value={category.name}
-            onChangeText={v => setCategory({...category, name: v})}
-            autoCapitalize="words"
-          />
-        </View>
+          {!isNew && record ? (
+            <MetricsCard
+              columns={2}
+              lead
+              items={[
+                {
+                  key: 'usage',
+                  label: 'IN USE',
+                  value: String(usage),
+                  tone: usage > 0 ? 'navy' : 'gray',
+                  // The figure already carries the number, so the sub-line is the noun alone.
+                  detail: usage === 1 ? 'assessment' : 'assessments',
+                },
+                {
+                  key: 'status',
+                  label: 'STATE',
+                  value: form.is_active ? 'Active' : 'Retired',
+                  tone: form.is_active ? 'green' : 'gray',
+                  detail: form.is_active ? 'appears on new bills' : 'hidden from new bills',
+                },
+              ]}
+              footnote="Retiring a category keeps its history; it simply stops being offered."
+            />
+          ) : null}
 
-        <View style={styles.section}>
-          <Text style={styles.label}>Code</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. TUITION"
-            value={category.code}
-            onChangeText={v => setCategory({...category, code: v.toUpperCase()})}
-            autoCapitalize="characters"
-            maxLength={20}
-          />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Type</Text>
-          <SegmentedControl
-            options={[
-              { label: 'Compulsory', value: 'compulsory' },
-              { label: 'Voluntary', value: 'voluntary' },
-            ]}
-            value={category.fee_type as 'compulsory' | 'voluntary'}
-            onChange={v => setCategory({...category, fee_type: v})}
-          />
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.label}>Description</Text>
-          <TextInput
-            style={[styles.input, styles.textarea]}
-            placeholder="Optional description"
-            value={category.description}
-            onChangeText={v => setCategory({...category, description: v})}
-            multiline
-            numberOfLines={4}
-          />
-        </View>
-
-        {!isNew && (
           <View style={styles.section}>
-            <Text style={styles.label}>Status</Text>
-            <View style={styles.statusRow}>
-              <Badge
-                label={category.is_active ? 'Active' : 'Inactive'}
-                tone={category.is_active ? 'green' : 'gray'}
+            <SectionHeader title="Identity" detail="The code is what prints on the receipt." />
+            <Card style={styles.form}>
+              <Field
+                label="Name"
+                value={form.name}
+                onChangeText={(v) => patch({ name: v })}
+                placeholder="Tuition Fee"
+                testID="fees-category-name"
+                inputProps={{ autoCapitalize: 'words' }}
               />
-              <Button
-                variant="secondary"
-                size="sm"
-                onPress={() => setCategory({...category, is_active: !category.is_active})}
-              >
-                {category.is_active ? 'Deactivate' : 'Activate'}
-              </Button>
-            </View>
+              <Field
+                label="Code"
+                value={form.code}
+                onChangeText={(v) => patch({ code: v.toUpperCase() })}
+                placeholder="TUITION"
+                hint="Short, uppercase, and hard to change later."
+                testID="fees-category-code"
+                inputProps={{ autoCapitalize: 'characters', maxLength: 20 }}
+              />
+            </Card>
           </View>
-        )}
 
-        {!isNew && (
           <View style={styles.section}>
-            <Text style={styles.label}>Assessments</Text>
-            <Text style={styles.muted}>{countNoun(category.assessment_count ?? 0, 'assessment')} using this category</Text>
+            <SectionHeader
+              title="Obligation"
+              detail="Compulsory is expected of every student in scope; voluntary is not."
+            />
+            <Card style={styles.form}>
+              <SegmentedControl<FeeType>
+                options={[
+                  { label: 'Compulsory', value: 'compulsory' },
+                  { label: 'Voluntary', value: 'voluntary' },
+                ]}
+                value={form.fee_type}
+                onChange={(v) => patch({ fee_type: v })}
+              />
+              <Field
+                label="Description"
+                value={form.description}
+                onChangeText={(v) => patch({ description: v })}
+                placeholder="Optional note shown with the fee"
+                multiline
+                minLines={3}
+              />
+            </Card>
           </View>
-        )}
 
-        <View style={styles.actions}>
+          {!isNew ? (
+            <View style={styles.section}>
+              <SectionHeader
+                title="Availability"
+                detail={
+                  usage > 0
+                    ? `Retiring leaves ${countNoun(usage, 'assessment')} intact.`
+                    : 'Nothing is assessed against it yet.'
+                  }
+              />
+              <Card style={styles.statusCard}>
+                <View style={styles.statusRow}>
+                  <Badge
+                    label={form.is_active ? 'Active' : 'Retired'}
+                    tone={form.is_active ? 'green' : 'gray'}
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onPress={() => patch({ is_active: !form.is_active })}
+                    accessibilityLabel={form.is_active ? 'Retire this category' : 'Activate this category'}
+                  >
+                    {form.is_active ? 'Retire' : 'Activate'}
+                  </Button>
+                </View>
+              </Card>
+            </View>
+          ) : null}
+        </ScrollView>
+
+        <View style={styles.footer}>
           {isNew ? (
-            <Button variant="primary" onPress={handleSave} disabled={saving} loading={saving}>
+            <Button
+              variant="primary"
+              block
+              onPress={handleSave}
+              disabled={saving}
+              loading={saving}
+              testID="fees-save"
+            >
               Create category
             </Button>
           ) : confirmDelete ? (
             <ConfirmRow
-              style={styles.confirm}
-              message={`Deleting removes this category for good. ${countNoun(category.assessment_count ?? 0, 'assessment')} use it.`}
+              message={`Deleting removes this category for good. ${countNoun(usage, 'assessment')} use it.`}
               confirmLabel="Delete now"
               onConfirm={handleDelete}
               onCancel={() => setConfirmDelete(false)}
               busy={saving}
             />
           ) : (
-            <>
-              <Button variant="primary" onPress={handleSave} disabled={saving} loading={saving}>
+            <View style={styles.footerRow}>
+              <Button
+                variant="primary"
+                onPress={handleSave}
+                disabled={saving}
+                loading={saving}
+                style={styles.footerPrimary}
+                testID="fees-save"
+              >
                 Save changes
               </Button>
-              <Button variant="danger" onPress={() => setConfirmDelete(true)} style={styles.deleteBtn}>
-                Delete category
+              <Button
+                variant="danger"
+                onPress={() => {
+                  setFormError(null);
+                  setConfirmDelete(true);
+                }}
+                disabled={saving}
+              >
+                Delete
               </Button>
-            </>
+            </View>
           )}
         </View>
-      </ScrollView>
-    </View>
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
+  frame: { flex: 1, minHeight: 0 },
+  full: { flex: 1 },
   scroll: { flex: 1 },
-  content: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.lg },
-  section: { gap: spacing.sm },
-  label: { ...typography.label },
-  input: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
-    minHeight: 48,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...typography.input,
+  content: { padding: spacing.lg, paddingBottom: spacing.xl, gap: spacing.xl },
+  section: { gap: spacing.md },
+  form: { gap: spacing.md },
+  statusCard: { gap: spacing.sm },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
   },
-  textarea: { minHeight: 100, textAlignVertical: 'top' },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  muted: { ...typography.subtle },
-  actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.md },
-  confirm: { flex: 1 },
-  deleteBtn: { flex: 1 },
-  backButton: { marginBottom: spacing.md, alignSelf: 'flex-start', minWidth: 44, minHeight: 44 },
+  /** Same pinned footer as the assessment editor: the action does not scroll away. */
+  footer: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  footerRow: { flexDirection: 'row', gap: spacing.md },
+  footerPrimary: { flex: 2 },
 });

@@ -19,30 +19,40 @@
  *   delays a message instead of losing it. Never both.
  * - A failed row stays on screen so the reader can retry it; a retry reuses the
  *   same reference, and the server returns the stored row instead of a copy.
+ *
+ * The bubbles follow the rules a reader already has from every other chat app on
+ * the phone: mine on the right in the brand's own blue, theirs on the left on the
+ * page surface, the corner nearest the sender pulled in so direction is read
+ * before colour, and one timestamp per turn rather than per line.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalSearchParams, router } from 'expo-router';
 import {
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
   type ScrollViewInstance,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 import { colors, radius, spacing, typography } from '../../../theme';
 import { messaging } from '../../../api/messaging';
 import type { ConversationDetail, MessageRow } from '../../../api/types';
 import AppHeader from '../../../components/ui/AppHeader';
+import Screen from '../../../components/ui/Screen';
 import Badge from '../../../components/ui/Badge';
+import Button from '../../../components/ui/Button';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
+import { useToast } from '../../../components/ui/Toast';
 import { getSessionUser } from '../../../session-user';
 import { getMessagingSocket, setUnreadTotal, useMessagingEvents, useMessagingStatus } from '../../../messaging/bus';
+import ConnectionPill from '../../../messaging/ConnectionPill';
 import {
   clockTime,
   dayLabel,
@@ -66,6 +76,7 @@ export default function MessageThreadScreen() {
   const params = useLocalSearchParams<{ id: string; unread?: string }>();
   const conversationId = Number(params.id);
   const me = getSessionUser();
+  const toast = useToast();
 
   const [thread, setThread] = useState<ConversationDetail | null>(null);
   const [rows, setRows] = useState<MessageRow[]>([]);
@@ -73,7 +84,6 @@ export default function MessageThreadScreen() {
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [typing, setTyping] = useState<Map<number, TypingEntry>>(new Map());
   const status = useMessagingStatus();
@@ -181,7 +191,13 @@ export default function MessageThreadScreen() {
 
           case 'message.sent': {
             if (event.message) setRows((current) => upsertMessage(current, event.message as MessageRow));
-            if (event.duplicate) setNotice('That message was already sent — it appears once.');
+            if (event.duplicate) {
+              toast.show({
+                title: 'That message was already sent',
+                body: 'It appears once in this thread.',
+                tone: 'info',
+              });
+            }
             break;
           }
 
@@ -271,7 +287,10 @@ export default function MessageThreadScreen() {
             if (event.request_id) {
               setRows((current) => markFailed(current, String(event.request_id)));
             }
-            setNotice(typeof event.message_text === 'string' ? event.message_text : 'That did not go through.');
+            toast.error(
+              'That did not go through',
+              typeof event.message_text === 'string' ? event.message_text : 'Tap the message to try again.'
+            );
             break;
           }
 
@@ -279,7 +298,7 @@ export default function MessageThreadScreen() {
             break;
         }
       },
-      [conversationId, me?.id]
+      [conversationId, me?.id, toast]
     )
   );
 
@@ -308,7 +327,10 @@ export default function MessageThreadScreen() {
       .then((data) => setRows((current) => upsertMessage(current, data.message)))
       .catch((err) => {
         setRows((current) => markFailed(current, reference));
-        setNotice(err instanceof Error ? err.message : 'That message did not go through.');
+        toast.error(
+          'Not delivered',
+          err instanceof Error ? err.message : 'Tap the message to try again.'
+        );
       });
   }
 
@@ -331,7 +353,6 @@ export default function MessageThreadScreen() {
       })
     );
     setDraft('');
-    setNotice(null);
     deliver(body, reference);
     getMessagingSocket()?.typing(conversationId, false);
   }
@@ -365,80 +386,101 @@ export default function MessageThreadScreen() {
 
   if (error) {
     return (
-      <View style={styles.screen}>
-        <AppHeader title="Messages" />
+      <Screen header={<AppHeader title="Messages" back />}>
         <ErrorState message={error} onRetry={loadThread} />
-        <ComposerFallback />
-      </View>
+        <View style={styles.errorActions}>
+          <Button variant="secondary" size="sm" onPress={() => router.replace('/messages')}>
+            Back to messages
+          </Button>
+        </View>
+      </Screen>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      style={styles.screen}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
-      <AppHeader
-        title={thread?.display_name ?? 'Conversation'}
-        eyebrow={thread ? `${thread.kind_label}${audience.length > 1 ? ` · ${audience.length + 1} people` : ''}` : undefined}
-        subtitle={
-          thread
-            ? typingLabel ||
-              (status === 'live'
-                ? audienceSummary(thread)
-                : 'Offline — messages still send over the connection')
-            : undefined
-        }
-        right={
-          <TouchableOpacity style={styles.back} onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Back to conversations">
-            <Text style={styles.backLabel}>Back</Text>
-          </TouchableOpacity>
-        }
-      />
-
-      <ScrollView
-        ref={scrollRef}
-        style={styles.scroll}
-        contentContainerStyle={styles.threadContent}
-        keyboardShouldPersistTaps="handled"
-        onScroll={(event) => {
-          const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-          stickToBottom.current =
-            contentOffset.y + layoutMeasurement.height >= contentSize.height - 120;
-        }}
-        onContentSizeChange={() => {
-          if (stickToBottom.current) scrollRef.current?.scrollToEnd({ animated: false });
-        }}
-        refreshControl={
-          hasMore ? (
-            <RefreshControl refreshing={loadingOlder} onRefresh={loadOlder} colors={[colors.blue]} tintColor={colors.blue} />
-          ) : undefined
-        }
+    <Screen>
+      <KeyboardAvoidingView
+        style={styles.screen}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {historyError && (
-          <TouchableOpacity onPress={loadOlder} accessibilityRole="button">
-            <Text style={styles.errorText}>{historyError} Tap to try again.</Text>
-          </TouchableOpacity>
-        )}
+        <AppHeader
+          title={thread?.display_name ?? 'Conversation'}
+          back
+          eyebrow={
+            thread
+              ? `${thread.kind_label}${audience.length > 1 ? ` · ${audience.length + 1} people` : ''}`
+              : undefined
+          }
+          subtitle={
+            thread
+              ? typingLabel ||
+                audienceSummary(thread) ||
+                (status === 'live' ? 'Write below.' : 'Writing still works while the stream reconnects.')
+              : undefined
+          }
+          right={<ConnectionPill status={status} />}
+        />
 
-        {rows.length === 0 ? (
-          <EmptyState
-            inline
-            title="No messages yet"
-            body={thread?.can_post ? 'Say the first thing below.' : 'This conversation is read-only.'}
-          />
-        ) : (
-          turns.map((turn, index) => {
-            const first = turn.rows[0];
-            const previous = turns[index - 1]?.rows.slice(-1)[0];
-            const dayChanged = !previous || !sameDayAs(first.created_at, previous.created_at);
-            const mine = first.sender === me?.id;
-            return (
-              <View key={turn.key}>
-                {dayChanged ? (
-                  <Text style={styles.dayDivider}>{dayLabel(first.created_at)}</Text>
-                ) : null}
-                {unreadMark &&
+        <ScrollView
+          ref={scrollRef}
+          style={styles.scroll}
+          contentContainerStyle={styles.threadContent}
+          keyboardShouldPersistTaps="handled"
+          onScroll={(event) => {
+            const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+            stickToBottom.current =
+              contentOffset.y + layoutMeasurement.height >= contentSize.height - 120;
+          }}
+          onContentSizeChange={() => {
+            if (stickToBottom.current) scrollRef.current?.scrollToEnd({ animated: false });
+          }}
+          refreshControl={
+            hasMore ? (
+              <RefreshControl
+                refreshing={loadingOlder}
+                onRefresh={loadOlder}
+                colors={[colors.blue]}
+                tintColor={colors.blue}
+                progressViewOffset={8}
+                accessibilityLabel="Load earlier messages"
+              />
+            ) : undefined
+          }
+        >
+          {historyError ? (
+            <Pressable onPress={loadOlder} accessibilityRole="button" accessibilityLabel="Try loading earlier messages again">
+              <Text style={styles.errorText}>{historyError} Tap to try again.</Text>
+            </Pressable>
+          ) : null}
+
+          {hasMore && !historyError ? (
+            <Text style={styles.olderHint}>Pull down for earlier messages</Text>
+          ) : null}
+
+          {rows.length === 0 ? (
+            <EmptyState
+              inline
+              icon="chatbubble-ellipses-outline"
+              title="No messages yet"
+              body={thread?.can_post ? 'Say the first thing below.' : 'This conversation is read-only.'}
+            />
+          ) : (
+            turns.map((turn, index) => {
+              const first = turn.rows[0];
+              const last = turn.rows[turn.rows.length - 1];
+              const previous = turns[index - 1]?.rows.slice(-1)[0];
+              const dayChanged = !previous || !sameDayAs(first.created_at, previous.created_at);
+              const mine = first.sender === me?.id;
+              const lastReceipt = mine ? receiptFor(last, { audience, isDirect }) : null;
+
+              return (
+                <View key={turn.key}>
+                  {dayChanged ? (
+                    <View style={styles.dayPillHolder}>
+                      <Text style={styles.dayPill}>{dayLabel(first.created_at)}</Text>
+                    </View>
+                  ) : null}
+                  {unreadMark &&
                   !dayChanged &&
                   turn.rows.some((row) => row.seq === unreadMark.seq) ? (
                     <View style={styles.unreadDivider}>
@@ -448,91 +490,107 @@ export default function MessageThreadScreen() {
                     </View>
                   ) : null}
 
-                <View style={[styles.turn, mine && styles.turnMine]}>
-                  {!mine && (
-                    <Text style={styles.turnAuthor} numberOfLines={1}>
-                      {first.sender_name}
-                      {first.sender_role ? ` · ${first.sender_role}` : ''}
-                    </Text>
-                  )}
-                  {turn.rows.map((row) => {
-                    const receipt = mine ? receiptFor(row, { audience, isDirect }) : null;
-                    return (
-                      <View key={String(row.client_reference ?? row.id ?? row.seq)} style={styles.bubbleWrap}>
-                        <TouchableOpacity
-                          disabled={!row.failed}
-                          onPress={() => retry(row)}
-                          activeOpacity={0.8}
-                          accessibilityRole={row.failed ? 'button' : undefined}
-                          accessibilityLabel={row.failed ? `Retry: ${row.body}` : undefined}
-                        >
-                          <Text style={[styles.bubble, mine && styles.bubbleMine, row.failed && styles.bubbleFailed]}>
-                            {row.body}
-                          </Text>
-                        </TouchableOpacity>
-                        <View style={styles.metaRow}>
-                          <Text style={styles.metaTime}>{clockTime(row.created_at)}</Text>
-                          {receipt ? (
-                            <Text style={[styles.receipt, row.failed && styles.receiptFailed]}>
-                              {receipt.label}
-                              {row.failed ? ' — tap to retry' : ''}
+                  <View style={[styles.turn, mine && styles.turnMine]}>
+                    {!mine && !isDirect ? (
+                      <Text style={styles.turnAuthor} numberOfLines={1}>
+                        {first.sender_name}
+                        {first.sender_role ? ` · ${first.sender_role}` : ''}
+                      </Text>
+                    ) : null}
+
+                    {turn.rows.map((row) => {
+                      const isLast = row === last;
+                      return (
+                        <View key={String(row.client_reference ?? row.id ?? row.seq)} style={styles.bubbleWrap}>
+                          <Pressable
+                            disabled={!row.failed}
+                            onPress={() => retry(row)}
+                            accessibilityRole={row.failed ? 'button' : undefined}
+                            accessibilityLabel={row.failed ? `Not delivered. Tap to retry: ${row.body}` : undefined}
+                          >
+                            <Text
+                              style={[
+                                styles.bubble,
+                                mine ? styles.bubbleMine : styles.bubbleTheirs,
+                                isLast && (mine ? styles.bubbleTailMine : styles.bubbleTailTheirs),
+                                row.failed ? styles.bubbleFailed : null,
+                              ]}
+                            >
+                              {row.body}
                             </Text>
+                          </Pressable>
+                          {/* Receipts rise with the thread: the newest marker covers every
+                              older one, so one line per turn says the whole truth. */}
+                          {isLast && mine ? (
+                            <View style={styles.metaRow}>
+                              <Text style={[styles.meta, row.failed ? styles.metaFailed : null]}>
+                                {clockTime(last.created_at)}
+                                {lastReceipt
+                                  ? ` · ${lastReceipt.label}${last.failed ? ' — tap to retry' : ''}`
+                                  : ''}
+                              </Text>
+                            </View>
                           ) : null}
                         </View>
-                      </View>
-                    );
-                  })}
-                  <Text style={styles.turnTime}>{clockTime(turn.rows[turn.rows.length - 1].created_at)}</Text>
+                      );
+                    })}
+
+                    {!mine ? (
+                      <Text style={styles.turnTime}>{clockTime(last.created_at)}</Text>
+                    ) : null}
+                  </View>
                 </View>
-              </View>
-            );
-          })
+              );
+            })
+          )}
+        </ScrollView>
+
+        {thread && !thread.can_post ? (
+          <View style={styles.readOnly}>
+            <Badge label={thread.is_archived ? 'Archived' : 'Read only'} tone="gray" glyph={false} />
+            <Text style={styles.readOnlyText}>
+              {thread.is_archived
+                ? 'This conversation is archived. An administrator can reopen it.'
+                : 'You cannot post in this conversation.'}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.composer}>
+            <TextInput
+              value={draft}
+              onChangeText={onTypingChange}
+              placeholder="Write a message"
+              placeholderTextColor={colors.textSubtle}
+              style={styles.input}
+              multiline
+              maxLength={BODY_MAX}
+              accessibilityLabel="Message"
+              onSubmitEditing={send}
+              blurOnSubmit={false}
+            />
+            <Pressable
+              onPress={send}
+              disabled={!draft.trim()}
+              style={({ pressed }) => [
+                styles.send,
+                !draft.trim() && styles.sendDisabled,
+                pressed && styles.sendPressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Send message"
+              testID="message-send"
+            >
+              <Ionicons
+                name="arrow-up"
+                size={20}
+                color={draft.trim() ? colors.onNavy : colors.textSubtle}
+              />
+            </Pressable>
+          </View>
         )}
-      </ScrollView>
-
-      {notice ? <Text style={styles.notice}>{notice}</Text> : null}
-
-      {thread && !thread.can_post ? (
-        <View style={styles.readOnly}>
-          <Badge label={thread.is_archived ? 'Archived' : 'Read only'} tone="gray" glyph={false} />
-          <Text style={styles.readOnlyText}>
-            {thread.is_archived
-              ? 'This conversation is archived. An administrator can reopen it.'
-              : 'You cannot post in this conversation.'}
-          </Text>
-        </View>
-      ) : (
-        <View style={styles.composer}>
-          <TextInput
-            value={draft}
-            onChangeText={onTypingChange}
-            placeholder="Write a message"
-            placeholderTextColor={colors.textSubtle}
-            style={styles.input}
-            multiline
-            maxLength={BODY_MAX}
-            accessibilityLabel="Message"
-            onSubmitEditing={send}
-            blurOnSubmit={false}
-          />
-          <TouchableOpacity
-            style={[styles.send, !draft.trim() && styles.sendDisabled]}
-            onPress={send}
-            disabled={!draft.trim()}
-            accessibilityRole="button"
-            accessibilityLabel="Send message"
-          >
-            <Text style={styles.sendLabel}>Send</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </Screen>
   );
-}
-
-/** Rendered when the thread itself would not load, so Back is never lost. */
-function ComposerFallback() {
-  return null;
 }
 
 function audienceSummary(thread: ConversationDetail): string {
@@ -549,63 +607,78 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
   threadContent: { padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.xl },
-  back: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
+  errorActions: { paddingHorizontal: spacing.lg, paddingBottom: spacing.lg },
+  errorText: { ...typography.muted, color: colors.redText },
+  olderHint: { ...typography.subtle, color: colors.textSubtle, textAlign: 'center' },
+  dayPillHolder: { alignItems: 'center', marginTop: spacing.sm },
+  dayPill: {
+    ...typography.micro,
+    color: colors.textMuted,
+    backgroundColor: colors.quietFill,
+    borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 3,
+    overflow: 'hidden',
   },
-  backLabel: { ...typography.label, color: colors.blue },
-  dayDivider: { ...typography.label, textAlign: 'center', marginTop: spacing.sm },
   unreadDivider: {
     alignSelf: 'center',
     backgroundColor: colors.blueTint,
-    borderRadius: 999,
+    borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
     paddingVertical: 3,
   },
   unreadDividerText: { ...typography.subtle, fontWeight: '700', color: colors.blueText },
-  turn: { maxWidth: '86%', gap: 3 },
+  turn: { maxWidth: '86%', gap: spacing.xs },
   turnMine: { alignSelf: 'flex-end', alignItems: 'flex-end' },
-  turnAuthor: { ...typography.label },
-  turnTime: { ...typography.subtle, alignSelf: 'flex-start' },
+  turnAuthor: { ...typography.caption, color: colors.textMuted, paddingLeft: spacing.xs },
+  turnTime: { ...typography.subtle, color: colors.textSubtle, paddingLeft: spacing.xs },
   bubbleWrap: { gap: 2 },
   bubble: {
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: radius.lg,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 1,
-    ...typography.body,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm + 3,
+    ...typography.input,
+  },
+  /**
+   * `#2196F3` is a graphic colour — 3.1:1 against white — so a bubble of body text
+   * wears the accessible step of the same blue instead.
+   */
+  bubbleMine: { backgroundColor: colors.blueText, color: colors.onNavy },
+  bubbleTheirs: {
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
     color: colors.text,
   },
-  bubbleMine: { backgroundColor: colors.blue, borderColor: colors.blue, color: colors.onNavy },
-  bubbleFailed: { backgroundColor: colors.redTint, borderColor: colors.redText },
-  metaRow: { flexDirection: 'row', gap: spacing.sm, alignItems: 'center' },
-  metaTime: { ...typography.subtle },
-  receipt: { ...typography.subtle },
-  receiptFailed: { color: colors.redText },
-  errorText: { ...typography.muted, color: colors.redText },
-  notice: { ...typography.muted, paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, color: colors.amberText },
+  bubbleTailMine: { borderBottomRightRadius: radius.sm },
+  bubbleTailTheirs: { borderBottomLeftRadius: radius.sm },
+  bubbleFailed: {
+    backgroundColor: colors.redTint,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.redText,
+    color: colors.text,
+  },
+  metaRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingRight: spacing.xs },
+  meta: { ...typography.subtle, color: colors.textSubtle },
+  metaFailed: { color: colors.redText, fontWeight: '700' },
   readOnly: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     backgroundColor: colors.surface,
   },
-  readOnlyText: { ...typography.muted, flex: 1 },
+  readOnlyText: { ...typography.caption, flex: 1 },
   composer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     gap: spacing.sm,
-    padding: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
     backgroundColor: colors.surface,
@@ -613,22 +686,24 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     maxHeight: 120,
-    minHeight: 40,
-    borderWidth: 1,
+    minHeight: 44,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    ...typography.body,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    ...typography.input,
     color: colors.text,
     backgroundColor: colors.surfaceAlt,
   },
   send: {
-    backgroundColor: colors.blue,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
+    width: 44,
+    height: 44,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.navy,
   },
-  sendDisabled: { backgroundColor: colors.borderStrong },
-  sendLabel: { ...typography.buttonText, color: colors.onNavy, fontSize: 14 },
+  sendDisabled: { backgroundColor: colors.quietFill },
+  sendPressed: { opacity: 0.85 },
 });

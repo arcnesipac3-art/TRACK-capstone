@@ -69,6 +69,8 @@ function makeDetail(overrides = {}) {
     ],
     missing_documents: [],
     available_actions: [],
+    consent_given_at: '2026-10-01T07:59:40+08:00',
+    consent_policy_version: '2026.11',
     requirements_snapshot: { internal_note: 'SECRET-SNAPSHOT' },
     student_profile_id: 77,
     ...overrides,
@@ -129,6 +131,10 @@ describe('ApplicationDetailPage', () => {
     expect(screen.queryByText(/SECRET-SNAPSHOT/)).not.toBeInTheDocument()
     expect(screen.queryByText(/requirements_snapshot/i)).not.toBeInTheDocument()
     expect(screen.queryByText('77')).not.toBeInTheDocument()
+
+    // …but what the applicant agreed to is their own record too.
+    expect(screen.getByText('Privacy notice agreed')).toBeInTheDocument()
+    expect(screen.getByText(/notice 2026\.11/)).toBeInTheDocument()
   })
 
   it('previews a filed document, and rules on nothing', async () => {
@@ -201,6 +207,48 @@ describe('ApplicationDetailPage', () => {
       expect(api.delete).toHaveBeenCalledWith('/enrollment/applications/my/9/')
     )
     expect(await screen.findByText('My applications')).toBeInTheDocument()
+  })
+
+  it('requires the privacy acknowledgement before submitting from the detail page', async () => {
+    api.post.mockResolvedValue({})
+    const user = userEvent.setup()
+    renderDetail(makeDetail({ status: 'draft', available_actions: ['submitted'] }))
+
+    await user.click(screen.getByRole('button', { name: /submit application/i }))
+    const dialog = await screen.findByRole('dialog', { name: /submit application/i })
+
+    // Empty on open — a pre-ticked box is the dark pattern the notice disowns.
+    expect(within(dialog).getByRole('checkbox')).not.toBeChecked()
+    expect(
+      within(dialog).getByRole('button', { name: /submit now/i })
+    ).toBeDisabled()
+    // The wording carries real links, so the notices stay reachable from here.
+    expect(within(dialog).getByRole('link', { name: /privacy notice/i })).toHaveAttribute(
+      'href',
+      '/privacy'
+    )
+
+    await user.click(within(dialog).getByRole('checkbox'))
+    await user.click(within(dialog).getByRole('button', { name: /submit now/i }))
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith(
+        '/enrollment/applications/my/9/submit/',
+        { consent: true }
+      )
+    )
+  })
+
+  it('leaves the acknowledgement out of actions that do not file anything', async () => {
+    api.post.mockReturnValue(new Promise(() => {}))
+    const user = userEvent.setup()
+    renderDetail(makeDetail({ available_actions: ['withdrawn'] }))
+
+    await user.click(screen.getByRole('button', { name: /withdraw application/i }))
+    const dialog = await screen.findByRole('dialog', { name: /withdraw application/i })
+
+    expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: /^withdraw$/i })).toBeEnabled()
   })
 
   it('hands every workflow control to the shared button primitives', async () => {
@@ -442,6 +490,7 @@ describe('ApplicationDetailPage — account claim', () => {
     await user.type(await screen.findByLabelText(/^username$/i), 'liza123')
     await user.type(screen.getByLabelText(/^password$/i), 'secret-pass')
     await user.type(screen.getByLabelText(/confirm password/i), 'secret-pass')
+    await user.click(screen.getByRole('checkbox', { name: /i have read the privacy notice/i }))
     await user.click(screen.getByRole('button', { name: /create account/i }))
 
     await waitFor(() =>
@@ -449,6 +498,7 @@ describe('ApplicationDetailPage — account claim', () => {
         claim_token: 'claim-abc',
         username: 'liza123',
         password: 'secret-pass',
+        consent: true,
       })
     )
     expect(await screen.findByText('Student enrollment portal')).toBeInTheDocument()
@@ -473,6 +523,7 @@ describe('ApplicationDetailPage — account claim', () => {
     await user.type(await screen.findByLabelText(/^username$/i), 'liza123')
     await user.type(screen.getByLabelText(/^password$/i), 'secret-pass')
     await user.type(screen.getByLabelText(/confirm password/i), 'secret-pass')
+    await user.click(screen.getByRole('checkbox', { name: /i have read the privacy notice/i }))
     await user.click(screen.getByRole('button', { name: /create account/i }))
 
     expect(

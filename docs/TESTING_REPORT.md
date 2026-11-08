@@ -236,6 +236,12 @@ nothing a user could see. All three are fixed, and four new tests cover them
   `?token=` handshake is covered by backend tests only (L-023).
 - No deployment was performed.
 
+*Note (2026-11-02, later pass): the last two bullets are superseded. The Expo
+client was driven live against a real daphne process with a **ticket** handshake,
+and `REDIS_URL`'s configuration branch is now unit-tested — see
+"Mobile messaging verification" further down. Cross-process fan-out itself is
+still unproven on this machine.*
+
 ### Follow-up: the thread behaves like a chat client
 
 The screen was then reworked to the conventions people already bring to a
@@ -903,6 +909,869 @@ clicks.
 
 ---
 
+## Mobile messaging verification — 2026-11-02
+
+The Phase 7 audit and the sections above it stay as written. This one records
+the Expo client's messaging feature and the documentation/verification housekeeping
+that came with it.
+
+**Environment:** Windows 10 (19045), `.venv` Python 3.15.0, Node 24.18, SQLite
+dev database. Backend on `daphne config.asgi:application` at `127.0.0.1:8012`
+(one process, in-memory channel layer), Expo web at `localhost:8099`, driven
+from the in-app browser. `TRACK_DEV_CORS_ORIGINS` / `TRACK_WS_ALLOWED_ORIGINS`
+were set to that dev origin; the standard :8000 server and other sessions'
+ports were left alone.
+
+### Gates
+
+| Check | Command | Result |
+|---|---|---|
+| Backend full suite | `../.venv/Scripts/python.exe backend/manage.py test core` | PASS — 481 tests OK in 444.7s, exit 0. The three tracebacks in the log are the deliberate `_silently` tests that mock a down notification service; none is a failure |
+| Messaging suite alone | `... manage.py test core.tests_messaging` | PASS — 108 tests (102 before `ChannelLayerConfigTests`) |
+| Frontend suite | `npm test` (vitest) | PASS — 953 tests across 68 files, 37.3s |
+| Mobile typecheck | `npx tsc --noEmit` | PASS — exit 0 |
+| Mobile lint | `npx expo lint` | PASS — 0 errors, 8 warnings, all in the pre-existing fee screens (`Alert`/`Button`/`Ionicons`/`EmptyState` unused, one dead local). The 9th warning this session was a stale `eslint-disable` for a rule that no longer fires in `_layout.tsx`; removed. |
+| Mobile bundle | `npx expo export --platform android` | PASS — exit 0, Hermes bytecode |
+| Mobile doctor | `npx expo-doctor` | 19/20 checks pass. The one failure is patch drift on eight Expo/RN packages (`expo` 58.0.16 vs ~58.0.22 etc.) that predates this work — `git diff HEAD -- mobile/package.json` shows only `expo-font` added, at the version `npx expo install` chose. Recorded as L-033; not upgraded, because bumping `expo` + `expo-router` + `react-native` together is a separate risk with its own regression surface |
+| Migration state | `makemigrations --check`, `showmigrations core` | PASS — no changes; `0001`–`0013` applied |
+
+### What was driven live (not mocked)
+
+Every step below ran on the real ASGI server with the real seeded accounts and
+the real dev database; `list_network_requests` captured the calls.
+
+1. Signed in to the Expo app as `admin` over `POST /api/auth/token/` — the
+   release/localhost guard in `mobile/src/api/client.ts` did not fire because
+   this is a dev bundle.
+2. Opened the Messages tab: `GET /api/messaging/conversations/` 200, inbox
+   rendered "1 conversation · Live", search box, and the unread badge absent at
+   zero.
+3. New-conversation screen at `/messages/new`: A PERSON listed the nine real
+   reachable accounts with their roles; A GROUP offered TYPE (group / class /
+   department), a name field and the roster it permits — and nothing was
+   created, so no extra rows.
+4. Taped "Message Teresa Reyes" → URL became `/messages/8`, the thread rendered
+   with the real participant line and "No messages yet".
+5. Typed and sent: the optimistic row was replaced by the server row, composer
+   cleared, receipt showed `Sent`, and the message is a real
+   `core_message` row.
+6. A Node script signed in as `teacher1` over REST and posted a reply into the
+   same conversation (server returned the stored row; `id` was absent from the
+   response envelope, which the client never depends on — noted, not patched,
+   because the thread updates from the socket frame).
+7. **The reply appeared in the admin's open thread with no reload** while the
+   page sat in `visibilityState: hidden` the whole time, so it can only have
+   arrived over `/api/ws/messaging/` (ticket from `POST /api/messaging/ws-ticket/`).
+   Going back to the inbox showed the new preview line and timestamp.
+
+### Two defects this pass found, and fixed
+
+1. **`DenyConnection` raised in the ASGI auth middleware** —
+   `backend/core/websocket_auth.py` refused a foreign browser origin by raising
+   the exception Channels uses inside consumer `connect` handlers. Above the
+   router nothing catches it, so every scanner probe reached daphne as an
+   unhandled error: **HTTP 500 plus a traceback**, exactly what a quiet refusal
+   should not cost. The probe that saw it was the live curl documented in
+   `docs/DEPLOYMENT.md` §8.3, and the pre-existing unit test tolerated either
+   outcome (`assertIn(outcome, (False, "denied"))`), which is why it had never
+   failed. Now the middleware sends
+   `{"type": "websocket.close", "code": 4403}` and the test asserts the close
+   code *and* fails if a `DenyConnection` escapes. Re-probed live: 403, one
+   WARNING line, no traceback.
+2. **Every undeclared detail route in the mobile app fell back to a tab** —
+   expo-router hands a `<Tabs>` navigator any path it cannot match, so
+   `/messages/7` rendered the role's dashboard with `?id=7`. The messaging
+   screens would have shipped unreachable; the admin fee editors
+   (`admin/fees/category/[id]`, `admin/fees/assessment/[id]`) had the same defect
+   before this feature existed, unnoticed because a tap on a phone navigates
+   through the navigator's own state rather than resolving a URL. Fixed by
+   declaring them with `tabBarButton: () => null` — `href: null` was tried first
+   and is the wrong tool: it drops the screen from the route table, so no
+   navigation works either (the bundle was grepped to confirm the new code was
+   actually served before concluding the mechanism itself was wrong).
+   Verified live: cold load of `/messages/8` from the URL bar, `/messages/new`,
+   and a tab bar with no phantom stop.
+
+### Recorded, not claimed
+
+- **Cross-process fan-out was not tested.** `where redis-server` and `docker`
+  both find nothing on this machine, so the honest claim is single-process.
+  The `REDIS_URL` branch itself is now under test
+  (`ChannelLayerConfigTests`, 6 tests) so the deployment switch cannot rot
+  silently — see L-019.
+- **Browser push delivery was not tested.** Keys generate, the PEM-path form
+  loads, the pair matches the advertised `vapid_public_key`, the signed header
+  has the right shape, and delivery code is mock-covered; a real subscription
+  needs HTTPS plus a granted prompt plus eyes (L-020).
+- **No physical phone.** The walkthrough above is Expo *web* — same JS, same
+  router, but not Hermes-on-Android (L-008/L-009).
+- **One probe artifact reproduced:** mid-walkthrough the route jumped itself from
+  `/messages/8` to `/admin/dashboard` once, right after a synthetic
+  `new Event('input')` was dispatched on the composer. A realistic input
+  (`execCommand('insertText')`) plus a click did not reproduce it in any later
+  step, and the same signature is already logged in the schedules section above
+  ("unexplained navigation mid-probe… recorded as a probe artifact"). Reported
+  rather than smoothed over; if it ever appears without synthetic events it is a
+  real bug.
+- **Test data written today, and left in place:** conversation 8 (admin ↔
+  Teresa Reyes) with two messages — one sent from the mobile UI, one over REST —
+  on top of the direct conversation the transport probe created earlier. No rows
+  were deleted, and no server other than the two this session started was
+  touched.
+
+### Documentation closed out
+
+`DEPLOYMENT.md` (root) and `docs/DEPLOYMENT.md` were two guides that disagreed;
+the root file is now a pointer and `docs/DEPLOYMENT.md` is the single source —
+ASGI-only start commands (§2), the real token-auth model for both clients (§1),
+`REDIS_URL` / VAPID / `EXPO_PUBLIC_WS_URL` / `TRACK_DEV_CORS_ORIGINS` (§5), the
+nginx `/api/ws/` upgrade block (§7), the 404/403/101 handshake legend and a
+verified-versus-unprovable table (§8.3), and a troubleshooting row for the tab
+fallback above. `docs/KNOWN_LIMITATIONS.md` gained L-032 (the routing rule) and
+updated L-007, L-019, L-020 and L-023 with what is now covered. CI's header
+comment matches what runs, and the `mobile` job (typecheck → lint → bundle) is in
+`.github/workflows/ci.yml`.
+
+---
+
+## Enrollment confirmation email and account claim — 2026-11-08
+
+The last gap in the enrollment loop: after the Registrar confirmed an
+application, nothing told the family, and the learner account that confirmation
+created had a random never-issued password with no way in. The claim machinery
+already existed (`account_claim_token`, `POST /enrollment/claim-account/`) but
+was only reachable from inside the applicant's own application page. This pass
+adds the two missing pieces — a message on confirmation, and a public page the
+link in that message opens.
+
+#### Scope calls (chose by the user, in this order)
+
+| Question | Decision |
+|---|---|
+| Transport | Env-configured SMTP, **no send**: `EMAIL_*` + `DEFAULT_FROM_EMAIL` read from the environment, `console.EmailBackend` stays the default so nothing leaves the machine until credentials exist |
+| Recipient | A **new `applicant_email` field** on the application — model + migration `0014` + wizard step + serializer + display — rather than reusing `guardian_email` alone |
+| Landing | A **new public page** `/enroll/claim?token=…` that resolves the token before asking for a username, not a deep-link into the existing track form |
+
+#### Files changed
+
+| File | Change |
+|---|---|
+| `core/models.py` | `applicant_email = EmailField(blank=True)` in the applicant-identity block, with the fallback to the guardian email stated in its `help_text` |
+| `core/migrations/0014_enrollmentapplication_applicant_email.py` (new) | additive `AddField`; reversible; applied to the dev DB |
+| `core/emails.py` (new, ~115 lines) | `notification_email_for()` (applicant → guardian → linked account, first non-blank wins), `send_enrollment_confirmation_email()` (claim link when the token is live, sign-in link when the account already exists, no send at all when no address is on file), `_app_url()` over `TRACK_APP_BASE_URL` |
+| `core/enrollment.py` | the created student `User` now carries `application.applicant_email`; `_notify_enrolled()` sends the mail alongside the in-app notification |
+| `core/enrollment_views.py` | `ClaimAccountView.get()` (new — the lookup behind the emailed link) and `_resolve()`, shared with `POST` for one credential resolution; `PublicApplicationTrackView` now matches `applicant_email` as well as `guardian_email` |
+| `core/enrollment_serializers.py` | `applicant_email` on the applicant detail/update and staff detail; a signed-in applicant inherits their own login email instead of retyping it |
+| `config/settings.py` | env-driven `EMAIL_HOST/PORT/USERNAME/PASSWORD/USE_TLS/SSL/DEFAULT_FROM_EMAIL` and `TRACK_APP_BASE_URL` (default `http://localhost:5173`) |
+| `pages/enrollment/ClaimAccountPage.jsx` (new) | the page the link opens: five states — incomplete link, checking, lookup failed, not claimable, ready |
+| `components/enrollment/ClaimAccountForm.jsx` (new) | the credential panel extracted from `ApplicationDetailPage` so the portal page and the emailed page share one form, same field ids and checks |
+| `App.jsx`, `services/api.js` | `/enroll/claim` route + lazy import; `api.claimLookup(token)` |
+| `pages/enrollment/ApplicationWizardPage.jsx` | step-2 email field with the fallback explained inline, review row, and the field in the submit payload |
+| `pages/enrollment/ApplicationDetailPage.jsx`, `RegistrarApplicationReviewPage.jsx`, `PublicTrackPage.jsx` | renders the shared form / shows the address the decision will reach / copy widened to "email or contact number" |
+| `docs/DEPLOYMENT.md`, `backend/.env.example` | the new variables documented; the stale "no SMTP integration" paragraph replaced with what `core/emails.py` actually does |
+
+#### What is covered by tests
+
+Backend — `core/tests_enrollment.py`, **12 new specs**, module total now 105:
+
+| Group | Specs |
+|---|---|
+| The message itself | `test_confirmation_emails_the_claim_link` (recipient + full `TRACK_APP_BASE_URL/enroll/claim?token=…` body), `test_confirmation_email_prefers_the_applicants_own_address`, `test_confirmation_email_links_sign_in_when_the_account_already_exists`, `test_no_email_when_the_application_holds_no_address` |
+| Mail must not gate the enrollment | `test_a_dead_mail_server_does_not_undo_the_confirmation` — `send_mail` raises `OSError`, confirmation still 201, still `enrolled`, token still issued |
+| The lookup the link opens | `test_claim_lookup_names_the_enrollment_and_nothing_else` (exact key set — no documents, no LRN, no section roster), `test_claim_lookup_rejects_an_unknown_or_empty_token` (404 for `""`, all-zeros, all-f), `test_claim_lookup_says_so_while_the_enrollment_is_unconfirmed`, `test_a_trashed_application_stops_answering_its_emailed_link`, `test_a_spent_claim_link_stops_answering` |
+| The new field | `test_the_applicant_email_must_actually_be_an_address`, `test_an_account_holder_inherits_their_own_login_email` |
+
+Frontend — `pages/enrollment/ClaimAccountPage.test.jsx` (new, **7 specs**): the
+lookup is asked with `{token}` and only when a token exists; a ready link shows
+the learner and reference and spends *that* token on submit; an incomplete link
+fetches nothing; a 404 says the link is not valid; an unconfirmed enrollment
+offers sign-in; per-field server errors land on the field; a password mismatch
+is caught client-side without burning the link. Enrollment + API suites: **158
+passed** across 16 files. Full backend `core` suite after this feature: **510
+passed** (422s). Oxlint: 0 warnings / 0 errors on 259 files. Build: clean.
+
+#### Live probe (real server, real browser, nothing mocked)
+
+`runserver` on `:8020` with `TRACK_APP_BASE_URL=http://localhost:5203`, Vite on
+`:5203` proxying to it. One script drove the whole loop as a stranger: create →
+PATCH identity with `applicant_email` → upload the required birth certificate →
+submit → Registrar (`admin`) start review → verify document → accept → assign
+section → **confirm**.
+
+| Step | Result |
+|---|---|
+| Confirmation | `201` — enrollment 2, student 11, `Sampaguita`, `2026-2027` |
+| The email | printed to the console backend, addressed to `probe.claim.20261108@example.com`, subject `Enrollment confirmed — Probe Claimant (APP-22A570FA94)`, body carrying `Grade 7 — Sampaguita` and the claim URL |
+| Open the link in the browser | `/enroll/claim?token=…` rendered "Your enrollment is confirmed" + the enrollment card + the create-account form |
+| Fill and submit in the browser | navigated to `/student/enrollment`, signed in as the learner, showing `APP-22A570FA94 · Enrolled` |
+| Fresh sign-in from the API | `POST /auth/token/` with the chosen credentials → `200`, `/auth/me/` → role `student`, `/enrollment/applications/my/` → the enrolled application |
+| Link reused after the claim | lookup `404` "This account setup link is not valid", `POST` `400` — the page shows the same message in the browser |
+| Token-less link | `/enroll/claim` → "This link is incomplete — it carries no account setup credential" |
+| Public track after the claim | `404` — the pre-existing `applicant__isnull=True` gate now refuses, because the application belongs to an account |
+
+**Not provable in this pass:** that a real SMTP host delivers the message. The
+console backend renders exactly the body a mail client would show, and a
+transport failure is covered by the dead-mail-server spec, but no message left
+this machine — by design, since no credentials are configured and nothing is
+deployed.
+
+#### Data this probe wrote to the dev database (left in place)
+
+Application 19 `APP-22A570FA94` (enrolled) with Student 11 / User 18
+`probeclaimant`, Enrollment 2, its verified document and PDF, its
+notifications — plus application **18 `APP-559FA7A620`, an orphaned draft** from
+a first probe run that lost its guest token before the identity PATCH. Nothing
+was deleted. No row outside these was touched.
+
+---
+
+## The setup link can be resent, and the adult who applied gets an account too — 2026-11-08
+
+Two promises the previous pass left unpaid. The review screen told the Registrar
+that the family could "ask the Registrar to resend", but no such action existed
+anywhere in the product. And a learner confirmed from an application that a
+signed-in parent had filed left that parent with nothing: confirmation created
+the student account, the claim link issued credentials for exactly one person,
+and the adult who did the paperwork still could not see the record.
+
+#### Scope calls (chose by the user, in this order)
+
+| Question | Decision |
+|---|---|
+| Where the guardian's account is created | **Same link, a second panel on the claim page** — the learner's credentials first, then an optional fieldset that creates a parent `User` plus its `ParentProfile` and links it to the learner. One token, one email, no new column |
+| What a resend does | **Re-issue a new token — the old link dies.** A staff action writes a fresh `account_claim_token`, emails again, and the URL already in the inbox stops answering. Who resent it, and to which address, is written to the audit trail |
+| When the applicant is already a parent | **Link the applicant, skip the panel.** Confirmation adds the learner to that account's `ParentProfile.children`, so the claim page asks only for the learner's credentials |
+
+#### Files changed
+
+| File | Change |
+|---|---|
+| `core/enrollment_views.py` | `ClaimAccountView` now reports the guardian the application names (`guardian_name`, `guardian_relationship`, `guardian_account_exists`) and accepts an optional `guardian_username` / `guardian_password` pair on `POST`; every guardian check runs *before* `transaction.atomic()`. `StaffResendClaimLinkView` (new) — `enrollment.manage`, `select_for_update()`, four refusals, new token, event + audit row, mail on commit |
+| `core/urls.py` | `POST /enrollment/applications/<id>/resend-claim-link/` |
+| `core/enrollment_serializers.py` | staff detail gains `claim_link_pending` (a live token **and** unclaimed **and** `enrolled` **and** a deliverable address) and `account_claimed_at` |
+| `core/enrollment.py` | `confirm_enrollment()` links a signed-in parent applicant to the learner through `ParentProfile.children` |
+| `core/emails.py` | `send_enrollment_confirmation_email(..., resent=True)` — the re-sent message says it is a new link |
+| `core/tests_enrollment.py` | `build_guest_confirmed()` takes a `guardian=` block, `build_parent_confirmed()` added, **14 new specs** |
+| `components/enrollment/ClaimAccountForm.jsx` | the optional guardian fieldset — a `<fieldset>`/`<legend>` with its own three fields, same checks as the learner's — and an `ERROR_ANCHOR` map so every `aria-describedby` points at an error id that actually exists (it did not, for the two confirm fields) |
+| `pages/enrollment/ClaimAccountPage.jsx` | hands the guardian trio from the lookup to the form; the panel is not offered when the applicant already holds a parent account |
+| `pages/enrollment/RegistrarApplicationReviewPage.jsx` | the setup-link card — pending / already-used / never-issued copy, `Resend setup link` behind `enrollment.manage` with its confirmation modal — and one fix: the stale "Confirmation unlocks once the application is accepted." sentence no longer shows under an application that is already `enrolled` |
+| `pages/enrollment/EnrollmentPages.css` | `.claim-guardian` fieldset spacing |
+| `pages/enrollment/ClaimAccountPage.test.jsx`, `pages/enrollment/RegistrarApplicationReviewPage.test.jsx`, `services/api.js` | the new specs below; the unclaimed `resendClaimLink()` helper was dropped — the review screen's actions all post through `api.post` |
+
+#### What is covered by tests
+
+Backend — `core/tests_enrollment.AccountClaimTests`, **14 new specs**, class
+total now 34:
+
+| Group | Specs |
+|---|---|
+| The guardian on the link | `test_claim_lookup_offers_the_guardian_the_application_names`, `test_claim_lookup_keeps_the_guardian_quiet_while_the_link_is_not_live` |
+| One link, two accounts | `test_the_same_link_opens_the_guardians_account_too` — both roles, names and emails, `check_password` on each, the guardian `contact_number`, both sides of `children` / `parents`, the two audit rows and the two review events, and the guardian's own `my-enrollments` length 1; `test_confirmation_links_the_parent_who_filed_the_application` (children 2 — the fixture child is untouched) |
+| The panel is skipped | `test_the_guardian_panel_is_skipped_when_a_parent_filed_the_application`, `test_a_second_guardian_account_is_refused_when_the_parent_applied` |
+| Guardian input is checked first | `test_guardian_credentials_are_validated_before_the_claim_runs` (both-or-neither, same-as-learner, taken, weak), `test_a_taken_guardian_username_writes_nothing_at_all` — the learner's stored password hash is compared before and after, because the refusal happens upstream of the claim rather than as a rollback |
+| The resend | `test_resend_writes_a_new_link_and_voids_the_one_in_the_inbox`, and five refusals: `test_resend_refuses_a_link_the_family_already_used`, `test_resend_refuses_a_learner_who_already_had_an_account`, `test_resend_refuses_when_there_is_nothing_to_email`, `test_resend_refuses_before_the_enrollment_is_confirmed`, `test_resend_of_a_trashed_application_is_not_found`; plus `test_resend_needs_the_enrollment_manage_key` (plain admin / teacher / student → 403, anonymous → 401, token unchanged) and `test_staff_detail_marks_only_a_genuinely_pending_setup_link` |
+
+Frontend — **11 new specs**: `ClaimAccountPage.test.jsx` (6 — the panel is
+offered when the link names a guardian; leaving it unchecked spends the link on
+the learner alone and sends no guardian keys; checking it sends both pairs and
+navigates; a guardian password mismatch blocks the request; a server
+`guardian_username` refusal lands on that field with `aria-invalid`;
+`guardian_account_exists: true` hides the panel) and
+`RegistrarApplicationReviewPage.test.jsx` (5 — resend fires through the
+confirmation modal and reports the address the new mail went to; the used-link
+copy; the never-issued copy; `enrollment.manage` withheld hides the button but
+keeps the explanation; a rejected POST leaves the dialog open carrying the
+server's objection).
+
+Gates: `AccountClaimTests` **34 passed** (43.4s) · `core.tests_enrollment`
+**121 passed** · full backend `core` **526 passed** (428.7s) · frontend
+`vitest run` **1049 passed / 76 files** · `oxlint src` **0 warnings / 0 errors
+on 260 files** · `npm run build` clean.
+
+#### Live probe (real server, real browser, nothing mocked)
+
+`runserver` on `:8010`, Vite on `:5199` proxying to it, console email backend.
+
+| Step | Result |
+|---|---|
+| Confirm a public application (`APP-B20EEA40BD`) | `enrolled`; console email carries the claim URL. Reading note: the console body is quoted-printable, so the log shows `token=3D<32 hex>` — the real token is the hex only |
+| Open the link in the browser | learner card + create-account form + the guardian fieldset naming the mother from the application |
+| Submit both pairs in the browser | learner signed in at `/student/enrollment` showing `APP-B20EEA40BD · Enrolled` |
+| The guardian's own account | `martaprobeclaim` (role parent, `marta.probeclaim@example.com`, contact `0917 555 0101`) — first login lands on `/parent/dashboard` → "Showing records for Aira Probeclaim · Grade 7 — Sampaguita (2026-2027)" |
+| Application row after the claim | `guest_token` and `account_claim_token` both null, `account_claimed_at` set, `enrolled`, owned by the learner; events `account_claimed` + `guardian_account_created` |
+| Resend on a second enrollment (`APP-6DE9829942`, link still pending) | button → modal → confirm: "Setup link resent — Bruno Proberesend (APP-6DE9829942)" and a fresh email to `bella.proberesend@example.com` |
+| Token in the database | changed — new value `33ffca57…`, `account_claimed_at` still null, StudentProfile 13 / User 20 still unclaimed, guest token still live |
+| The **old** URL after resend | the browser renders "This account setup link is not valid" |
+| The **new** URL | answers, and with the guardian panel present |
+| Audit trail | `AuditLog('enrollment.claim_link_resent', actor: admin)` and `ApplicationReviewEvent('claim_link_resent', internal_note '…Recipient: bella.proberesend@example.com.')` |
+
+#### The message really left the process — SMTP against a local sink
+
+The console backend proves the words, not the transport, so the transport was
+then measured for real. `runserver :8010` was launched with
+`EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend`,
+`EMAIL_HOST=127.0.0.1`, `EMAIL_PORT=8025`, `EMAIL_USE_TLS=0`,
+`EMAIL_TIMEOUT=5`, `DEFAULT_FROM_EMAIL="TRACK Admissions <admissions@track.local>"`,
+`TRACK_APP_BASE_URL=http://localhost:5199`, pointed at a ~110-line dependency-free
+SMTP socket server written in `%TEMP%` for the purpose and deleted with its
+captured messages afterwards — nothing was added to the repo, no package
+installed. The action under test was a real
+`POST /api/enrollment/applications/23/resend-claim-link/` as `admin`.
+
+What the sink recorded on the wire:
+
+```
+ehlo COUGAR
+mail from:<admissions@track.local> size=1133
+rcpt to:<bella.proberesend@example.com>
+data            → 1136 bytes received
+quit
+```
+
+Received headers: `From: TRACK Admissions <admissions@track.local>`, `To:
+bella.proberesend@example.com`, `Subject: Setup link resent — Bruno Proberesend
+(APP-6DE9829942)`, `Date: Sun, 08 Nov 2026 01:46:05 +0000`, and a body carrying
+`http://localhost:5199/enroll/claim?token=3Dfb3bd87196…` — quoted-printable
+again, so the token is the hex that follows `3D`.
+
+| Check | Result |
+|---|---|
+| Token in the delivered message vs. the row | identical — `fb3bd871…` on both sides |
+| The link that arrived | `GET /enrollment/claim-account/?token=fb3bd871…` → `200`, `claim_available: true`, `guardian_name: Bella Proberesend`, `guardian_relationship: Father`, `guardian_account_exists: false` |
+| The link it replaced | `404` "This account setup link is not valid" |
+| Transport **down** (sink stopped, port refuses) | the resend still returned `200` and rotated the token to `d49a1bbd…`; nothing reached the sink; the `ConnectionRefusedError` appeared in the server log as a logged send failure while the request completed — the promise the mocked dead-mail spec makes, now made over a real socket |
+| Transport **restored** | `200` again, and the sink received a second message carrying `4468fc95…`, which answers `200` while `d49a1bbd…` answers `404` |
+
+**Still not proven here:** an outside provider. No SMTP credentials exist on
+this machine, so `EMAIL_USE_TLS` was forced to `0` and no `AUTH` was negotiated
+— what is measured is Django's own half of the transaction (connect, envelope,
+headers, body bytes) plus the failure path, not a relay accepting a login or a
+mailbox somewhere else receiving it.
+
+**Not proven in this pass:** that a **real parent** filing an application sees
+the panel skipped was proven in the backend spec
+(`test_the_guardian_panel_is_skipped_…`) and not re-walked in the browser this
+time; the live claim used a public, account-less application. Mobile has no
+claim page at all, so nothing was tested there.
+
+#### Data this probe wrote to the dev database (left in place)
+
+Application **22 `APP-B20EEA40BD`** (Aira — enrolled, claimed) with Student /
+User 19 `airaprobeclaim`, guardian User 21 `martaprobeclaim` + its
+`ParentProfile`, and its Enrollment — plus application **23
+`APP-6DE9829942`** (Bruno — enrolled, unclaimed, StudentProfile 13 / User 20 with
+no password set). The SMTP walk resent its link three more times, so that row
+now carries `claim_link_resent` events for `33ffca57…`, `fb3bd871…`, `d49a1bbd…`
+and the live one, `4468fc95…`, with the matching `AuditLog` rows; the enrollment
+itself is unchanged. Two earlier probe drafts (20, 21) that lost their guest token were removed through the real
+`DELETE /enrollment/applications/my/<id>/` endpoint — 204 each — not by editing
+rows. Orphan 18 from the previous pass is still there. Nothing else was touched.
+
+---
+
+## Attendance history as one recorded date at a time — 2026-11-08
+
+The user asked, screenshot in hand, that each history list show "1 date each —
+like heres the button example `< nov 1 >`". Three scope decisions were put to them
+and all three answered "Recommended": the arrows step **only between dates that
+have records**; **both** history tabs get the one-date view and the stepper
+**replaces the from/to date inputs** (search, class, subject, status and sort
+stay); the layout is a **date card with that day's rows inside**.
+
+No backend change, no new endpoint. `attendance_session_filters()` in
+`backend/core/views.py` already honours `date`, inclusive `date_after` /
+`date_before`, `section`, `subject`, `status`, `search` and `ordering`, and
+`AttendanceRecordListCreateView` reuses it with `alias="session"` — so a mark
+narrows on its **session's** date exactly like a session row narrows on its own.
+
+### Request contract (measured, not assumed)
+
+Per visible day: **one** `page_size=20&date=<day>` read for the rows, plus **two**
+`page_size=1` reachability probes. A probe must start from the day *past* the one
+shown (`date_before = day-1` when walking earlier, `date_after = day+1` when
+walking later) and sort *away* from the current day, otherwise it returns the day
+already on screen. Every probe carries the active filters, so a walk covers "the
+days matching this search", not the whole term.
+
+| Piece | File |
+|---|---|
+| The walk hook (landing probe + two neighbour probes, abort-guarded) | `frontend/src/hooks/useRecordedDay.js` |
+| Pure probe/heading derivations | `frontend/src/utils/attendance.js:323-352` |
+| `< date >` control | `DateStepper` in `frontend/src/pages/attendance/parts.jsx` |
+| By-session tab | `frontend/src/pages/attendance/SessionHistory.jsx` |
+| By-student tab | `frontend/src/pages/attendance/StudentHistory.jsx` |
+| Day-card + stepper styling (incl. ≤767px) | `frontend/src/pages/attendance/AttendancePage.css` |
+
+### Defects found and fixed during verification
+
+1. **The By-student walk could never move.** `useRecordedDay` read
+   `page.rows[0].date`, but `AttendanceRecordSerializer` does not put a date on
+   the record row — the day lives inside `session_detail`. Added the `dateOf`
+   accessor and `StudentHistory` passes `(row) => row?.session_detail?.date`.
+2. **A filter that leaves no day froze the screen on a skeleton.** Changing a
+   filter aborts the neighbour probes started for the day being replaced, and an
+   aborted promise chain never reaches its `finally`, so `walking` stayed `true`.
+   Cleared in the hook's early-return branch. **This one was caught only by the
+   live probe** — jsdom never reproduced it. The regression test slows just the
+   `page_size===1 && (date_before||date_after)` reads by 40 ms and does fail
+   without the fix.
+
+### Gates actually run
+
+Final numbers after both fixes (the chevrons and the ghost trap) — re-run at the
+end, not carried over from earlier in the pass:
+
+- `npx oxlint` → **0 warnings, 0 errors on 262 files**.
+- `npx vitest run` → **Test Files 76 passed (76) / Tests 1038 passed (1038)**.
+  Two `BootError` act() warnings remain in files outside this feature; three
+  act() warnings introduced by the new history tests were drained inside `act()`
+  and are gone.
+- `npm run build` → clean. `AttendancePage` chunk **59.02 kB / 14.84 kB gzip**,
+  `AttendancePage` CSS **10.25 kB / 2.39 kB gzip**, `Icon` chunk 8.04 kB / 2.12 gzip.
+- **Live probe**, `/teacher/attendance` on 5173 as teacher1: backward walk
+  **Mon, Nov 9 → Mon, Nov 2 → Mon, Oct 26 → Fri, Oct 23 2026** (weekends and
+  un-recorded days skipped, arrows disabled at both ends of the term), records
+  walk `1 mark on this day` with `page_size=1&date_before=2026-11-01&ordering=-date`
+  style probes, no console errors or warnings, narrow layout measured in a
+  same-origin 415×880 iframe.
+- Empty-filter case after the fix: `["No attendance recorded"]`, `skeleton: false`.
+
+**Not proven in this pass:** no screenshot exists, so the day card is documented
+by measured geometry and computed styles only. Nothing was written to the dev
+database by this feature's probe; the only residue is that the automation browser
+is left signed in as teacher1 and the login form created teacher1's API token.
+
+### The arrows were invisible — root cause was the shared icon set
+
+The user reported the stepper arrows looking invisible. Measured live, the cause
+was not contrast: `Icon.jsx` has **no `chevronLeft` or `chevronRight` path**
+(it only defined `chevronDown`), and `Icon` returns `null` for an unknown name —
+so each button's only child was `<span class="btn-content"></span>` in a 40×40
+box with a transparent background and a transparent border. Nothing to see, and
+no test could tell, because the specs asserted the button's label, not its paint.
+
+Seven call sites were affected, not just this screen: `components/Pagination.jsx`
+(prev/next on **every** paginated table in the app), `attendance/parts.jsx`
+(the new stepper), `attendance/SessionsBoard.jsx` (day navigation),
+`enrollment/ApplicationDetailPage.jsx`, and `LandingPage.jsx` (the FAQ expander —
+a public page, whose markup and CSS were not touched; it simply gets the glyph
+that was always asked for).
+
+| Fix | Where |
+|---|---|
+| `chevronLeft` / `chevronRight` added to the stroke registry | `components/Icon.jsx:102-104` |
+| Stepper arrows moved from `ghost` (no chrome at all) to the pager idiom `secondary` — surface background, `--border-strong` border | `pages/attendance/parts.jsx` `DateStepper` |
+| A test that renders every literal `<Icon name="…">` found in `src`, so a name missing from the registry fails the suite instead of shipping a blank control | `components/Icon.test.jsx` |
+
+After the fix, measured live on the same screen: both arrows are `btn-secondary`
+boxes of `rgb(255,255,255)` on a white card with `1px solid rgb(205,214,228)`
+borders, each painting a 16×16 svg with `stroke: rgb(15,32,68)` and the real
+paths (`m15 18-6-6 6-6`, `m9 18 6-6-6-6`); the Sessions tab's day arrows paint
+14px glyphs. The registry-coverage test was shown to **fail without the paths**
+(it names `chevronLeft`/`chevronRight` and the four files asking for them).
+
+**Not re-probed live after the fix:** the shared `Pagination` arrows in a real
+paginated table — `/teacher/students` turned out not to be a route, and the
+attendance day had no overflow page strip. They are covered by the registry test
+and use the identical `Icon` name that was measured painting on this screen.
+
+### The chromeless-ghost trap, closed in the shared button layer
+
+The stepper had been written as `variant="ghost"` + icon only. `.btn-ghost` sets
+**transparent background and transparent border**, so with no label to carry the
+affordance the control is invisible even when the glyph paints. Rather than
+special-case one screen, `Button.jsx` now detects the shape: when its children
+are exactly one `<Icon>`, it adds `btn-symbol`, and `App.css` gives
+`.btn-ghost.btn-symbol` the secondary chrome (surface background,
+`--border-strong` border; hover at (0,4,0) so it outranks `.btn-ghost:hover`).
+The stepper went back to `ghost` to prove the shared rule is what frames it.
+
+Sites the marker now reaches (found by a multiline-aware source scan, then
+confirmed in the live DOM): the history `DateStepper` (2 controls), the sessions
+board day arrows (2), and the schedules screen's list row edit/delete plus the
+conflict-panel and undo-toast dismissals. 77 other ghost buttons carry text and
+are untouched; `Modal`'s close button uses its own `.icon-btn`, not `Button`, so
+it is unaffected too.
+
+Measured live after the change:
+
+| Control | Classes | Box | Background / border | Glyph |
+|---|---|---|---|---|
+| History `<` / `>` | `btn btn-ghost btn-sm btn-symbol btn-icon` | 42×42 | `rgb(255,255,255)` / `1px solid rgb(205,214,228)` | 16px, `rgb(15,32,68)` |
+| Sessions day arrows | `btn btn-ghost btn-sm btn-symbol` | 40×42 | same | 14px, navy |
+| Schedules list row actions | `btn btn-ghost btn-xs btn-symbol` | 36×42 | same | 14px |
+| Document overflow, `/admin/schedules` | — | — | `scrollWidth - clientWidth` = **0** | — |
+
+**Cascade trap found while doing this:** the first draft of the rule also
+declared `color: var(--navy-800)`, which would have outbid a call site's own
+tone class — `.sched-action-danger` is (0,1,0) against this rule's (0,2,0). The
+declaration was removed, so the rule changes background and border only and can
+never recolour an icon.
+
+**Open question filed, not fixed:** on `/admin/schedules` the delete glyph
+computes `rgb(15, 32, 68)` (navy) although `SchedulesPage.css:765` declares
+`.sched-action-danger { color: var(--red-700) }` (`#b3261e`) in a sheet that
+loads after App.css, and neither rule carries `!important` — the cascade
+inspection lists exactly three matching color declarations and the red one is
+last. The measurement is itself suspicious: even an **inline**
+`color: rgb(179, 38, 30)` read back as navy after a 260 ms settle, which real
+CSS cannot do, so this smells like a probe artifact (a node React recreated
+under the reference) rather than a stylesheet impossibility. The tint reads the
+same with and without `btn-symbol`, so this pass neither caused it nor masked
+it; it is filed as an open question, not reported as a defect.
+
+---
+
+## Mobile motion pass — 2026-11-08
+
+Request: **"add animations to the mobile UI"**, scoped by two answers the user
+picked from the options offered: reach **both** the shared component layer and
+every screen that hand-rolls its own layout, and **honour the OS "remove
+animations" setting everywhere**. Expo app only — `frontend/` untouched.
+
+### What the pass found before changing anything
+
+`mobile/src/anim.ts` already existed but reached seven files, `useEntrance` and
+`useGrow` were dead code, and reduce-motion had no handling at all. An inherited
+audit figure ("16 of 28 routes mount `Screen`") was wrong: `grep -rL "ui/Screen"`
+returned **8 with / 26 without**, and the sweep list was rebuilt from that output
+rather than from the remembered number.
+
+### The gate, and why it is a module store
+
+`AccessibilityInfo.isReduceMotionEnabled()` + `reduceMotionChanged` is the only
+portable read; react-native-web implements both over
+`matchMedia('(prefers-reduced-motion: reduce)')` and **resolves `true` when
+matchMedia is missing**. Because most of what moves does so from an event handler
+— a press, a sheet closing, a tab capsule — where a hook cannot be called, the
+state lives in a module store with two accessors: `useReducedMotion()` for code
+that must re-render, `getReduceMotion()` for code that only needs to know at the
+moment it would animate. `startMotion()` is the single funnel: under reduce-motion
+it applies `toValue` in the same frame and still calls the completion callback, so
+a sheet scheduled its own unmount from the callback rather than stranding itself.
+
+The dialect chosen: movement (translate, scale, loops) collapses to an instant
+landing; the dim an affordance gives on press is **kept**, because a control that
+stopped answering a tap is a worse trade than a colour change that arrives in no
+time at all.
+
+### Files changed
+
+| Surface | What moved |
+|---|---|
+| `src/anim.ts` | reduce-motion store, `MotionConfig`, `startMotion`, `delay` on `useEntrance`, gate in `usePress`/`useShimmer`/`useGrow`/`animateLayout` |
+| `ui/Screen.tsx` | body rises 8dp over 220ms, restarted by `useFocusEffect` (a tab switch is a focus, not a render) |
+| `ui/ListRow.tsx`, `ui/Card.tsx`, `ui/Chip.tsx`, `ui/QuickActions.tsx` | press feedback: `AnimatedPressable` + `usePress`, static `pressed` rules deleted |
+| `ui/StatTile.tsx`, `ui/MetricsCard.tsx`, `StateViews.tsx` | entrance on arrival and on value change; loading, empty and error states rise |
+| `ui/ProgressBar.tsx` | the previously dead `useGrow` now drives the fill |
+| `ui/Sheet.tsx`, `ui/Toast.tsx`, `SegmentedControl.tsx`, `DaySelector.tsx`, `FloatingTabBar.tsx`, `BarSeries.tsx` | routed through `startMotion` so the gate covers them |
+| 21 routes under `src/app/(app)/` | converted from `<View style={styles.screen}>` to `<Screen header={…}>` |
+| `auth/login.tsx` | brand block and form arrive one after the other (8dp rise, 110ms apart) |
+
+The dead `screen: { flex: 1, backgroundColor: colors.bg }` key that the sweep left
+behind was removed from all 21 route files by a script that refuses any file whose
+line is not the exact expected text or that still references `styles.screen`; each
+file was then diffed against a pre-edit copy and shows **exactly one deleted line,
+no additions**.
+
+### Two traps this pass had to design around
+
+1. **An interpolation cannot live in a `Pressable` function style.** A
+   `({pressed}) => […]` style rejects it, so the press-bearing components moved to
+   static style arrays wrapped in `Animated.createAnimatedComponent(Pressable)` —
+   the pattern `Button.tsx` already used, not a new one.
+2. **An animated `opacity` in a style array outranks a static one.** A disabled
+   control that dimmed through a stylesheet rule alone never dimmed. The dim is now
+   expressed as `usePress({ restingOpacity })`, i.e. the floor the press works down
+   from. `QuickActions` and `ListRow` changed on this finding.
+
+### Gates actually run
+
+| Gate | Command | Result |
+|---|---|---|
+| Typecheck | `npx tsc --noEmit` | 0 errors — this is also the structural check on the sweep, since a mismatched `</Screen>` is a parse error |
+| Lint | `npx expo lint` | exit 0, no warnings |
+| Bundle | `npx expo export --platform web` | exit 0 — every converted module resolves and compiles |
+| Doctor | `npx expo-doctor` | 19/20 checks pass. The one failure is dependency-version drift (`expo 58.0.16` vs `~58.0.23` and eight siblings), which predates this pass and was not touched: upgrading the SDK is not this task |
+
+### What was driven live
+
+Metro served the app at `:8081` against the running API at `:8000`, and sixteen of
+the converted surfaces were rendered with real records by signing in as
+`teacher1`, `student1`, `parent1` and `admin` (no seeded or mock data):
+`/login`, `/teacher/dashboard`, `/teacher/classes`, `/teacher/classes/1` (opened by
+pressing the row, not by typing the URL), `/teacher/attendance`, `/teacher/review`,
+`/teacher/timetable`, `/messages/8`, `/student/dashboard`, `/student/fees`,
+`/student/submissions`, `/parent/attendance`, `/admin/accounts`,
+`/admin/accounts/18`, `/admin/requirements`, `/profile`. Each returned its own
+heading and live content, e.g. "9 absent marks on record", "Outstanding:
+₱8,900.00", "Sofia Cruz · Grade 7 — Sampaguita". The console for the session held
+no React errors and no key/prop warnings from the sweep; it holds one pre-existing
+warning (`useNativeDriver` is not available on web, so RNW falls back to the JS
+driver — it has always applied to this app's buttons, sheets and toasts) and the
+known failure of `ws://…/api/ws/messaging/` against the WSGI dev server.
+
+### DOM-verified, not visually verified
+
+The probe surface is hidden: `document.visibilityState` is `hidden`,
+`take_screenshot` answers `NATIVE_BROWSER_VIEWPORT_UNAVAILABLE`, and a
+`requestAnimationFrame` counter sampled three seconds after scheduling is still
+`0`. RNW's JS-driven animation therefore never advances, so the probe reads the
+entrance exactly at its start (`opacity: 0`, `translateY: 10`) on content the
+accessibility tree reports in full. **That is a measurement artifact, and it is
+also a fact worth recording:** on web, an entrance that begins at `opacity: 0`
+holds its content transparent until the tab paints — a page loaded into a
+background tab shows nothing until it is foregrounded. Native (Expo Go, where the
+native driver runs the same animation on the UI thread) is not affected. Frames
+were not observed for any screen in this pass, and no claim about how the motion
+looks should be read into the table above.
+
+### Recorded, not claimed
+
+- No mobile unit suite exists (`mobile/package.json` has no `test` script); the
+  1038 web specs and the Django suite do not exercise this code and were not
+  re-run for a mobile-only change.
+- Reduce-motion was verified by reading the implementation and by the shape of the
+  gate (one funnel, `setValue` + callback on the reduced path), not by toggling the
+  setting on a device or in an OS accessibility panel.
+- The 21-file sweep was scripted, and its output was reviewed against backups file
+  by file — `teacher/dashboard`, `messages/[id]`, `student/submissions`,
+  `admin/requirements` were read line by line, the rest by exact-diff count. A
+  tool that reports success is not evidence; the diffs are.
+- The web dev server and Metro were left running for the user; nothing was
+  committed.
+
+---
+
+## Play-Store / web compliance pass — 2026-11-08
+
+The brief was a twenty-item store-listing compliance checklist, filtered to the
+items that can actually apply to this product: a web-only school system with no
+paid tier, no SDK, no reviews and no marketing mail. Four scope calls were put
+to the user and approved before any code was written — self-host the third-party
+assets and gate the map embed; record consent on the application itself;
+implement the deletion right as export plus a staff-answered request queue; and
+extend the existing legal pages in place with a footer on every public surface.
+
+### Every item, with what was done to it
+
+| # | Checklist item | Applies here? | What the code does |
+|---|---|---|---|
+| 1 | Privacy policy | Yes | `/privacy` — eleven sections naming the controller, each collection, retention and every right, linked from every public page (PrivacyPage.jsx) |
+| 2 | Terms of service | Yes | `/terms` — eleven sections including account duties, acceptable use and suspension (TermsPage.jsx) |
+| 3 | Refund policy | No paid product | Terms §6 "Charges — there are none" states the app is free, so nothing can be refunded. Stated on the face of the terms rather than invented as a refund form |
+| 4 | Cookie policy | Yes, as a section | Privacy §5 names the two strictly-necessary stores (session token in `sessionStorage`, the Django session cookie) and states that nothing else is set |
+| 5 | Cookie consent banner | No — and documented why | There is no optional storage to consent to, so a banner would only train dismissal. Privacy §5 says in words: "Because there is nothing optional to consent to, TRACK shows no cookie banner." |
+| 6 | Form consents | Yes | `ConsentCheckbox` on the wizard review step and on the account-claim form; unticked by default; the backend refuses a submit or resubmit without it |
+| 7 | Collect only needed data | Yes | Four purpose statements on the collected-data groups (`enr-purpose`) naming who sees each group and what it is used for; the export in item 20 is the inventory a person can check |
+| 8 | Audit third-party SDKs | Yes | No third-party script, pixel, font CDN or image host ships: `grep -rn "unsplash\|fonts.googleapis\|gstatic\|cdn\." frontend/src` and every `https?://` in `frontend/index.html` return nothing. The campus photograph is served from the bundle (`public/campus-hero.jpg`), so restoring it did not reopen the cross-origin request. The one remaining external request is the Google map, now behind a click |
+| 9 | Remove dark patterns | Yes | The consent box starts empty every time the dialog opens; the push prompt is a deliberate opt-in (`PushPreferences`), not a load-time permission ask; a request to delete answers with the legal reason instead of quietly disappearing |
+| 10 | No hidden fees | Yes | Terms §6 — no charges, no upsell, no card form anywhere in the app |
+| 11 | No fake reviews | Not present | TRACK ships no review, rating or testimonial surface, so there is nothing to fake |
+| 12 | No unsupported claims | Yes | Every public claim was checked against the code in the claims pass that opened this program. The three hero counters describe structure, not volume — 4 roles, 8 feature areas, 1 portal — and each is countable in the source the same page renders (`FEATURES` in LandingPage.jsx holds exactly eight titled cards). No enrollment totals, graduate outcomes or improvement percentages are asserted anywhere on the public surface, and the two researcher images carry `alt=""` — the card states the name in text, and the picture beside it is presented as decoration rather than as a photograph of that person (item 19) |
+| 13 | Alt text | Yes | Every `<img>` in the web frontend carries `alt` — descriptive for the dashboard and figure shots, `alt=""` for the seal and the sidebar mark that sit beside their own text |
+| 14 | Colour contrast | Yes | Measured, not eyeballed — see the measurement table below |
+| 15 | Keyboard navigation | Yes | Mobile nav dialog traps focus and returns it (4 specs); the landing feature cards carry `role="button"`, `aria-expanded` and an Enter/Space handler; the wizard, document viewer and modals keep the focus order established in earlier passes |
+| 16 | Business details | Yes | `/privacy` §1 names the controller (Kiwalan National High School), its address (Purok 10 Mato-og, Kiwalan, Iligan City, Lanao del Norte 9200) and the office that receives every data request; `PublicFooter` repeats the controller line on all eight public surfaces. No telephone number or email address is published, because none is recorded anywhere in this repository — `PublicFooter.jsx:12` says so in a comment, and inventing an inbox to satisfy a checklist was rejected |
+| 17 | Age consent for minors | Yes | Enrollment is filed by the adult, and the tick they give is stamped with `POLICY_VERSION` (`consent_given_at`, `consent_policy_version` on `EnrollmentApplication`); Privacy §7 states the under-18 rule in the school's own voice |
+| 18 | Unsubscribe link | No marketing mail | Outgoing mail is one transactional thread — enrollment confirmation and the account-setup link (`core/emails.py`). There is no newsletter, so there is no list to leave; in-app and push notifications are opt-in per category |
+| 19 | License stock images | Partly — the imagery is back, the record is not | Reopened on 2026-11-08 at the user's request ("bring them back"), so this row no longer describes the state this pass left. What is true now: every picture ships inside the bundle and the browser makes no image request off-origin. The hero backdrop is `public/campus-hero.jpg`, downloaded once from the Unsplash source that `/researchers` used to hotlink and served locally — that file is the one whose licence is settled (Unsplash License, no attribution required, self-hosting is permitted). What is still not settled: `public/student.png` and `public/student2.webp` are back in `public/`, and nothing in the repository records where they came from or what rights the school holds — see the subsection below. The earlier version of this row claimed they had been taken out of the shipped bundle; they have not been |
+| 20 | Data deletion option | Yes | `GET /api/account/export/` returns the requester's own records as a JSON document; `/account/data-requests/` files a correction, objection or erasure ask; the enrollment office answers it in writing at `/admin/enrollment/data-requests`, and academic history is retained with the legal reason stated rather than deleted by a button |
+
+### Consent, as it is stored
+
+`EnrollmentApplication.consent_given_at` and `consent_policy_version`
+(`backend/core/models.py:1354-1364`, migration `0015_enrollmentapplication_consent`)
+record *when* the tick was given and *which version of the notice* it referred
+to, so a dispute about a 2026 filing is answered by the text that person saw.
+`POLICY_VERSION = '2026.11'` lives in `frontend/src/config/legal.js` and the
+comment there is the rule: bump both together, never reuse a version. The
+server-side refusal is pinned by `test_submit_without_consent_is_refused`,
+`test_submit_reads_a_form_encoded_false_as_no_consent` and
+`test_resubmit_without_consent_is_refused`.
+
+### Contrast, measured
+
+A throwaway harness (`frontend/public/__contrast-audit.js`, deleted before the
+build — it is not in `dist/`) walked every rendered text node in the real
+browser, resolved its paint order including multi-layer gradients composited at
+the text's own rectangle, and compared against WCAG 2.x: 4.5:1 for text, 3:1 for
+large text and for non-text glyphs. Every failing pair found in the pass:
+
+| Surface | Was | Measured | Now | Measured |
+|---|---|---|---|---|
+| Landing `.ls-eyebrow` | `--brand-cyan` | 2.60 (documented decorative-only) | `--blue-600` | 4.94 on the tinted band, 5.17 on white |
+| Landing `.solution-quote` | `rgba(255,255,255,.72)` on the `#2347E8` card | 4.22 | `rgba(255,255,255,.86)` | 5.36 |
+| Privacy `.lp-toc-list a` | `#2196f3` on the tinted band | 2.80 | `--blue-700` | 6.01 |
+| Researchers `.rp-card--partner .rp-role` | `#2196F3` on the white card | 3.12 | `#1565c0` | 5.75 |
+| Researchers/About `.rp-team-sub`, `.ap-section-sub` | `#5c7199` | 4.91 on white, 4.40 on the tinted band | `--text-subtle` | 5.63 / 5.09 |
+| Login `.auth-lede`, `.auth-note` | `#6b7f9f` on the `#f2f6fb` panel | 3.75 | `--text-subtle` | 5.19 |
+| Enroll hero reference-number link | app link blue on the navy hero | 2.33 | `--on-navy-accent` | 7.10 |
+| `.badge-green`, `.alert-success` | `--green-700` on `--green-100` | 4.42 | new `--green-800` | 6.27 |
+| Messages `.unread-chip`, own `.bubble` | white on `--brand-blue` | 3.12 | white on `--blue-600` | 5.17 |
+| Messages `.search-field:focus-within` (inherits into the typed text) | `--brand-blue` on the surface | 3.12 | `--blue-600` | 5.17 |
+| Messages `.empty-mark` glyph | `--brand-blue` on `--blue-50` | 2.85 | `--blue-600` on `--blue-50` | 4.72 |
+| Messages read-receipt label | `#c9f0d5` on `#f7f9fc` | **1.18** | rule deleted; base `--success` | 5.02 |
+| Attendance checked "Present" segment | `--green-700` on `--green-100` | 4.42 | `--green-800` | 6.27 |
+| Upload drop-zone hint | `--ink-muted` on the `--blue-50` drag state | 4.35 | `--text-muted` | 5.60 |
+| Login `.back-home` | `#2563eb` on the `#f2f6fb` panel | 4.76 — already passing | `--blue-700`, tokenized | 6.18 |
+
+The last row is recorded because it is the one change this pass made that did not
+have to be made: the static scan reported 4.11 for it against `--navy-100`, a
+surface `.back-home` never actually sits on, and measuring it live against the
+auth panel gave 4.76. It was kept only to replace a hardcoded hex with the
+documented link token, and the comment on the rule says so rather than claiming a
+rescue that the measurement does not support.
+
+
+The read-receipt label is the one worth reading twice: `#c9f0d5` was written for
+a time when the timestamp line sat *inside* the coloured bubble. The markup moved
+out and the rule did not, so the word "Read" rendered at 1.18:1 — present in the
+accessibility tree, invisible on screen. Deleting the override restores the base
+`--success`, and the diff is one rule removed rather than a new colour invented.
+
+Two rules from `styles/tokens.css` were followed rather than worked around:
+`--brand-blue` (3.12:1) is documented as a graphics token — "never body text and
+never a white-text button" — and `--text-subtle` as the lightest value that still
+clears 4.5:1 on every surface. The one new token this pass adds, `--green-800`,
+mirrors the existing `--amber-800` precedent and carries its measured ratio in the
+comment.
+
+### Pictures restored, and re-measured against them — 2026-11-08
+
+The compliance pass had swapped the photographs for three hand-drawn SVGs. The
+user asked for the pictures back, so they are back — but in the self-hosted form,
+not the form they were in when this program started:
+
+| Slot | Was (before the compliance pass) | Is now |
+|---|---|---|
+| Landing, About, Privacy, Terms, Location, Researchers hero | a `coresg-normal.trae.ai` `text_to_image` hotlink (and an Unsplash hotlink on `/researchers`) | `public/campus-hero.jpg`, one file, served from the bundle |
+| Login branding panel | the same Trae endpoint, portrait crop | the same `public/campus-hero.jpg` |
+| Landing hero figure | `/student.png`, `alt="A KNHS student in school uniform holding a tablet"` | `/student.png`, `alt="A student in school uniform holding a tablet"` |
+| Researcher cards | `/student2.webp` + `/student.png`, `alt="Portrait of <name>"` | the same two files, `alt=""` — decorative |
+
+Two of those rows are not a pure revert. The Trae URLs could not be restored:
+they are an IDE-internal endpoint that answers 301 and would 404 for a real
+visitor, so the picture it generated could never have shipped. And the two `alt`
+changes stayed, because both asserted something the image cannot support — that a
+generic figure is a pupil of this school, and that a standing illustration is a
+photograph of a named person.
+
+The reason to re-measure rather than assume is that a photograph is brighter than
+the artwork that replaced it, and the hero text is read against the navy washes
+*composited over* that photograph. So the wash stack was resolved per surface —
+`::before` (the photo, with its `cover` position) under `::after` (two linear and
+two radial navy washes), each gradient evaluated at the text's own rectangle and
+alpha-composited over the real JPEG pixels sampled from a canvas — for all seven
+surfaces:
+
+| Surface | Text nodes | Worst measured | Floor | Fails |
+|---|---|---|---|---|
+| `.landing-hero` | 24 | 3.36 | 3 (55px/900 display line) | 0 |
+| `.rp-hero` | 4 | 6.60 | 4.5 | 0 |
+| `.ap-hero` | 7 | 7.39 | 4.5 | 0 |
+| `.lp-hero` (Privacy) | 4 | 7.53 | 4.5 | 0 |
+| `.lp-hero` (Terms) | 4 | 7.53 | 4.5 | 0 |
+| `.loc-hero` | 3 | 7.63 | 4.5 | 0 |
+| `.auth-aside` | 11 | 7.53 | 4.5 | 0 |
+
+The 3.36 is `.hero-heading-line2` — "One portal." at 55px/900 in `--blue-600`. It
+clears the 3:1 large-text floor, and it is not something the photograph caused:
+`#2563eb` against the wash's own navy is about 3.3 no matter what sits under the
+wash, so this number was already the design's, not a regression from this change.
+It is recorded rather than fixed for that reason.
+
+The harness was `frontend/public/__probe.js`, deleted before the final build, and
+`dist/` was listed afterwards to prove it. Screenshots were again not available —
+the in-app Browser surface reports `visibilityState=hidden`, so the verification
+here is arithmetic on the real computed styles and the real JPEG, not a picture of
+the result. One consequence of that hidden surface is worth naming: the hero photo
+layer's 900 ms fade-in never advances in a hidden tab, so `opacity` reads `0`
+until the animation is finished by hand. That was checked and is a probe artifact,
+not a broken image — the same layer reaches `opacity: 1` when the transition is
+allowed to complete.
+
+### What the live sweep covered
+
+Signed in as `admin`, `teacher1`, `juandelacruz` (learner) and `parent1` against
+the running dev API with real records, one browser tab, same-origin iframes so
+each route got its own render: **36 route renders across 35 distinct paths —
+2,419 text nodes measured in the batch runs, plus the 98 on the top-level
+dashboard — 0 failing pairs.** The
+routes: `/admin/enrollment/data-requests`,
+`/admin/enrollment/overview`, `/admin/enrollment/applications`, `/admin/students`,
+`/admin/sections`, `/admin/fees`, `/admin/attendance`, `/admin/audit-logs`,
+`/admin/settings`, `/teacher/classes`, `/teacher/requirements`,
+`/teacher/schedule`, `/teacher/attendance`, `/teacher/dashboard`,
+`/teacher/review`, `/messages`, `/profile`, `/notifications`, `/announcements`,
+`/student/dashboard`, `/student/attendance`, `/student/requirements`,
+`/student/schedule`, `/student/fees`, `/student/submissions`,
+`/student/enrollment`, `/parent/dashboard`, `/parent/children`,
+`/parent/attendance`, `/parent/requirements`, `/parent/schedule`, `/parent/fees`,
+`/parent/enrollment`, `/enroll`, `/enroll/apply`. `/messages` and
+`/teacher/dashboard` were swept a second time at the top level of the tab (not in
+an iframe) after the messaging fixes, with a conversation opened by pressing its
+row, and `/login` was measured directly for the one link changed there.
+
+Three teacher URLs requested as `admin` answered `/unauthorized` and were
+excluded — which is the role gate working, and is recorded rather than counted as
+a pass.
+
+`reveal: true` was passed, so hover- and opacity-hidden content (the message
+timestamp line, the feature-card hint, the conversation tools) was measured while
+hidden. Three teacher URLs requested as `admin` answered `/unauthorized` and were
+excluded — which is the role gate working, and is recorded rather than counted as
+a pass.
+
+### Gates
+
+| Gate | Command | Result |
+|---|---|---|
+| Lint | `npx oxlint src` | 0 warnings, 0 errors, 268 files |
+| Frontend suite | `npx vitest run` | **1076 passed / 1076** in 79 files, exit 0 |
+| Backend suite | `.venv/Scripts/python.exe backend/manage.py test core` | **592 tests, 3 skipped, OK** in 41.76s |
+| Build | `npm run build` | ✓ built — and `dist/` was listed afterwards to confirm the audit harness did not ship |
+| External requests | grep of `index.html` and `src` | no third-party URL remains except the map embed behind its click-to-load facade |
+
+### Recorded, not claimed
+
+- Seven applications sit in the dev database and **none of them carries a consent
+  stamp** (`consent_given_at` is null on all seven) — they were filed before the
+  column existed. The field is nullable on purpose: `models.py:1354-1359` says an
+  unrecorded consent must stay blank rather than be back-filled, because writing a
+  timestamp for a tick nobody gave would be the exact forgery the field exists to
+  prevent. `DataRequest` holds **0 rows**, and none of the 22 notifications in the
+  dev database is of the `data_request.answered` type — so no test ask was ever
+  answered against someone's real record, and the queue's on-screen behaviour is
+  carried by `RegistrarDataRequestsPage.test.jsx` (11 specs) rather than by dev
+  data.
+- The three skipped backend tests are the pre-existing ones (`L-014` in
+  KNOWN_LIMITATIONS) — nothing in this pass added a skip.
+- Contrast was measured against the *rendered* surface. A style that only appears
+  in a state nobody reached — a dialog opened by a workflow the dev database has
+  no record for — is not covered by the sweep, which is why the two static scans
+  over the CSS were run alongside it, and why every state they flagged was then
+  read in the source to separate real text from `aria-hidden` glyphs before
+  anything was changed.
+- Glyphs marked `aria-hidden` (`.fc-icon`, `.rp-mark`, the wizard's completed step
+  number, the conflict "✕" in `.sched-conflict-vs`) were judged against the 3:1
+  non-text floor and left as they are. That is a deliberate pass, not an oversight.
+- Item 20 answers an erasure request in writing; it does not delete a learner's
+  academic history, because DepEd retention is the school's obligation to keep it.
+  `L-017` in KNOWN_LIMITATIONS stays open for that reason: the software now
+  supports the rights, a data protection officer still has to sign off on them.
+- The two student images are back in `frontend/public/` and their licence is still
+  unrecorded. Nothing in the repository says who made them or that the school may
+  publish them, and `public/` is copied verbatim into `dist/`. `frontend/unshipped/`
+  — the folder that held them while they were out of the bundle — was deleted when
+  they came back, so the audit trail is this row and nothing else. Before any
+  public deployment, either record the provenance next to the files or take them
+  out again.
+- The map facade still reaches Google once pressed. That is disclosed in Privacy §5
+  in the same words a reviewer would need, and it is the only outbound request the
+  frontend makes to a third party.
+- Nothing was committed and nothing was deployed.
+
 ---
 
 ## Blocked tests
@@ -974,7 +1843,7 @@ The following tests were verified through code inspection and test coverage rath
 | Physical device push notifications | No push notification service configured. In-app notifications are tested through the backend. |
 | File upload end-to-end (frontend → backend → storage) | No frontend currently sends files. File validation is tested in the serializer (`validate_file_upload`). |
 | Supabase Storage integration | Not implemented. Local filesystem only. |
-| Email / SMTP | Console backend only. No SMTP configured. |
+| Email / SMTP delivery | The message, its recipient rules and its failure modes are tested (`core/tests_enrollment.py`, 5 specs) and the body is read from the console backend live, but no SMTP host is configured, so real delivery is unverified. |
 | Multi-worker login throttle behavior | Throttle uses per-process memory; behavior with 2+ workers is a known limitation, not tested. |
 | Production gunicorn + PostgreSQL | Blocked (see BT-001, BT-002). |
 | Render / Vercel live deployment | Not deployed. |

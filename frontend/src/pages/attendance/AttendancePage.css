@@ -388,7 +388,8 @@
 
 .seg-present .seg-input:checked + .seg-face {
   background: var(--green-100);
-  color: var(--green-700);
+  /* --green-700 is 4.42:1 on this chip; the segment label is real text. */
+  color: var(--green-800);
   box-shadow: inset 0 -2px 0 var(--green-700);
 }
 .seg-absent .seg-input:checked + .seg-face {
@@ -428,6 +429,30 @@
   padding-left: 6px;
   padding-right: 6px;
   text-align: center;
+}
+
+/* One date at a time: the day is the heading and the two chevrons are the
+   whole navigation. The label holds a fixed measure so the buttons do not
+   shuffle sideways when a longer month name arrives. */
+.att-day-stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+.att-day-date {
+  min-width: 176px;
+  text-align: center;
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  color: var(--navy-700);
+  font-variant-numeric: tabular-nums;
+}
+.att-day-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
 }
 
 .att-pager {
@@ -517,6 +542,10 @@
   .att-history td.att-count { text-align: right; }
 
   .att-day-grid { grid-template-columns: minmax(0, 1fr); }
+  /* A phone has no room for a fixed-measure label between two buttons, so the
+     chevrons go to the ends and the date takes the space they leave. */
+  .att-day-stepper { width: 100%; justify-content: space-between; }
+  .att-day-date { min-width: 0; flex: 1 1 auto; }
   .att-upcoming-row { gap: 4px 10px; }
   .att-upcoming-date { min-width: 0; }
   .att-upcoming-time { min-width: 0; }

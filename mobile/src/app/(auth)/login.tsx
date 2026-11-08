@@ -13,6 +13,7 @@
 import { useState } from 'react';
 import { router } from 'expo-router';
 import {
+  Animated,
   Image,
   Keyboard,
   ScrollView,
@@ -26,6 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, radius, shadows, spacing, typography } from '../../theme';
 import { api, auth } from '../../api/client';
+import { useEntrance } from '../../anim';
 import Button from '../../components/ui/Button';
 
 const LOGO_WHITE = require('../../../assets/logo-white.png');
@@ -37,6 +39,12 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const insets = useSafeAreaInsets();
+
+  // The two surfaces of this screen arrive one after the other — the wordmark
+  // inside the brand panel, then the form a beat later — rather than the whole
+  // page appearing at once. Neither moves the panel it sits in.
+  const brand = useEntrance(null, { rise: 8 });
+  const form = useEntrance(null, { rise: 10, delay: 110 });
 
   const handleSubmit = async () => {
     Keyboard.dismiss();
@@ -78,11 +86,15 @@ export default function LoginScreen() {
         <View pointerEvents="none" style={styles.ringLarge} />
         <View pointerEvents="none" style={styles.ringSmall} />
 
-        <Image source={LOGO_WHITE} style={styles.logo} resizeMode="contain" accessibilityLabel="TRACK" />
-        <Text style={styles.tagline}>
-          One place for requirements, attendance, and communication.
-        </Text>
-        <Text style={styles.heroFooter}>Kiwalan National High School · Iligan City</Text>
+        <Animated.View
+          style={{ opacity: brand.opacity, transform: [{ translateY: brand.translateY }] }}
+        >
+          <Image source={LOGO_WHITE} style={styles.logo} resizeMode="contain" accessibilityLabel="TRACK" />
+          <Text style={styles.tagline}>
+            One place for requirements, attendance, and communication.
+          </Text>
+          <Text style={styles.heroFooter}>Kiwalan National High School · Iligan City</Text>
+        </Animated.View>
       </View>
 
       <ScrollView
@@ -90,67 +102,71 @@ export default function LoginScreen() {
         contentContainerStyle={styles.formContent}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.welcome}>Welcome back</Text>
-        <Text style={styles.lede}>Sign in to continue to TRACK.</Text>
+        <Animated.View
+          style={{ opacity: form.opacity, transform: [{ translateY: form.translateY }] }}
+        >
+          <Text style={styles.welcome}>Welcome back</Text>
+          <Text style={styles.lede}>Sign in to continue to TRACK.</Text>
 
-        {error ? (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : null}
+          {error ? (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Username or Email</Text>
-          <TextInput
-            style={styles.input}
-            value={identifier}
-            onChangeText={setIdentifier}
-            autoCapitalize="none"
-            autoComplete="username"
-            placeholder="student1 or student@school.edu.ph"
-            placeholderTextColor={colors.textSubtle}
-            textContentType="username"
-            returnKeyType="next"
-            onSubmitEditing={() => Keyboard.dismiss()}
-          />
-        </View>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Password</Text>
-          <View style={styles.passwordRow}>
+          <View style={styles.field}>
+            <Text style={styles.label}>Username or Email</Text>
             <TextInput
-              style={[styles.input, styles.passwordInput]}
-              value={password}
-              onChangeText={setPassword}
-              secureTextEntry={!showPassword}
-              autoComplete="current-password"
-              placeholder="••••••••"
+              style={styles.input}
+              value={identifier}
+              onChangeText={setIdentifier}
+              autoCapitalize="none"
+              autoComplete="username"
+              placeholder="student1 or student@school.edu.ph"
               placeholderTextColor={colors.textSubtle}
-              textContentType="password"
-              returnKeyType="go"
-              onSubmitEditing={handleSubmit}
+              textContentType="username"
+              returnKeyType="next"
+              onSubmitEditing={() => Keyboard.dismiss()}
             />
-            <TouchableOpacity
-              style={styles.showHide}
-              onPress={() => setShowPassword((visible) => !visible)}
-              activeOpacity={0.7}
-              accessibilityRole="button"
-              accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
-            >
-              <Text style={styles.showHideLabel}>{showPassword ? 'HIDE' : 'SHOW'}</Text>
-            </TouchableOpacity>
           </View>
-        </View>
 
-        <Button onPress={handleSubmit} loading={loading} block style={styles.submit}>
-          Sign in
-        </Button>
+          <View style={styles.field}>
+            <Text style={styles.label}>Password</Text>
+            <View style={styles.passwordRow}>
+              <TextInput
+                style={[styles.input, styles.passwordInput]}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                autoComplete="current-password"
+                placeholder="••••••••"
+                placeholderTextColor={colors.textSubtle}
+                textContentType="password"
+                returnKeyType="go"
+                onSubmitEditing={handleSubmit}
+              />
+              <TouchableOpacity
+                style={styles.showHide}
+                onPress={() => setShowPassword((visible) => !visible)}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+              >
+                <Text style={styles.showHideLabel}>{showPassword ? 'HIDE' : 'SHOW'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
 
-        <View style={styles.note}>
-          <Text style={styles.noteText}>
-            Use your school credentials. Parents and students sign in here.
-          </Text>
-        </View>
+          <Button onPress={handleSubmit} loading={loading} block style={styles.submit}>
+            Sign in
+          </Button>
+
+          <View style={styles.note}>
+            <Text style={styles.noteText}>
+              Use your school credentials. Parents and students sign in here.
+            </Text>
+          </View>
+        </Animated.View>
       </ScrollView>
     </View>
   );

@@ -67,12 +67,14 @@ const RegistrarEnrollmentsPage = lazy(() => import('./pages/enrollment/Registrar
 const EnrollmentPeriodsPage = lazy(() => import('./pages/enrollment/EnrollmentPeriodsPage'))
 const EnrollmentRequirementsPage = lazy(() => import('./pages/enrollment/EnrollmentRequirementsPage'))
 const RegistrarReportsPage = lazy(() => import('./pages/enrollment/RegistrarReportsPage'))
+const RegistrarDataRequestsPage = lazy(() => import('./pages/enrollment/RegistrarDataRequestsPage'))
 
 // Public (account-less) enrollment portal — anyone can apply and track an
 // application; the account is only claimed after the Registrar confirms it.
 const PublicEnrollLayout = lazy(() => import('./pages/enrollment/PublicEnrollLayout'))
 const PublicEnrollPage = lazy(() => import('./pages/enrollment/PublicEnrollPage'))
 const PublicTrackPage = lazy(() => import('./pages/enrollment/PublicTrackPage'))
+const ClaimAccountPage = lazy(() => import('./pages/enrollment/ClaimAccountPage'))
 
 export default function App() {
   const { hash, pathname } = useLocation()
@@ -132,6 +134,9 @@ export default function App() {
       <Route path="/enroll" element={<PublicEnrollLayout />}>
         <Route index element={<PublicEnrollPage />} />
         <Route path="track" element={<PublicTrackPage />} />
+        {/* Where the confirmation email's link lands: the one-time credential
+            in the query string sets up the student's account. */}
+        <Route path="claim" element={<ClaimAccountPage />} />
         <Route path="apply" element={<ApplicationWizardPage />} />
         <Route path="applications/:id" element={<ApplicationDetailPage />} />
       </Route>
@@ -173,6 +178,7 @@ export default function App() {
               <Route path="/admin/enrollment/periods" element={<EnrollmentPeriodsPage />} />
               <Route path="/admin/enrollment/requirements" element={<EnrollmentRequirementsPage />} />
               <Route path="/admin/enrollment/reports" element={<RegistrarReportsPage />} />
+              <Route path="/admin/enrollment/data-requests" element={<RegistrarDataRequestsPage />} />
             </Route>
             <Route path="/admin/requirements" element={<RequirementsPage scope="admin" />} />
             <Route path="/admin/attendance" element={<AttendancePage mode="admin" />} />

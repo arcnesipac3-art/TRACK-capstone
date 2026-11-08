@@ -21,6 +21,8 @@ serializers can never smuggle an arbitrary status. Capacity, identity and
 confirmation rules are re-validated server-side at the moment they run.
 """
 
+import secrets
+
 from django.core.exceptions import PermissionDenied as DjangoPermissionDenied
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import IntegrityError, transaction
@@ -64,6 +66,7 @@ from .models import (
     EnrollmentApplication,
     EnrollmentPeriod,
     EnrollmentRequirement,
+    ParentProfile,
     User,
 )
 from .notifications import (
@@ -429,6 +432,7 @@ class MyApplicationSubmitView(APIView):
                     action="submitted",
                     note="Application submitted for review.",
                     ip_address=_client_ip(request),
+                    extra_fields=workflow.consent_fields(request.data.get("consent")),
                 )
                 transaction.on_commit(
                     lambda app=locked: notify_enrollment_submitted(app)
@@ -471,6 +475,7 @@ class MyApplicationResubmitView(APIView):
                     action="resubmitted",
                     note="Corrections completed; application resubmitted.",
                     ip_address=_client_ip(request),
+                    extra_fields=workflow.consent_fields(request.data.get("consent")),
                 )
         except (workflow.EnrollmentWorkflowError, workflow.EnrollmentConflictError) as exc:
             raise _workflow_error(exc)
@@ -654,9 +659,9 @@ class PublicApplicationTrackView(APIView):
 
     This is the recovery path when the browser lost its stored guest token:
     the caller must present the APP-XXXXXXXXXX reference AND a contact value
-    that matches the guardian email or a contact number recorded on the
-    application. Every failure returns the same 404 so the endpoint cannot be
-    used to probe which references exist.
+    that matches the applicant or guardian email, or a contact number recorded
+    on the application. Every failure returns the same 404 so the endpoint cannot
+    be used to probe which references exist.
     """
 
     permission_classes = [AllowAny]
@@ -686,10 +691,11 @@ class PublicApplicationTrackView(APIView):
         if application is None:
             return failure
 
-        email_match = (
-            bool(application.guardian_email)
-            and contact.lower() == application.guardian_email.strip().lower()
-        )
+        given_email = contact.strip().lower()
+        email_match = bool(given_email) and given_email in {
+            (application.guardian_email or "").strip().lower(),
+            (application.applicant_email or "").strip().lower(),
+        }
         given = _normalize_contact(contact)
         phone_match = bool(given) and given in {
             _normalize_contact(application.guardian_contact),
@@ -706,10 +712,30 @@ class PublicApplicationTrackView(APIView):
         })
 
 
+def _split_guardian_name(value):
+    """An application records one guardian name string; an account has a first
+    and a last. The last word is taken as the surname, which is how the
+    Registrar writes names in the records this feature feeds."""
+    parts = [part for part in str(value or "").strip().split() if part]
+    if not parts:
+        return "", ""
+    if len(parts) == 1:
+        return parts[0], ""
+    return " ".join(parts[:-1]), parts[-1]
+
+
+def _guardian_contact_field(application):
+    """ParentProfile.contact_number is a 20-column; the application allows a
+    longer free-text contact. Keep what fits rather than truncate silently."""
+    contact = (application.guardian_contact or "").strip()
+    return contact if len(contact) <= 20 else ""
+
+
 class ClaimAccountView(APIView):
     """
-    One-time account setup for an enrolled student (POST {claim_token,
-    username, password}).
+    One-time account setup for an enrolled student
+    (POST {claim_token, username, password[, guardian_username,
+    guardian_password]}).
 
     Only an application that reached ENROLLED with a freshly minted student
     account holds a claim token, and the token is consumed on success — so
@@ -717,11 +743,86 @@ class ClaimAccountView(APIView):
     confirmed. On success the caller receives a DRF token shaped exactly like
     POST /api/auth/token/, letting the frontend sign the new student in
     immediately.
+
+    The optional guardian pair sets up the parent's own account in the same
+    breath, from the guardian details already written on the application, and
+    links it to the learner through ParentProfile.children. It is refused when
+    a parent account already owns the application — that link is made at
+    confirmation, and a second account for the same child would be a defect.
+
+    GET ?token=… is the same credential read once, for the page the emailed
+    link opens: the visitor arrives with nothing but the token, so the screen
+    has to say whose enrollment it is before they type a username. It returns
+    the learner's name, the guardian's name and the reference and nothing
+    else, and it is throttled like the claim itself because a token is a
+    credential.
     """
 
     permission_classes = [AllowAny]
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "auth"
+
+    @staticmethod
+    def _resolve(claim_token):
+        """The application a claim token belongs to, or None."""
+        token = str(claim_token or "").strip()
+        if not token:
+            return None
+        # A trashed application is gone from the applicant's own portal, so an
+        # emailed link to it must not keep working either.
+        return EnrollmentApplication.objects.select_related(
+            "student", "student__user", "applicant"
+        ).filter(account_claim_token=token, deleted_at__isnull=True).first()
+
+    @staticmethod
+    def _guardian_blocked_reason(application):
+        """Why this application cannot get a guardian account, or ''."""
+        applicant = application.applicant
+        if applicant is not None and applicant.is_parent:
+            return (
+                "The guardian already has an account — it is the one that "
+                "filed this application."
+            )
+        if not application.guardian_name.strip():
+            return "No guardian name is recorded on this application."
+        return ""
+
+    def get(self, request):
+        application = self._resolve(request.query_params.get("token"))
+        if application is None:
+            return Response(
+                {"detail": "This account setup link is not valid."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if application.status != ApplicationStatus.ENROLLED:
+            reason = (
+                "This enrollment is not confirmed yet, so there is no account "
+                "to set up."
+            )
+        elif application.account_claimed_at is not None:
+            reason = "This account has already been set up. Sign in instead."
+        else:
+            reason = ""
+        claimable = not reason
+        applicant = application.applicant
+        return Response({
+            "reference": application.reference,
+            "learner_name": application.get_full_name(),
+            "status": application.status,
+            "claim_available": claimable,
+            "detail": reason or None,
+            # The panel the family may or may not see, decided server-side so
+            # the page never asks for credentials that would be refused.
+            "guardian_name": (
+                application.guardian_name.strip() if claimable else ""
+            ),
+            "guardian_relationship": (
+                application.guardian_relationship.strip() if claimable else ""
+            ),
+            "guardian_account_exists": bool(
+                claimable and applicant is not None and applicant.is_parent
+            ),
+        })
 
     def post(self, request):
         from django.contrib.auth.password_validation import validate_password
@@ -730,10 +831,10 @@ class ClaimAccountView(APIView):
         claim_token = str(request.data.get("claim_token") or "").strip()
         username = str(request.data.get("username") or "").strip()
         password = str(request.data.get("password") or "")
+        guardian_username = str(request.data.get("guardian_username") or "").strip()
+        guardian_password = str(request.data.get("guardian_password") or "")
 
-        application = EnrollmentApplication.objects.select_related(
-            "student", "student__user"
-        ).filter(account_claim_token=claim_token).first()
+        application = self._resolve(claim_token)
         if application is None:
             raise ValidationError({"detail": "This account setup link is not valid."})
         if application.status != ApplicationStatus.ENROLLED:
@@ -749,6 +850,11 @@ class ClaimAccountView(APIView):
             raise ValidationError({"detail": (
                 "No student account exists for this application yet."
             )})
+        if not workflow.consent_acknowledged(request.data.get("consent")):
+            raise ValidationError({"detail": (
+                "Confirm that you have read the Privacy Notice before the "
+                "account can be created."
+            )})
         user = application.student.user
 
         if not username or not password:
@@ -762,12 +868,55 @@ class ClaimAccountView(APIView):
         if User.objects.filter(username=username).exclude(pk=user.pk).exists():
             raise ValidationError({"username": "That username is already taken."})
 
+        wants_guardian = bool(guardian_username or guardian_password)
+        if wants_guardian:
+            reason = self._guardian_blocked_reason(application)
+            if reason:
+                raise ValidationError({"detail": reason})
+            if not guardian_username or not guardian_password:
+                raise ValidationError({"detail": (
+                    "The guardian account needs both a username and a password."
+                )})
+            if guardian_username == username:
+                raise ValidationError({"guardian_username": (
+                    "That username is the learner's. Choose a different one."
+                )})
+            if len(guardian_username) > 150:
+                raise ValidationError({"guardian_username": (
+                    "The username is too long (150 max)."
+                )})
+            try:
+                UnicodeUsernameValidator()(guardian_username)
+            except DjangoValidationError as exc:
+                raise ValidationError({"guardian_username": list(exc.messages)})
+            if User.objects.filter(username=guardian_username).exists():
+                raise ValidationError({"guardian_username": (
+                    "That username is already taken."
+                )})
+
         # Validate against the identity the account will actually hold.
         user.username = username
         try:
             validate_password(password, user=user)
         except DjangoValidationError as exc:
             raise ValidationError({"password": list(exc.messages)})
+
+        guardian = None
+        if wants_guardian:
+            # Validate against the identity the new account will hold, exactly
+            # as the learner's password is validated against the learner.
+            first_name, last_name = _split_guardian_name(application.guardian_name)
+            guardian = User(
+                username=guardian_username,
+                role=User.Role.PARENT,
+                first_name=first_name,
+                last_name=last_name,
+                email=application.guardian_email,
+            )
+            try:
+                validate_password(guardian_password, user=guardian)
+            except DjangoValidationError as exc:
+                raise ValidationError({"guardian_password": list(exc.messages)})
 
         with transaction.atomic():
             user.set_password(password)
@@ -803,13 +952,49 @@ class ClaimAccountView(APIView):
                 target_id=str(application.pk),
                 description=(
                     f"{user.get_full_name()} claimed their student account "
-                    f"for {application.reference}."
+                    f"for {application.reference}, having acknowledged the "
+                    f"Privacy Notice {workflow.POLICY_VERSION}."
                 ),
                 ip_address=_client_ip(request),
             )
+            if guardian is not None:
+                guardian.set_password(guardian_password)
+                guardian.save()
+                profile = ParentProfile.objects.create(
+                    user=guardian,
+                    contact_number=_guardian_contact_field(application),
+                )
+                profile.children.add(application.student)
+                workflow.log_application_event(
+                    application,
+                    guardian,
+                    "guardian_account_created",
+                    note=(
+                        f"A guardian account for {guardian.get_full_name()} "
+                        "was set up with the learner's account."
+                    ),
+                    internal_note=f"Created User {guardian.pk} / ParentProfile {profile.pk}.",
+                )
+                AuditLog.objects.create(
+                    actor=guardian,
+                    action="enrollment.guardian_account_created",
+                    target_model="EnrollmentApplication",
+                    target_id=str(application.pk),
+                    description=(
+                        f"{guardian.get_full_name()} set up the guardian "
+                        f"account for {application.reference}."
+                    ),
+                    ip_address=_client_ip(request),
+                )
 
         token, _ = Token.objects.get_or_create(user=user)
-        return Response({"token": token.key, "user": UserSerializer(user).data})
+        return Response({
+            "token": token.key,
+            "user": UserSerializer(user).data,
+            # The page tells the family the second account exists; the signed
+            # in session stays the learner's either way.
+            "guardian_created": guardian is not None,
+        })
 
 
 # ---------------------------------------------------------------------------
@@ -1343,6 +1528,104 @@ class StaffConfirmEnrollmentView(APIView):
 # ---------------------------------------------------------------------------
 # Enrollments, dashboards & reports
 # ---------------------------------------------------------------------------
+
+
+class StaffResendClaimLinkView(APIView):
+    """
+    Re-issue the account-setup link and mail it again (the Registrar's answer
+    to "we lost the email").
+
+    The previous token is replaced, so every link already sitting in an inbox
+    stops answering — that is the point of the action, not a side effect. It
+    only exists for an enrollment that minted a new account: a learner matched
+    by LRN or linked by hand already has credentials and gets no setup link at
+    confirmation, so there is nothing here to resend.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from .emails import notification_email_for, send_enrollment_confirmation_email
+
+        if not _is_enrollment_staff(request.user, "enrollment.manage"):
+            raise PermissionDenied(
+                "You do not have the 'enrollment.manage' permission."
+            )
+        with transaction.atomic():
+            try:
+                application = (
+                    EnrollmentApplication.objects.select_for_update()
+                    .select_related("student", "student__user")
+                    .get(pk=pk, deleted_at__isnull=True)
+                )
+            except EnrollmentApplication.DoesNotExist:
+                return Response(status=status.HTTP_404_NOT_FOUND)
+            if application.status != ApplicationStatus.ENROLLED:
+                raise ValidationError({
+                    "detail": (
+                        "The setup link is written when the Registrar confirms "
+                        "the enrollment, so it cannot be resent before that."
+                    )
+                })
+            if application.account_claimed_at is not None:
+                raise ValidationError({
+                    "detail": (
+                        "That account has already been set up, so its link is "
+                        "spent. Sign in, or reset the password from the "
+                        "accounts screen."
+                    )
+                })
+            if not application.account_claim_token:
+                raise ValidationError({
+                    "detail": (
+                        "This learner already had a TRACK account, so no "
+                        "setup link was ever issued for this enrollment."
+                    )
+                })
+            recipient = notification_email_for(application)
+            if not recipient:
+                raise ValidationError({
+                    "detail": (
+                        "There is no email address on this application to "
+                        "resend to. Add the applicant or guardian email first."
+                    )
+                })
+
+            application.account_claim_token = secrets.token_hex(16)
+            application.save(update_fields=["account_claim_token", "updated_at"])
+            enrollment = (
+                application.enrollments.order_by("-confirmed_at").first()
+            )
+            workflow.log_application_event(
+                application,
+                request.user,
+                "claim_link_resent",
+                note="A new account-setup link was emailed to the family.",
+                internal_note=f"The previous link was invalidated. Recipient: {recipient}.",
+            )
+            AuditLog.objects.create(
+                actor=request.user,
+                action="enrollment.claim_link_resent",
+                target_model="EnrollmentApplication",
+                target_id=str(application.pk),
+                description=(
+                    f"{request.user.get_full_name()} reissued the account "
+                    f"setup link for {application.reference}."
+                ),
+                ip_address=_client_ip(request),
+            )
+
+        # Post-commit like the confirmation notice: the new token is already
+        # stored whether or not the mail server answers.
+        transaction.on_commit(
+            lambda: send_enrollment_confirmation_email(
+                application, enrollment, resent=True
+            )
+        )
+        output = EnrollmentApplicationStaffDetailSerializer(
+            application, context={"request": request}
+        )
+        return Response(output.data)
 
 class EnrollmentListView(generics.ListAPIView):
     serializer_class = EnrollmentSerializer

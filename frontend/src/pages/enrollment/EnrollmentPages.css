@@ -172,6 +172,82 @@
   border-radius: var(--radius-sm);
 }
 
+/* The optional second half of the claim form — the adult's account, set up
+   with the same one-time link. A fieldset because it is a distinct group of
+   answers inside one form, and its legend is what a screen reader announces
+   before the guardian's username field. */
+.claim-guardian {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.claim-guardian legend {
+  padding-inline: var(--space-1);
+  font-size: 1rem;
+}
+
+/* --- Consent tick --------------------------------------------------------
+   The one control the server refuses a filing without. It sits inside the
+   submit dialog and the claim form, so it is styled here rather than in the
+   wizard block. Box and text share a baseline; the links inside the wording
+   keep their own hit area, so the label wraps the text, not the box.
+   -------------------------------------------------------------------------- */
+.enr-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-alt);
+}
+.enr-consent-box {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--navy-800);
+  cursor: pointer;
+}
+.enr-consent-box:disabled {
+  cursor: not-allowed;
+}
+.enr-consent-text {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text);
+  cursor: pointer;
+}
+.enr-consent-text a {
+  font-weight: 600;
+  text-decoration: underline;
+}
+.enr-consent-error {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--red-700);
+}
+
+.enr-submit-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Why a group of fields is on the application at all. Review step only —
+   the applicant sees it right before agreeing to the processing. */
+.enr-purpose {
+  margin: 0 0 var(--space-3);
+}
+.stack .enr-purpose {
+  margin-bottom: 0;
+}
+
 .enr-saved {
   display: inline-flex;
   align-items: center;
@@ -255,6 +331,14 @@
   margin: 0;
   font-size: 0.8rem;
   color: var(--on-navy-muted);
+}
+
+/* The app-wide link blue is #1d4ed8 — 2.33:1 on this navy hero, so the
+   reference-number link was nearly unreadable here. --on-navy-accent is the
+   token already tuned for text on navy (7.1:1). Scoped to the note: the hero's
+   own .btn links bring their own fills and must not be re-tinted. */
+.enr-hero-note a {
+  color: var(--on-navy-accent);
 }
 
 @media (max-width: 767px) {

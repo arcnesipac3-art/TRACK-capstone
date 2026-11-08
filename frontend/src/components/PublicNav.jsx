@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import Icon from './Icon'
 import Logo from './Logo'
 import { useAuth } from '../context/AuthContext'
+import useFocusTrap from '../hooks/useFocusTrap'
 import { dashboardPath } from '../utils/format'
 
 /**
@@ -21,18 +22,17 @@ export default function PublicNav({ activeSection = '', onScrollToTop }) {
   const { pathname } = useLocation()
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const mobileMenuRef = useRef(null)
 
-  // Close on Escape, lock body scroll while open
-  useEffect(() => {
-    if (!mobileMenuOpen) return
-    const handleKey = (e) => { if (e.key === 'Escape') setMobileMenuOpen(false) }
-    document.addEventListener('keydown', handleKey)
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.removeEventListener('keydown', handleKey)
-      document.body.style.overflow = ''
-    }
-  }, [mobileMenuOpen])
+  // The dropdown is `aria-modal`, so it has to behave like one: Escape closes
+  // it, Tab stays inside it, the page behind stops scrolling, and focus goes
+  // back to the hamburger when it closes. All of that is the shared trap the
+  // in-app dialogs already use.
+  useFocusTrap(mobileMenuRef, {
+    active: mobileMenuOpen,
+    lockScroll: true,
+    onEscape: () => setMobileMenuOpen(false),
+  })
 
   // Close mobile menu on route change — render-time adjustment, so the new
   // route never paints with the menu still open.
@@ -123,7 +123,7 @@ export default function PublicNav({ activeSection = '', onScrollToTop }) {
 
       {/* Mobile dropdown */}
       {mobileMenuOpen && (
-        <div className="mob-nav" role="dialog" aria-modal="true" aria-label="Navigation menu">
+        <div className="mob-nav" ref={mobileMenuRef} role="dialog" aria-modal="true" aria-label="Navigation menu">
           <div className="mob-nav-divider" aria-hidden="true" />
           <nav className="mob-nav-links" aria-label="Mobile navigation">
             {NAV_LINKS(() => setMobileMenuOpen(false))}

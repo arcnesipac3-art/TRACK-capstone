@@ -37,6 +37,7 @@ import type {
 } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
+import Screen from '../../../components/ui/Screen';
 import Badge from '../../../components/ui/Badge';
 import Button from '../../../components/ui/Button';
 import { formatDateWithWeekday } from '../../../format';
@@ -184,8 +185,7 @@ export default function TeacherAttendanceScreen() {
   if (error && sessions.length === 0) return <ErrorState message={error} onRetry={() => { setLoading(true); load(); }} />;
 
   return (
-    <View style={styles.screen}>
-      <AppHeader title="Attendance" subtitle="Tap a session to open its roster." />
+    <Screen header={<AppHeader title="Attendance" subtitle="Tap a session to open its roster." />}>
       <ScrollView
         style={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.blue]} />}
@@ -240,7 +240,7 @@ export default function TeacherAttendanceScreen() {
           />
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
@@ -345,7 +345,6 @@ function SessionCard({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing.xxl },
   toolbar: { gap: spacing.sm, alignItems: 'stretch' },

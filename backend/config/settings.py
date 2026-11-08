@@ -114,24 +114,30 @@ ASGI_APPLICATION = 'config.asgi.application'
 # (KNOWN_LIMITATIONS.md L-003). Any deployment with more than one ASGI worker
 # must set REDIS_URL, otherwise group broadcasts silently reach only the
 # process that happens to hold the socket.
-_redis_url = os.environ.get("REDIS_URL", "").strip()
-
-if _redis_url:
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels_redis.core.RedisChannelLayer",
-            "CONFIG": {
-                "hosts": [_redis_url],
-                # A reconnecting client re-reads from the database by `seq`, so
-                # a buffered event has no value past a minute.
-                "expiry": 60,
+#
+# Exposed as a function so the switch itself is testable: reading an environment
+# variable at import time is the one thing a test cannot safely re-do (reloading
+# this module would leak into every later test), and this deployment branch is
+# exactly the kind of line that rots unnoticed.
+def channel_layers_for(redis_url: str) -> dict:
+    if redis_url.strip():
+        return {
+            "default": {
+                "BACKEND": "channels_redis.core.RedisChannelLayer",
+                "CONFIG": {
+                    "hosts": [redis_url.strip()],
+                    # A reconnecting client re-reads from the database by `seq`,
+                    # so a buffered event has no value past a minute.
+                    "expiry": 60,
+                },
             },
-        },
-    }
-else:
-    CHANNEL_LAYERS = {
+        }
+    return {
         "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"},
     }
+
+
+CHANNEL_LAYERS = channel_layers_for(os.environ.get("REDIS_URL", ""))
 
 
 # Database
@@ -203,13 +209,53 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 
 # Email — console backend for development; replace with SMTP in production.
-# The admin-initiated password-reset flow degrades gracefully without SMTP:
-# the generated password is printed to the server console/log instead.
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+# The enrollment confirmation is the only thing the app sends. Password
+# recovery is admin-initiated and writes to the audit log, so it needs no
+# mail server at all.
+#
+# Nothing here sends anything on its own. With no EMAIL_HOST the console
+# backend prints the message (what development and automated tests rely on);
+# a real host needs EMAIL_HOST + EMAIL_HOST_USER + EMAIL_HOST_PASSWORD, and
+# either an explicit EMAIL_BACKEND or that trio plus the SMTP backend:
+#   EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+#   EMAIL_HOST=smtp-relay.render.com EMAIL_PORT=587 EMAIL_USE_TLS=1
+#   EMAIL_HOST_USER=<user> EMAIL_HOST_PASSWORD=<key>
+#   DEFAULT_FROM_EMAIL="TRACK Enrollment <admissions@your-school.example>"
+EMAIL_BACKEND = os.environ.get(
+    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+)
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "").strip()
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "").strip()
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "1").lower() not in ("0", "false", "no")
+EMAIL_TIMEOUT = int(os.environ.get("EMAIL_TIMEOUT", "10"))
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL", "TRACK Enrollment <admissions@track.local>"
+)
+
+# Public origin of the web app, used to build the links inside those emails.
+# It is the frontend, not this API, so the API can never infer it from the
+# request that triggered a server-side event (confirmation happens inside a
+# transaction, sometimes from a management command). Development = the Vite
+# dev server; production = the deployed site.
+#   TRACK_APP_BASE_URL=https://track.knhs.edu.ph
+TRACK_APP_BASE_URL = os.environ.get(
+    "TRACK_APP_BASE_URL", "http://localhost:5173"
+).rstrip("/")
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",   # React web app (Vite dev server)
     "http://localhost:8081",   # Expo web preview of the mobile app (npx expo start --web)
+]
+# `expo start --web` and `vite --port` both take an arbitrary port in real use
+# (8081 is often taken by another project), and a browser cannot be told to lie
+# about its own origin — so a developer adds their port here rather than editing
+# this file. Development only: production derives CORS from DJANGO_CSRF_ORIGINS.
+CORS_ALLOWED_ORIGINS += [
+    origin.strip()
+    for origin in os.environ.get("TRACK_DEV_CORS_ORIGINS", "").split(",")
+    if origin.strip()
 ]
 
 # Custom user model

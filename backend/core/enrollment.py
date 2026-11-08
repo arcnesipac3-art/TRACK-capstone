@@ -34,10 +34,22 @@ from .models import (
     EnrollmentPeriod,
     EnrollmentRequirement,
     GradeLevel,
+    ParentProfile,
     Section,
     StudentProfile,
     User,
 )
+
+
+# ---------------------------------------------------------------------------
+# Privacy notice version stamped on consent
+# ---------------------------------------------------------------------------
+
+#: Bump when the public Privacy Notice changes meaning. The string recorded on
+#: each filing is a fact about that data, so it is a version, not a display
+#: date — the readable date lives in the notice itself. Keep in step with
+#: frontend/src/config/legal.js.
+POLICY_VERSION = "2026.11"
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +313,39 @@ def document_blockers(application):
     ]
 
 
+def consent_acknowledged(value):
+    """
+    Read a consent tick the same way everywhere.
+
+    The app sends JSON `true`, but a form-encoded retry sends the string
+    "false" — which is truthy in Python — so the string forms are matched
+    explicitly rather than cast.
+    """
+    if isinstance(value, str):
+        return value.strip().lower() in ("true", "1", "on", "yes")
+    return bool(value)
+
+
+def consent_fields(consent_given):
+    """
+    The applicant's agreement to the privacy notice, as fields for
+    `transition(..., extra_fields=)`.
+
+    Not optional: the tick is what makes holding a minor's records lawful, and
+    a filing that arrives without it has nothing to record.
+    """
+    if not consent_acknowledged(consent_given):
+        raise EnrollmentWorkflowError(
+            "Agree to the Privacy Notice and the Terms of Service before "
+            "submitting. The school records your agreement, its date and the "
+            "version of the notice you saw."
+        )
+    return {
+        "consent_given_at": timezone.now(),
+        "consent_policy_version": POLICY_VERSION,
+    }
+
+
 def verification_blockers(application):
     """
     Staff-facing gate: required documents that are not in a state acceptable
@@ -529,6 +574,7 @@ def match_or_create_student(application, registrar):
             first_name=application.first_name,
             middle_name=application.middle_name,
             last_name=application.last_name,
+            email=application.applicant_email,
         )
         profile = StudentProfile.objects.create(
             user=user,
@@ -666,6 +712,16 @@ def confirm_enrollment(application, registrar, ip_address=None):
         student.section = section
         student.save(update_fields=["section"])
 
+        # A parent who filed this application while signed in is the learner's
+        # guardian, and ParentProfile.children is the only relationship every
+        # parent-scoped screen reads. Making it here is what lets that account
+        # see the child from the first login after confirmation; M2M add is
+        # idempotent, so nothing accumulates.
+        applicant = locked.applicant
+        if applicant is not None and applicant.is_parent:
+            parent_profile, _ = ParentProfile.objects.get_or_create(user=applicant)
+            parent_profile.children.add(student)
+
         transition(
             locked,
             ApplicationStatus.ENROLLED,
@@ -695,9 +751,11 @@ def confirm_enrollment(application, registrar, ip_address=None):
 
 
 def _notify_enrolled(application, enrollment):
+    from .emails import send_enrollment_confirmation_email
     from .notifications import notify_enrollment_confirmed
 
     notify_enrollment_confirmed(application, enrollment)
+    send_enrollment_confirmation_email(application, enrollment)
 
 
 # ---------------------------------------------------------------------------

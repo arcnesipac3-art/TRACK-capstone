@@ -9,6 +9,7 @@ from .models import (
     AttendanceSession,
     AuditLog,
     ClassSchedule,
+    DataRequest,
     Enrollment,
     EnrollmentApplication,
     EnrollmentPeriod,
@@ -212,7 +213,27 @@ class EnrollmentApplicationAdmin(admin.ModelAdmin):
     list_display = ("reference", "get_full_name", "status", "enrollment_type", "grade_level", "school_year", "assigned_section", "submitted_at")
     list_filter = ("status", "enrollment_type", "school_year", "grade_level")
     search_fields = ("reference", "first_name", "last_name", "lrn", "applicant_name")
-    readonly_fields = ("reference", "requirements_snapshot", "account_claimed_at", "created_at", "updated_at")
+    # consent_given_at/consent_policy_version are read-only because they record
+    # a fact about what the applicant agreed to — editing one would fabricate it.
+    readonly_fields = (
+        "reference",
+        "requirements_snapshot",
+        "account_claimed_at",
+        "consent_given_at",
+        "consent_policy_version",
+        "created_at",
+        "updated_at",
+    )
+
+
+@admin.register(DataRequest)
+class DataRequestAdmin(admin.ModelAdmin):
+    list_display = ("kind", "requester", "status", "created_at", "handled_by", "handled_at")
+    list_filter = ("kind", "status")
+    search_fields = ("requester__username", "requester__email", "detail", "response_note")
+    # requester/created_at are facts about who asked and when; the answer is
+    # written through the office queue so handled_by and handled_at are set there.
+    readonly_fields = ("requester", "requester_email", "kind", "detail", "created_at")
 
 
 @admin.register(ApplicationDocument)

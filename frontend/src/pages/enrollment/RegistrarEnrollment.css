@@ -319,6 +319,31 @@
   margin-bottom: 2px;
 }
 
+/* --------------------------- Data-request answer ------------------ */
+
+/* The ask the office is replying to, quoted inside the dialog so nobody
+   answers the wrong person's request. */
+.enr-answer-context {
+  padding: 10px 12px;
+  border-left: 3px solid var(--navy-100);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+  font-size: 0.9rem;
+}
+
+.enr-answer-context p {
+  margin: 4px 0 0;
+}
+
+/* The answer already given, read straight off the queue row. */
+.enr-answer-shown {
+  display: block;
+  max-width: 34ch;
+  font-size: 0.85rem;
+  color: var(--ink);
+  text-align: left;
+}
+
 /* ----------------------------- Reports ---------------------------- */
 
 /* The school-year picker in the page header keeps its width even when a

@@ -19,6 +19,7 @@ import { api, ApiError } from '../../../api/client';
 import type { Requirement, Submission, StudentProfile } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
+import Screen from '../../../components/ui/Screen';
 import Badge from '../../../components/ui/Badge';
 import Dropdown from '../../../components/ui/Dropdown';
 
@@ -167,8 +168,7 @@ export default function ParentRequirementsScreen() {
     : undefined;
 
   return (
-    <View style={styles.screen}>
-      <AppHeader title="Requirements" subtitle={subtitle} />
+    <Screen header={<AppHeader title="Requirements" subtitle={subtitle} />}>
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.blue]} />}
         contentContainerStyle={styles.content}
@@ -203,7 +203,7 @@ export default function ParentRequirementsScreen() {
           />
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
@@ -244,7 +244,6 @@ function RequirementRow({ item }: { item: Row }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxl },
   errorText: { ...typography.muted, color: colors.redText },
   card: {

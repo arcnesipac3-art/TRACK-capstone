@@ -1,5 +1,6 @@
-import { forwardRef } from 'react'
+import { forwardRef, Children } from 'react'
 import ButtonLoader from './loading/ButtonLoader'
+import Icon from './Icon'
 
 /**
  * Reusable button component with variants and sizes.
@@ -21,10 +22,17 @@ const Button = forwardRef(({
   onClick,
   ...props
 }, ref) => {
+  // A control whose only content is an icon has no words to carry its
+  // affordance, so a chromeless variant leaves it painted as nothing at all —
+  // `btn-symbol` is how the stylesheet knows to give those a box.
+  const only = Children.toArray(children)
+  const symbol = only.length === 1 && only[0].type === Icon
+
   const classes = [
     'btn',
     `btn-${variant}`,
     `btn-${size}`,
+    symbol && 'btn-symbol',
     disabled && 'btn-disabled',
     loading && 'btn-loading',
     className

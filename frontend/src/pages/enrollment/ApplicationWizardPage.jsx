@@ -8,6 +8,7 @@ import { ButtonLoader } from '../../components/loading'
 import PageHeader from '../../components/PageHeader'
 import StatusBadge from '../../components/StatusBadge'
 import DocumentUploader from '../../components/enrollment/DocumentUploader'
+import ConsentCheckbox from '../../components/enrollment/ConsentCheckbox'
 import api, {
   API_BASE,
   authHeader,
@@ -52,6 +53,7 @@ const EMPTY_STUDENT = {
   sex: '',
   address: '',
   contact_number: '',
+  applicant_email: '',
 }
 
 const EMPTY_GUARDIAN = {
@@ -87,6 +89,7 @@ function detailToStudentForm(detail) {
     sex: detail.sex || '',
     address: detail.address || '',
     contact_number: detail.contact_number || '',
+    applicant_email: detail.applicant_email || '',
   }
 }
 
@@ -210,6 +213,7 @@ export default function ApplicationWizardPage() {
 
   const [uploads, setUploads] = useState({})
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [consent, setConsent] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
@@ -341,6 +345,7 @@ export default function ApplicationWizardPage() {
       sex: student.sex || '',
       address: student.address.trim(),
       contact_number: student.contact_number.trim(),
+      applicant_email: student.applicant_email.trim(),
     }
   }
 
@@ -536,16 +541,23 @@ export default function ApplicationWizardPage() {
       return
     }
     setSubmitError(null)
+    setConsent(false)
     setConfirmOpen(true)
   }
 
   async function confirmSubmit() {
     if (submitBusyRef.current) return
+    if (!consent) {
+      setSubmitError(
+        'Tick the box to confirm you have read the Privacy Notice before submitting.'
+      )
+      return
+    }
     submitBusyRef.current = true
     setSubmitting(true)
     setSubmitError(null)
     try {
-      await api.post(`/enrollment/applications/my/${applicationId}/submit/`)
+      await api.post(`/enrollment/applications/my/${applicationId}/submit/`, { consent: true })
       navigate(`../applications/${applicationId}?submitted=1`)
     } catch (err) {
       setConfirmOpen(false)
@@ -953,6 +965,26 @@ export default function ApplicationWizardPage() {
             {errorNode('contact_number', 'wiz')}
           </div>
 
+          <div className="field">
+            <label htmlFor="wiz-applicant_email">Email</label>
+            <input
+              {...wizField('applicant_email', 'wiz')}
+              type="email"
+              value={student.applicant_email}
+              onChange={(e) => update('student', 'applicant_email', e.target.value)}
+              disabled={busy}
+              placeholder="e.g. applicant@example.com"
+              autoComplete="email"
+            />
+            {errorNode('applicant_email', 'wiz')}
+            <span className="hint">
+              Where the enrollment decision is emailed. When the Registrar
+              confirms the enrollment, the link to set up the TRACK account is
+              sent here — leave it blank and the guardian email below is used
+              instead.
+            </span>
+          </div>
+
           <div className="row row-between row-wrap">
             <Button variant="ghost" size="sm" onClick={handleBack} disabled={busy}>
               Back
@@ -1121,6 +1153,10 @@ export default function ApplicationWizardPage() {
               <h2>Enrollment details</h2>
             </header>
             <div className="card-body">
+              <p className="subtle enr-purpose">
+                Used to place the learner in a grade level and section for this
+                period. Nothing here leaves the Registrar.
+              </p>
               <dl className="enr-dl">
                 <div>
                   <dt>Period</dt>
@@ -1159,6 +1195,13 @@ export default function ApplicationWizardPage() {
               <h2>Student information</h2>
             </header>
             <div className="card-body">
+              <p className="subtle enr-purpose">
+                Identifies the learner and opens the way back to the family. The
+                email address receives the confirmation and the account-setup
+                link. The name, birth date and LRN are what the Registrar
+                matches — or, when there is nothing to match, creates — the
+                learner's school record from.
+              </p>
               <dl className="enr-dl">
                 <div>
                   <dt>Full name</dt>
@@ -1192,6 +1235,10 @@ export default function ApplicationWizardPage() {
                   <dt>Contact number</dt>
                   <dd>{application.contact_number || '—'}</dd>
                 </div>
+                <div>
+                  <dt>Email</dt>
+                  <dd>{application.applicant_email || '—'}</dd>
+                </div>
               </dl>
             </div>
           </section>
@@ -1201,6 +1248,12 @@ export default function ApplicationWizardPage() {
               <h2>Parent / guardian</h2>
             </header>
             <div className="card-body">
+              <p className="subtle enr-purpose">
+                The adult the school can reach about this filing. When the
+                application is confirmed, these details open the parent side of
+                TRACK — fees, attendance, requirements and messages — and
+                nothing collected here is used for anything else.
+              </p>
               <dl className="enr-dl">
                 <div>
                   <dt>Full name</dt>
@@ -1227,6 +1280,11 @@ export default function ApplicationWizardPage() {
               <h2>Documents</h2>
             </header>
             <div className="card-body stack stack-xs">
+              <p className="subtle enr-purpose">
+                The Registrar reads these to verify what you filed. Each one is
+                stored with this application and opened only by the enrollment
+                office and by you.
+              </p>
               {(application.documents || []).length === 0 && (
                 <p className="subtle">No document requirements for this period.</p>
               )}
@@ -1307,17 +1365,23 @@ export default function ApplicationWizardPage() {
             <Button variant="secondary" size="sm" onClick={() => setConfirmOpen(false)} disabled={submitting}>
               Cancel
             </Button>
-            <Button variant="primary" size="sm" onClick={confirmSubmit} disabled={submitting}>
+            <Button variant="primary" size="sm" onClick={confirmSubmit} disabled={submitting || !consent}>
               {submitting && <ButtonLoader />}
               {submitting ? 'Submitting…' : 'Submit now'}
             </Button>
           </>
         }
       >
-        <p style={{ margin: 0 }}>
-          Submit now? You can no longer edit the application until the Registrar
-          reviews it.
-        </p>
+        <div className="enr-submit-confirm">
+          <p style={{ margin: 0 }}>
+            Submit now? You can no longer edit the application until the Registrar
+            reviews it.
+          </p>
+          <ConsentCheckbox checked={consent} onChange={setConsent} disabled={submitting} />
+          {submitError && (
+            <p className="enr-consent-error" role="alert">{submitError}</p>
+          )}
+        </div>
       </Modal>
     </div>
   )

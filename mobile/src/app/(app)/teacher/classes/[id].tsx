@@ -28,6 +28,7 @@ import {
 import { useClassData } from '../../../../class-data';
 import { EmptyState, ErrorState, LoadingState } from '../../../../components/StateViews';
 import AppHeader from '../../../../components/ui/AppHeader';
+import Screen from '../../../../components/ui/Screen';
 import BackLink from '../../../../components/ui/BackLink';
 import Badge from '../../../../components/ui/Badge';
 import SegmentedControl from '../../../../components/ui/SegmentedControl';
@@ -120,12 +121,15 @@ export default function TeacherClassWorkspaceScreen() {
   const status = CLASS_STATUS[row.statusKey];
 
   return (
-    <View style={styles.screen}>
-      <AppHeader
-        eyebrow={`${row.sectionLabel}${row.gradeLevelName ? ` · ${row.gradeLevelName}` : ''}`}
-        title={row.subjectName}
-        subtitle={row.schoolYearLabel ?? undefined}
-      />
+    <Screen
+      header={
+        <AppHeader
+          eyebrow={`${row.sectionLabel}${row.gradeLevelName ? ` · ${row.gradeLevelName}` : ''}`}
+          title={row.subjectName}
+          subtitle={row.schoolYearLabel ?? undefined}
+        />
+      }
+    >
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -378,12 +382,11 @@ export default function TeacherClassWorkspaceScreen() {
           </>
         ) : null}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
   content: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.lg },
   errorText: { ...typography.muted, color: colors.redText },

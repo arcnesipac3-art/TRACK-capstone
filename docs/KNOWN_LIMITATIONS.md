@@ -17,9 +17,9 @@ Last verified against the code: **2026-11-02** (backend 475 tests, frontend 953 
 
 ### L-002: No self-service password reset (SMTP not configured)
 - **Severity:** Low for initial deployment
-- **Description:** There is no SMTP email backend. Password recovery is admin-initiated: an admin calls the `/api/auth/reset-password/` endpoint to set a new password, which is then communicated to the user out-of-band. The reset is logged to the audit trail.
+- **Description:** Password recovery is admin-initiated: an admin calls the `/api/auth/reset-password/` endpoint to set a new password, which is then communicated to the user out-of-band. The reset is logged to the audit trail. The email backend itself is now configurable (`EMAIL_*`, used by the enrollment confirmation — `docs/DEPLOYMENT.md` §5.1) but no self-service reset flow reads it, so a locked-out user still cannot recover by themselves.
 - **Impact:** Users locked out of their accounts must contact the school administrator.
-- **Fix:** Configure an SMTP provider (e.g., SendGrid, Gmail SMTP) and implement a self-service reset flow.
+- **Fix:** Implement a self-service reset flow on top of the existing `EMAIL_*` configuration (token issuance, expiry, and one emailed link).
 
 ### L-003: Login throttle is per-process (weakened with multiple workers)
 - **Severity:** Low
@@ -58,8 +58,8 @@ Last verified against the code: **2026-11-02** (backend 475 tests, frontend 953 
 
 ### L-007: No automated mobile test suite
 - **Severity:** Medium
-- **Description:** The mobile app (`mobile/`) has no automated test files. All mobile testing is manual.
-- **Impact:** Regressions in mobile-specific behavior (SecureStore, token lifecycle, API client, role routing) cannot be caught automatically.
+- **Description:** The mobile app (`mobile/`) has no automated test files. All mobile testing is manual. CI does run a *compile* gate for it — `npx tsc --noEmit`, `npx expo lint`, and `npx expo export --platform android` (a real Hermes bundle) in the `Mobile` job of `.github/workflows/ci.yml` — so a screen that no longer typechecks or a route tree that no longer bundles fails the build.
+- **Impact:** Regressions in mobile-specific *behavior* (SecureStore, token lifecycle, API client, role routing, socket reconnects) cannot be caught automatically; the routing defect fixed on 2026-11-02 (see L-032) is an example that a compile gate does not see.
 - **Fix:** Add Expo testing with Jest and `@testing-library/react-native`.
 
 ### L-008: Mobile app not tested on physical Android device
@@ -115,16 +115,17 @@ Last verified against the code: **2026-11-02** (backend 475 tests, frontend 953 
 
 ### L-016: Split-origin web auth requires a settings change
 - **Severity:** High (if using Render + Vercel split-origin topology)
-- **Status:** Resolved (2026-11-01) — the production block already sets `SESSION_COOKIE_SAMESITE = "None"` and `CSRF_COOKIE_SAMESITE = "None"` alongside `*_SECURE = True` (`backend/config/settings.py:278-280`), so cross-origin web login works without a manual edit. Same-origin hosting is still the simpler topology.
+- **Status:** Resolved (2026-11-01) — the production block already sets `SESSION_COOKIE_SAMESITE = "None"` and `CSRF_COOKIE_SAMESITE = "None"` alongside `*_SECURE = True` (`backend/config/settings.py:337-339`), so cross-origin web login works without a manual edit. Same-origin hosting is still the simpler topology.
 
 ---
 
 ## Data and privacy
 
 ### L-017: No GDPR/Data Privacy Act compliance review
-- **Severity:** Medium
-- **Description:** No formal review of compliance with the Philippine Data Privacy Act (Republic Act 10173) has been conducted. Student names, LRNs, birthdates, addresses, and contact numbers are stored.
-- **Fix:** Before collecting real student data, have a data protection officer review the system and establish a privacy notice and data retention policy.
+- **Severity:** Medium — lowered from High on 2026-11-08 for everything the software can decide on its own
+- **Status:** The engineer-side half is done (2026-11-08, "Play-Store / web compliance pass" in TESTING_REPORT.md). A privacy notice and terms exist, name the controller and its address, state retention, and are linked from every public surface; consent to them is captured on the enrollment application and on the account-claim form as `consent_given_at` + `consent_policy_version`, and refused server-side when absent; a person can export their own record and file a correction / objection / erasure request that the enrollment office must answer in writing. There are no third-party scripts, fonts, pixels or stock photographs in the bundle, and the Google map only loads on an explicit click.
+- **Remaining:** A qualified person still has to review it. RA 10173 asks the school, not the code, to appoint a responsible officer, set the retention schedule against DepEd order, and sign off that the notice matches how the division actually operates — none of which can be closed by a commit. Erasure is answered with a written reason rather than executed, because the school is obliged to keep academic records.
+- **Fix:** Before collecting real student data, have a data protection officer review the notice, confirm the retention periods in Privacy §8, and own the answer path for `/admin/enrollment/data-requests`.
 
 ### L-018: Media files not access-controlled in production
 - **Severity:** High (when file uploads are enabled in the frontend)
@@ -138,15 +139,19 @@ Last verified against the code: **2026-11-02** (backend 475 tests, frontend 953 
 
 ### L-019: The channel layer is in-memory unless `REDIS_URL` is set
 - **Severity:** High (only when running more than one process)
-- **Description:** With no `REDIS_URL`, `CHANNEL_LAYERS` uses `channels.layers.InMemoryChannelLayer` (`backend/config/settings.py:116-134`). Group messages — the fan-out that carries `message.new`, `typing.update`, presence and read receipts — live inside one Python process.
+- **Description:** With no `REDIS_URL`, `CHANNEL_LAYERS` uses `channels.layers.InMemoryChannelLayer` (`backend/config/settings.py:110-140`, `channel_layers_for()`). Group messages — the fan-out that carries `message.new`, `typing.update`, presence and read receipts — live inside one Python process.
 - **Impact:** One ASGI process works, and the documented `daphne config.asgi:application` command is exactly one process. Two workers behind a load balancer split live traffic: a sender on worker A does not reach a reader on worker B, and the reader sees the message only after a reload or a reconnect `sync`. This is invisible in development and appears the moment the app is scaled out.
+- **Verified:** `core.tests_messaging.ChannelLayerConfigTests` (6 tests) asserts the switch itself: an empty or whitespace `REDIS_URL` selects the in-memory layer, a set value becomes `channels_redis.core.RedisChannelLayer` with that exact host and a 60 s expiry, both dotted paths resolve (so a host that sets `REDIS_URL` cannot die on a missing package), and the test process really runs on the in-memory layer.
+- **Still unproven here:** actual cross-process delivery. This machine has no Redis server and no Docker (`where redis-server` / `docker` both absent), so no one has watched a message written by worker A surface on a socket held by worker B. That claim needs a deployment rehearsal with two workers; see `docs/DEPLOYMENT.md` §8.
 - **Fix:** Set `REDIS_URL` (`redis://host:6379/0`) on the deployment. `channels-redis` is already in `backend/requirements.txt` and the code path is unchanged; expiry is 60 s so a Redis blip degrades live delivery rather than losing messages, which are stored first.
 
 ### L-020: Browser push is inert without VAPID keys
 - **Severity:** Medium (feature is off by default, by design)
 - **Description:** Web push needs a VAPID key pair. `core/push.py` checks `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` and sends nothing when either is missing.
 - **Impact:** Without them the details column states it plainly — "This server has no push keys configured, so nothing can be delivered outside TRACK" — the browser toggle is disabled, and no subscription is stored. In-app bells and live socket events are unaffected.
-- **Fix:** `python backend/manage.py generate_vapid_keys`, then put the three values (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`) in the environment. Re-running it invalidates every existing subscription; browsers resubscribe on their next visit.
+- **Verified:** a pair generated with `manage.py generate_vapid_keys` loads through the documented path form (`pywebpush.Vapid.from_file(<path>)`), the private key's public half equals the `vapid_public_key` advertised by `/api/messaging/options/`, and a signed `Authorization` header comes out as `vapid t=<jwt>,k=<pub>` (comma, no space). Delivery code is covered by `core.tests_messaging.PushDeliveryTests` with mocks.
+- **Still unproven here:** that a browser actually shows a TRACK notification. `frontend/src/services/push.js` requires `window.isSecureContext`, a served `/push-sw.js` and a user clicking "Allow" — none of which hold on an insecure dev origin in a headless webview. First real deployment should confirm it with eyes on a phone.
+- **Fix:** `python backend/manage.py generate_vapid_keys`, then put the three values (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`) in the environment. Re-running it invalidates every existing subscription; browsers resubscribe on their next visit. `VAPID_PRIVATE_KEY` may hold the PEM text or a path to it.
 
 ### L-021: Push fan-out is capped at five recipients per message
 - **Severity:** Low
@@ -160,11 +165,11 @@ Last verified against the code: **2026-11-02** (backend 475 tests, frontend 953 
 - **Impact:** A send to a small thread is fast; a send to a large class thread costs the sender the fan-out time. Failures are logged and swallowed, so a broken notification never loses the message.
 - **Fix:** Same as L-012 — a queue turns this into an enqueue call. Not needed for the school sizes TRACK serves today.
 
-### L-023: The native mobile app authenticates its socket with a token in the query string
+### L-023: The socket handshake still accepts a raw token in the query string
 - **Severity:** Low
-- **Description:** The web app trades its API token for a single-use 30-second ticket over HTTPS (`POST /api/messaging/ws-ticket/`) and puts only the ticket in the socket URL. A raw DRF token is also accepted as `?token=` for non-browser clients (`backend/core/websocket_auth.py`).
-- **Impact:** Expo cannot set an `Authorization` header on a WebSocket, so the mobile handshake leaks a credential into whatever logs the connection URL — the same credential the app already sends in a header on every request. Web traffic never takes this path; a browser has no reason to.
-- **Fix:** Give the mobile client a ticket too (it can call the same authenticated endpoint) once the Expo app is wired to the messaging screens.
+- **Description:** Both TRACK clients now trade their credential for a single-use 30-second ticket over HTTPS (`POST /api/messaging/ws-ticket/`) and put only the ticket in the socket URL — `frontend/src/services/realtime.js` and `mobile/src/messaging/realtime.ts:146-164`. A raw DRF token is *also* still accepted as `?token=` for non-browser clients (`backend/core/websocket_auth.py`).
+- **Impact:** No shipped TRACK client leaks a long-lived credential into a connection URL. The remaining exposure is the server-side alternative itself: anything that authenticates a socket with `?token=` puts a permanent credential in access logs, and a token does not expire (L-001).
+- **Fix (optional):** Drop the `?token=` branch once nothing uses it — curl rehearsals can mint a ticket instead. It is kept because a native client that cannot call the authenticated endpoint first would otherwise have no socket at all.
 
 ---
 
@@ -198,7 +203,7 @@ Last verified against the code: **2026-11-02** (backend 475 tests, frontend 953 
 ### L-028: Browser sign-in fails when the dev origin is untrusted or Django cookies are present
 - **Severity:** Low (development only)
 - **Description:** `POST /api/auth/token/` passes through CSRF protection, and two separate checks can reject it.
-  1. **Origin.** `CSRF_TRUSTED_ORIGINS` lists `http://localhost:5173` and `http://127.0.0.1:5173` (`backend/config/settings.py:250-253`). A Vite dev server on any other port — `5199`, or the `5203` used for the attendance probe — answers `403 CSRF Failed: Origin checking failed - None`. The list is hardcoded in the development branch of the settings; the `DJANGO_CSRF_ORIGINS` env override further down the file applies only when `DEBUG` is off, so there is no env var that widens it locally.
+  1. **Origin.** `CSRF_TRUSTED_ORIGINS` lists `http://localhost:5173` and `http://127.0.0.1:5173` (`backend/config/settings.py:265-268`). A Vite dev server on any other port — `5199`, or the `5203` used for the attendance probe — answers `403 CSRF Failed: Origin checking failed - None`. The list is hardcoded in the development branch of the settings; the `DJANGO_CSRF_ORIGINS` env override further down the file applies only when `DEBUG` is off, so there is no env var that widens it locally. (`TRACK_DEV_CORS_ORIGINS` widens the *CORS* list for the same situation, which is a different check and a different failure; session-authenticated POSTs still need the CSRF entry.)
   2. **Stale cookies.** A request that arrives carrying `sessionid`/`csrftoken` — left behind by an earlier session-cookie login or a visit to `/admin/` — is CSRF-enforced in full, and the SPA never sends a token: it authenticates with the `Authorization: Token …` header and its CSRF prefetch is an explicit no-op (`frontend/src/services/api.js:254`, `src/services/api.js:7`). The same POST on a trusted origin then answers `403 CSRF token missing`, and after deleting only `csrftoken` it answers `CSRF cookie not set`.
 - **Impact:** The login screen reports "Your browser blocked the sign-in request" even though the credentials are correct. Requests with an already-issued API token are unaffected, which is why a probe on a non-standard port can read and write normally but cannot sign a new account in — the documented workaround is to clear the site's cookies, or to write a token into `sessionStorage['track.auth.token']`.
 - **Fix:** Sign in from `http://localhost:5173`, and clear the site cookies when a previous session left Django's own cookies behind. Extending `CSRF_TRUSTED_ORIGINS` is a code edit in `settings.py`, not an env var; neither is done here because both are security-relevant settings and production is unaffected (the Vite proxy makes the deployed app same-origin).
@@ -224,3 +229,19 @@ Last verified against the code: **2026-11-02** (backend 475 tests, frontend 953 
 - **Description:** `/admin/schedules` reads the whole recurring timetable through `api.list('/schedules/')` (`frontend/src/pages/SchedulesPage.jsx:56`), which asks for `page_size=100` and follows up to ten pages. It does that on purpose: the grid, the conflict panel and all four filter selects are computed from the full set in `utils/schedules.js` (`schedulesOverlap`, `detectConflicts`, `filterOptions`), because the server validates `end_time > start_time` and `(assignment, day, start_time)` uniqueness but has no rule that stops the same teacher, section or room being booked twice.
 - **Impact:** Up to 1,000 weekly periods load and stay in memory — one request per visit, and one today. Past that ceiling the option lists and the double-booking warning are derived from a truncated set, so a real conflict could exist server-side and go unlabelled on this screen (the save itself would still be accepted, since the server has no overlap rule).
 - **Fix:** If the school outgrows the ceiling, move overlap detection into the schedule serializer so the refusal names the clash at save time, and page the grid by day or week. That is a backend change and was deliberately left out of a frontend phase.
+
+---
+
+## Mobile navigation and toolchain
+
+### L-032: A screen inside `(app)` that is not declared as a tab is unreachable by URL
+- **Severity:** Medium (reopening risk — the rule is invisible to whoever adds the next screen)
+- **Description:** `mobile/src/app/(app)/_layout.tsx` builds one `<Tabs>` navigator per role. A tab navigator can only show screens it was given, so a path whose file exists but whose name was never passed as a `<Tabs.Screen>` falls back to the nearest tab and carries the dynamic segment as a query string: `/messages/7` used to land on `admin/dashboard?id=7`. `tabBarButton: () => null` keeps the route in the navigator while hiding the bar item; `href: null` — the option that looks correct — deletes it from the route table, so nothing can navigate there either.
+- **Impact:** Found while wiring messaging: the thread and new-conversation screens were unreachable from the inbox, and the same defect already existed for the two admin fee editors (`admin/fees/category/[id]`, `admin/fees/assessment/[id]`), which no one had noticed because tapping a card on a phone pushes the screen through the navigator's own state instead of resolving a URL.
+- **Fix required:** None open — `threadTabs` and `feeEditorTabs` are declared in `_layout.tsx:73-86` and verified live on 2026-11-02 (`/messages/new`, `/messages/8` and a deep link loaded cold from the URL bar all render their own screen, and the bar shows no phantom stop). Anyone adding a non-tab screen under `(app)` must add it to one of those arrays; there is no test that catches the omission (L-007), which is why this is written down instead.
+
+### L-033: `npx expo-doctor` fails its dependency-version check
+- **Severity:** Informational (does not affect CI or the bundle)
+- **Description:** 19 of 20 doctor checks pass; the one failure is "packages match versions required by installed Expo SDK", reporting **patch** drift on eight packages (`@expo/metro-runtime` 58.0.14 vs ~58.0.16, `expo` 58.0.16 vs ~58.0.22, `expo-constants`, `expo-linking`, `expo-router`, `expo-status-bar`, `react-native` 0.88.0 vs 0.88.1, `react-native-screens`). The lockfile predates this project's work; `git diff HEAD -- mobile/package.json` shows only `expo-font` added (at the version `npx expo install` picked, which doctor accepts).
+- **Impact:** Nothing observed — typecheck, lint and `expo export --platform android` all pass, and CI's `mobile` job does not run doctor. The app is a few patch releases behind within SDK 58, which is where an SDK bug fix would be waiting.
+- **Fix (when someone owns the risk):** `npx expo install --check` in the mobile app, then re-run the three gates and re-drive the messaging walkthrough. Deliberately not done during a feature pass: bumping `expo`, `expo-router` and `react-native` together is a broad dependency change with its own regression surface, and the guardrail for this project is not to disturb working code on the way past a feature.

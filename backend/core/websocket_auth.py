@@ -25,7 +25,6 @@ from datetime import timedelta
 from urllib.parse import parse_qs
 
 from asgiref.sync import sync_to_async
-from channels.exceptions import DenyConnection
 from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.utils import timezone
@@ -175,7 +174,12 @@ class MessagingAuthMiddleware:
         origin = headers.get("origin")
         if not origin_is_allowed(origin):
             logger.warning("TRACK: refused WebSocket handshake from origin %s", origin)
-            raise DenyConnection("Origin is not allowed to open a socket.")
+            # Close instead of raising DenyConnection: Channels only catches that
+            # exception in a consumer's connect handler, so raised here — above
+            # the router — it reaches the ASGI server as an unhandled error and
+            # every scanner probe costs a traceback and an HTTP 500.
+            await send({"type": "websocket.close", "code": 4403})
+            return
 
         scope["user"] = await sync_to_async(resolve_user)(scope)
         return await self.inner(scope, receive, send)

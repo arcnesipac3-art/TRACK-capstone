@@ -7,11 +7,12 @@ import Pagination from '../../components/Pagination'
 import StatusBadge from '../../components/StatusBadge'
 import TableSkeleton from '../../components/loading/TableSkeleton'
 import useFetch from '../../hooks/useFetch'
+import useRecordedDay from '../../hooks/useRecordedDay'
 import useServerList from '../../hooks/useServerList'
 import {
   ClearFiltersButton,
   CompletionCell,
-  DateField,
+  DateStepper,
   NoteCell,
   SearchField,
   SelectField,
@@ -23,20 +24,28 @@ import {
   MARK_STATUSES,
   SESSION_STATUS_CHOICES,
   completionOf,
+  dayHeading,
   sessionCounts,
+  sessionDaySteps,
   sessionQuery,
   sessionTimeLabel,
 } from '../../utils/attendance'
 
 
 /**
- * Attendance history — every saved session, paged by the server.
+ * Attendance history — one recorded day at a time.
  *
- * This screen used to pull the teacher's whole session list into the browser
- * (a hundred at a time, rosters and all) and slice it locally at a hard
- * thousand rows. Filtering, sorting and counting happen in the database now and
- * one page of flat rows arrives, so a teacher with four school years of
- * registers gets the same fast screen as one with four sessions.
+ * The list used to be a paged table of every session, newest first, and the
+ * only way to read a particular day was to page or filter towards it. A
+ * teacher now lands on the newest day that has records and walks the calendar
+ * with `<` and `>`; the walk steps between days that actually have sessions, so
+ * a weekend or a holiday is passed over instead of opened as an empty card.
+ *
+ * The walk costs three `page_size: 1` reads per stop (the landing day and the
+ * two neighbours) and nothing else, because the same server-side filters that
+ * narrowed the old table narrow the walk — the database still does the
+ * filtering, sorting and counting, and the browser never holds a day's rows
+ * until it shows them.
  */
 export default function SessionHistory({
   assignments = [],
@@ -48,8 +57,6 @@ export default function SessionHistory({
 }) {
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
   const [classIdState, setClassIdState] = useState(initialClassId)
   // Same rule as the board: a locked class is read from the route each render,
   // so the workspace cannot keep the previous class's id.
@@ -66,18 +73,27 @@ export default function SessionHistory({
     return () => clearTimeout(timer)
   }, [search])
 
+  // Everything except the date: the walk and the day's rows must agree on it,
+  // or the arrows would step through days the filter bar has already hidden.
+  const filters = { assignment: classId, subject, status, search: debouncedSearch }
+
+  const walk = useRecordedDay('/attendance/sessions/', {
+    probesFor: (day) => {
+      const steps = sessionDaySteps({ day, filters })
+      // "First" follows the sort: newest for Newest first, oldest for Oldest
+      // first, so the screen opens on the end of the term the teacher asked for.
+      return {
+        landing: ordering === 'date' ? steps.oldest : steps.newest,
+        earlier: steps.earlier,
+        later: steps.later,
+      }
+    },
+    refreshKey,
+  })
+
   const list = useServerList('/attendance/sessions/', {
-    params: sessionQuery({
-      page,
-      pageSize,
-      dateAfter: from,
-      dateBefore: to,
-      assignment: classId,
-      subject,
-      status,
-      search: debouncedSearch,
-      ordering,
-    }),
+    params: sessionQuery({ page, pageSize, ordering, date: walk.day, ...filters }),
+    enabled: Boolean(walk.day),
     refreshKey,
   })
 
@@ -91,8 +107,6 @@ export default function SessionHistory({
 
   const hasFilters =
     Boolean(debouncedSearch) ||
-    Boolean(from) ||
-    Boolean(to) ||
     Boolean(subject) ||
     Boolean(status) ||
     (!classLocked && Boolean(classId))
@@ -100,8 +114,6 @@ export default function SessionHistory({
   function clearFilters() {
     setSearch('')
     setDebouncedSearch('')
-    setFrom('')
-    setTo('')
     setClassIdState('')
     setSubject('')
     setStatus('')
@@ -113,17 +125,32 @@ export default function SessionHistory({
     setPage(1)
   }
 
+  const dayCount = list.count
+  const showLatest = Boolean(walk.landing) && walk.day !== walk.landing
+
   return (
     <section className="card">
       <header className="card-header">
         <div className="stack stack-xs">
-          <h2>Saved sessions</h2>
+          <h2>Attendance history</h2>
           <span className="subtle">
-            {hasFilters
-              ? `${list.count} of your sessions match`
-              : `${list.count} session${list.count === 1 ? '' : 's'} recorded`}
+            {walk.day
+              ? hasFilters
+                ? `${dayCount} session${dayCount === 1 ? '' : 's'} match on this day`
+                : `${dayCount} session${dayCount === 1 ? '' : 's'} recorded on this day`
+              : 'One day at a time — the arrows move between days that have records'}
           </span>
         </div>
+        {walk.day ? (
+          <DateStepper
+            day={walk.day}
+            onStep={walk.go}
+            canEarlier={Boolean(walk.neighbours.earlier)}
+            canLater={Boolean(walk.neighbours.later)}
+            busy={walk.walking || list.loading}
+            onLanding={showLatest ? walk.jumpToLanding : undefined}
+          />
+        ) : null}
       </header>
 
       <div className="att-filters">
@@ -134,22 +161,6 @@ export default function SessionHistory({
           value={search}
           onChange={(value) => narrow(() => setSearch(value))}
           disabled={list.loading}
-        />
-        <DateField
-          id="hist-from"
-          label="History from date"
-          value={from}
-          onChange={(value) => narrow(() => setFrom(value))}
-          disabled={list.loading}
-          max={to || undefined}
-        />
-        <DateField
-          id="hist-to"
-          label="History to date"
-          value={to}
-          onChange={(value) => narrow(() => setTo(value))}
-          disabled={list.loading}
-          min={from || undefined}
         />
         {!classLocked && (
           <SelectField
@@ -186,9 +197,11 @@ export default function SessionHistory({
           disabled={list.loading}
           options={SESSION_STATUS_CHOICES}
         />
+        {/* The sort no longer orders a long table — it decides which end of the
+            walk you open on, which is what the arrows then walk away from. */}
         <SelectField
           id="hist-sort"
-          label="Sort history"
+          label="Start history from"
           value={ordering}
           onChange={(value) => narrow(() => setOrdering(value))}
           disabled={list.loading}
@@ -197,35 +210,38 @@ export default function SessionHistory({
         <ClearFiltersButton onClick={clearFilters} label="Clear history filters" hidden={!hasFilters} />
       </div>
 
-      {list.error && (
+      {(walk.error || list.error) && (
         <div className="card-body">
           <ErrorMessage
-            error={list.error}
+            error={walk.error || list.error}
             title="Could not load attendance history"
-            onRetry={list.reload}
+            onRetry={() => {
+              walk.reload()
+              list.reload()
+            }}
           />
         </div>
       )}
 
-      {!list.error && list.loading && list.rows.length === 0 && (
+      {!walk.error && !list.error && (!walk.landed || walk.walking || (list.loading && list.rows.length === 0)) && (
         <div className="card-body">
           <TableSkeleton
-            headers={['Date', 'Class', 'Subject', 'Recorded', 'Status', 'Completion', 'Notes', 'Details']}
+            headers={['Class', 'Subject', 'Recorded', 'Status', 'Completion', 'Notes', 'Details']}
             rows={5}
             label="Loading attendance history…"
           />
         </div>
       )}
 
-      {!list.error && !list.loading && list.count === 0 && (
+      {!walk.error && !list.error && walk.landed && !walk.day && !walk.walking && (
         <div className="card-body">
           <EmptyState
             icon={hasFilters ? 'search' : 'calendar'}
-            title={hasFilters ? 'No sessions match your filters' : 'No attendance history yet'}
+            title={hasFilters ? 'No day matches your filters' : 'No attendance history yet'}
             message={
               hasFilters
-                ? 'Try widening the date range or clearing a filter.'
-                : 'Sessions you save from the Take attendance view appear here.'
+                ? 'Clear a filter, or search for another class or learner.'
+                : 'Sessions you save from the Take attendance view appear here, one day at a time.'
             }
           />
         </div>
@@ -234,9 +250,12 @@ export default function SessionHistory({
       {list.rows.length > 0 && (
         <div className="table-wrap">
           <table className="table responsive-table att-sessions att-history">
+            <caption className="sr-only">
+              {`${dayHeading(walk.day)} — ${dayCount} session${dayCount === 1 ? '' : 's'}`}
+            </caption>
             <thead>
               <tr>
-                <th scope="col">Date</th>
+                {/* No Date column: every row on screen is the day in the heading. */}
                 <th scope="col">Class</th>
                 <th scope="col">Subject</th>
                 <th scope="col" className="att-count">Recorded</th>
@@ -249,9 +268,6 @@ export default function SessionHistory({
             <tbody>
               {list.rows.map((session) => (
                 <tr key={session.id}>
-                  <td data-label="Date">
-                    <strong>{formatDate(session.date)}</strong>
-                  </td>
                   <td data-label="Class" className="cell-main">
                     {session.section_name || '—'}
                   </td>
@@ -285,7 +301,10 @@ export default function SessionHistory({
         </div>
       )}
 
-      {list.count > 0 && (
+      {/* A day normally fits one screen, so the pager appears only when it
+          genuinely does not — a school-wide day can hold more classes than a
+          page. The arrows move between days; this moves within one. */}
+      {list.count > list.rows.length && (
         <div className="att-pager">
           <Pagination
             idPrefix="att-hist"
@@ -298,7 +317,7 @@ export default function SessionHistory({
               setPageSize(size)
               setPage(1)
             }}
-            info={`Showing ${list.rows.length} of ${list.count} sessions`}
+            info={`Showing ${list.rows.length} of ${list.count} sessions on ${dayHeading(walk.day)}`}
           />
         </div>
       )}

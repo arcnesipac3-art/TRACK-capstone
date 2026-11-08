@@ -1,18 +1,15 @@
 import { useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
 import Icon from '../components/Icon'
-import Logo from '../components/Logo'
 import PublicNav from '../components/PublicNav'
-import { useAuth } from '../context/AuthContext'
-import { dashboardPath } from '../utils/format'
+import PublicFooter from '../components/PublicFooter'
 
-const SITE_YEAR = new Date().getFullYear()
 
-/* School-campus backdrop — fits the "research team" context without using
-   AI-generated thesis images. Loaded lazily after first paint. */
-const HERO_BG_URL =
-  'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=1920&q=80'
+/* Self-hosted campus photograph; the navy wash above it carries the text contrast. */
+const HERO_BG_URL = '/campus-hero.jpg';
 
+/* Standing illustrations used beside each name — not photographs of these two
+   people, so the markup treats them as decorative (alt="") and the name in the
+   text is the only identity claim the page makes. */
 const RESEARCHERS = [
   {
     photo: '/student2.webp',
@@ -33,9 +30,6 @@ const RESEARCHERS = [
 ]
 
 export default function ResearchersPage() {
-  const { isAuthenticated, user } = useAuth()
-  const signedIn = isAuthenticated && Boolean(user)
-  const dashboardHref = signedIn ? dashboardPath(user.role) : '/login'
   const pageRef = useRef(null)
 
   useEffect(() => {
@@ -94,7 +88,7 @@ export default function ResearchersPage() {
                   <div className="rp-portrait-wrap">
                     <img
                       src={person.photo}
-                      alt={`Portrait of ${person.name}`}
+                      alt=""
                       className="rp-portrait-img"
                       loading="lazy"
                       decoding="async"
@@ -122,52 +116,7 @@ export default function ResearchersPage() {
       </main>
 
       {/* ── Footer ── */}
-      <footer className="landing-foot">
-        <div className="landing-foot-inner">
-          <div className="foot-brand">
-            <Link className="foot-logo-btn" to="/" aria-label="TRACK — home">
-              <img src="/knhs-seal.png" alt="KNHS seal" className="foot-knhs-seal" />
-              <Logo variant="light" />
-            </Link>
-            <p className="foot-tagline">
-              Tracking Requirements, Attendance &amp; Communication for
-              Kiwalan National High School.
-            </p>
-            <p className="foot-dept">Purok 10 Mato-og, Kiwalan, Iligan City, Philippines</p>
-          </div>
-
-          <nav className="foot-col" aria-label="Site sections">
-            <p className="foot-col-title">Site</p>
-            <Link to="/">Home</Link>
-            <Link to="/#problem">The Problem</Link>
-            <Link to="/#features">Features</Link>
-            <Link to="/#how-it-works">How it Works</Link>
-            <Link to="/#roles">Who it&rsquo;s for</Link>
-            <Link to="/#faq">FAQ</Link>
-          </nav>
-
-          <nav className="foot-col" aria-label="Account links">
-            <p className="foot-col-title">Account</p>
-            <Link to={dashboardHref}>{signedIn ? 'Open dashboard' : 'Sign in to TRACK'}</Link>
-            <Link to="/#faq">How to get an account</Link>
-            <Link to="/#security">Data &amp; Privacy</Link>
-          </nav>
-
-          <nav className="foot-col" aria-label="About us links">
-            <p className="foot-col-title">About Us</p>
-            <Link to="/about">About TRACK</Link>
-            <Link to="/location">Location</Link>
-            <Link to="/researchers">Researchers</Link>
-            <Link to="/terms">Terms &amp; Conditions</Link>
-            <Link to="/privacy">Privacy Policy</Link>
-          </nav>
-        </div>
-
-        <div className="foot-bottom">
-          <p>© {SITE_YEAR} Arc Aaron R. Capisen &amp; Ameroden L. Sarip · TRACK</p>
-          <p>Purok 10 Mato-og, Kiwalan, Iligan City, Philippines</p>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   )
 }

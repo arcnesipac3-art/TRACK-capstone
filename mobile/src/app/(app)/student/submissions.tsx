@@ -13,6 +13,7 @@ import { api, ApiError } from '../../../api/client';
 import type { Submission } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
+import Screen from '../../../components/ui/Screen';
 import Badge from '../../../components/ui/Badge';
 import { formatDateTimeFull } from '../../../format';
 import { submissionStatusMeta } from '../../../status';
@@ -46,8 +47,7 @@ export default function StudentSubmissionsScreen() {
   if (error && submissions.length === 0) return <ErrorState message={error} onRetry={() => { setLoading(true); load(); }} />;
 
   return (
-    <View style={styles.screen}>
-      <AppHeader title="Submissions" subtitle="Your submission history and feedback." />
+    <Screen header={<AppHeader title="Submissions" subtitle="Your submission history and feedback." />}>
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.blue]} />}
         contentContainerStyle={styles.content}
@@ -68,7 +68,7 @@ export default function StudentSubmissionsScreen() {
           />
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
@@ -98,7 +98,6 @@ function SubmissionRow({ item }: { item: Submission }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxl },
   errorText: { ...typography.muted, color: colors.redText },
   card: {

@@ -21,6 +21,7 @@ import { CLASS_STATUS, groupRowsBySection } from '../../../class-board';
 import { useClassData } from '../../../class-data';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
+import Screen from '../../../components/ui/Screen';
 import Badge from '../../../components/ui/Badge';
 import StatTile from '../../../components/ui/StatTile';
 import { formatMonthDay } from '../../../format';
@@ -38,11 +39,14 @@ export default function TeacherClassesScreen() {
   const pending = rows.reduce((sum, row) => sum + row.pendingCount, 0);
 
   return (
-    <View style={styles.screen}>
-      <AppHeader
-        title="My Classes"
-        subtitle={`${rows.length} ${rows.length === 1 ? 'assignment' : 'assignments'} across ${groups.length} ${groups.length === 1 ? 'section' : 'sections'}.`}
-      />
+    <Screen
+      header={
+        <AppHeader
+          title="My Classes"
+          subtitle={`${rows.length} ${rows.length === 1 ? 'assignment' : 'assignments'} across ${groups.length} ${groups.length === 1 ? 'section' : 'sections'}.`}
+        />
+      }
+    >
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -153,12 +157,11 @@ export default function TeacherClassesScreen() {
           ))
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1 },
   content: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.lg },
   errorText: { ...typography.muted, color: colors.redText },

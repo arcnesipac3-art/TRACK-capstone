@@ -25,6 +25,7 @@ import { setSessionUser, useSessionUser } from '../../session-user';
 import SignOutButton from '../../components/SignOutButton';
 import { EmptyState, ErrorBanner, LoadingState } from '../../components/StateViews';
 import AppHeader from '../../components/ui/AppHeader';
+import Screen from '../../components/ui/Screen';
 import BackLink from '../../components/ui/BackLink';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
@@ -265,13 +266,16 @@ export default function ProfileScreen() {
   ];
 
   return (
-    <View style={styles.screen}>
-      <AppHeader
-        eyebrow="Account"
-        title="My profile"
-        subtitle="Your TRACK account as it is stored on the server."
-        right={<SignOutButton variant="onNavy" />}
-      />
+    <Screen
+      header={
+        <AppHeader
+          eyebrow="Account"
+          title="My profile"
+          subtitle="Your TRACK account as it is stored on the server."
+          right={<SignOutButton variant="onNavy" />}
+        />
+      }
+    >
       <ScrollView
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
@@ -337,12 +341,11 @@ export default function ProfileScreen() {
           <SignOutButton />
         </View>
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.lg },
   card: {
     backgroundColor: colors.surface,

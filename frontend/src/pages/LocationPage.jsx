@@ -1,15 +1,14 @@
-import { useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
 import Icon from '../components/Icon'
-import Logo from '../components/Logo'
 import PublicNav from '../components/PublicNav'
-import { useAuth } from '../context/AuthContext'
-import { dashboardPath } from '../utils/format'
+import PublicFooter from '../components/PublicFooter'
 
-const SITE_YEAR = new Date().getFullYear()
 
-const HERO_BG_URL =
-  'https://images.unsplash.com/photo-1580582932707-520aed937b7b?auto=format&fit=crop&w=1920&q=80'
+/* Self-hosted campus photograph; the navy wash above it carries the text contrast. */
+const HERO_BG_URL = '/campus-hero.jpg';
+
+/* Held as a string, never rendered until the visitor asks for the map. */
+const MAP_EMBED_URL = 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3948.2282345024582!2d124.27128261130186!3d8.280069091719959!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x325576cc580e692d%3A0x1ee65da2c86ad0a6!2sKiwalan%20National%20High%20School!5e0!3m2!1sen!2sus!4v1792935788645!5m2!1sen!2sus';
 
 const HIGHLIGHTS = [
   { icon: 'mapPin',    label: 'Strategic Location',  desc: 'Situated along the main road in Kiwalan, easily reached by public transport.' },
@@ -21,10 +20,8 @@ const HIGHLIGHTS = [
 ]
 
 export default function LocationPage() {
-  const { isAuthenticated, user } = useAuth()
-  const signedIn = isAuthenticated && Boolean(user)
-  const dashboardHref = signedIn ? dashboardPath(user.role) : '/login'
   const pageRef = useRef(null)
+  const [showMap, setShowMap] = useState(false)
 
   useEffect(() => {
     const root = pageRef.current
@@ -117,7 +114,13 @@ export default function LocationPage() {
               </div>
             </div>
 
-            {/* Map */}
+            {/* Map — click-to-load facade.
+                An embedded Google map contacts Google on page load: it sets
+                Google cookies and sends the visitor's IP address to a third
+                party, before that visitor asked for a map. The panel below
+                makes the same content available one click later, and the
+                address beside it is enough to reach the school without any
+                third party seeing the visit at all. */}
             <div id="map" className="loc-map-wrap">
               <div className="loc-map-header">
                 <div className="loc-card-icon" style={{ margin: 0 }} aria-hidden="true">
@@ -126,16 +129,47 @@ export default function LocationPage() {
                 <h2>Interactive Map</h2>
               </div>
               <div className="loc-map-iframe-wrap">
-                <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3948.2282345024582!2d124.27128261130186!3d8.280069091719959!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x325576cc580e692d%3A0x1ee65da2c86ad0a6!2sKiwalan%20National%20High%20School!5e0!3m2!1sen!2sus!4v1792935788645!5m2!1sen!2sus"
-                  width="100%"
-                  height="400"
-                  style={{ border: 0 }}
-                  allowFullScreen=""
-                  loading="lazy"
-                  referrerPolicy="strict-origin-when-cross-origin"
-                  title="Kiwalan National High School Location"
-                />
+                {showMap ? (
+                  <iframe
+                    src={MAP_EMBED_URL}
+                    width="100%"
+                    height="400"
+                    style={{ border: 0 }}
+                    allowFullScreen
+                    loading="lazy"
+                    referrerPolicy="no-referrer"
+                    title="Kiwalan National High School Location"
+                  />
+                ) : (
+                  <div className="loc-map-facade">
+                    <p className="loc-map-facade-addr">
+                      Purok 10 Mato-og, Kiwalan, Iligan City, Lanao del Norte 9200
+                    </p>
+                    <p className="loc-map-facade-geo">8.2801° N, 124.2713° E</p>
+                    <button
+                      type="button"
+                      className="loc-map-load"
+                      onClick={() => setShowMap(true)}
+                    >
+                      <Icon name="mapPin" size={15} aria-hidden="true" />
+                      Load the map from Google
+                    </button>
+                    <p className="loc-map-facade-why">
+                      Loading it lets Google set its own cookies and record your
+                      IP address, and tells Google you visited this page. Nothing
+                      has been sent yet, and this page works fine without it —
+                      the address above is all the map really says.
+                    </p>
+                    <a
+                      className="loc-map-external"
+                      href="https://www.google.com/maps/search/?api=1&amp;query=Kiwalan+National+High+School"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Open in Google Maps
+                    </a>
+                  </div>
+                )}
               </div>
               <p className="loc-map-note">
                 Search &ldquo;Kiwalan National High School&rdquo; in Google Maps or your preferred
@@ -149,48 +183,7 @@ export default function LocationPage() {
       </main>
 
       {/* Footer */}
-      <footer className="landing-foot">
-        <div className="landing-foot-inner">
-          <div className="foot-brand">
-            <Link to="/" className="foot-logo-btn">
-              <img src="/knhs-seal.png" alt="" className="foot-knhs-seal" />
-              <Logo variant="light" />
-            </Link>
-            <p className="foot-tagline">
-              Tracking Requirements, Attendance &amp; Communication for
-              Kiwalan National High School.
-            </p>
-            <p className="foot-dept">Purok 10 Mato-og, Kiwalan, Iligan City, Philippines</p>
-          </div>
-          <nav className="foot-col" aria-label="Site sections">
-            <p className="foot-col-title">Site</p>
-            <Link to="/">Home</Link>
-            <Link to="/#problem">The Problem</Link>
-            <Link to="/#features">Features</Link>
-            <Link to="/#how-it-works">How it Works</Link>
-            <Link to="/#roles">Who it&rsquo;s for</Link>
-            <Link to="/#faq">FAQ</Link>
-          </nav>
-          <nav className="foot-col" aria-label="Account links">
-            <p className="foot-col-title">Account</p>
-            <Link to={dashboardHref}>{signedIn ? 'Open dashboard' : 'Sign in to TRACK'}</Link>
-            <Link to="/#faq">How to get an account</Link>
-            <Link to="/#security">Data &amp; Privacy</Link>
-          </nav>
-          <nav className="foot-col" aria-label="About us links">
-            <p className="foot-col-title">About Us</p>
-            <Link to="/about">About TRACK</Link>
-            <Link to="/location">Location</Link>
-            <Link to="/researchers">Researchers</Link>
-            <Link to="/terms">Terms &amp; Conditions</Link>
-            <Link to="/privacy">Privacy Policy</Link>
-          </nav>
-        </div>
-        <div className="foot-bottom">
-          <p>&copy; {SITE_YEAR} TRACK &middot; Purok 10 Mato-og, Kiwalan, Iligan City, Philippines</p>
-          <p>Accounts are issued and controlled by the school registrar.</p>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   )
 }

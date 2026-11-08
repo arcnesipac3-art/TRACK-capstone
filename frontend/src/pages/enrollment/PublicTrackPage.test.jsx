@@ -57,7 +57,7 @@ describe('PublicTrackPage', () => {
       'APP-1234567890'
     )
     await user.type(
-      screen.getByLabelText(/guardian email or contact number/i),
+      screen.getByLabelText(/email or contact number/i),
       'rosa@example.com'
     )
     await user.click(screen.getByRole('button', { name: /track my application/i }))
@@ -91,7 +91,7 @@ describe('PublicTrackPage', () => {
       'APP-0000000000'
     )
     await user.type(
-      screen.getByLabelText(/guardian email or contact number/i),
+      screen.getByLabelText(/email or contact number/i),
       'wrong@example.com'
     )
     await user.click(screen.getByRole('button', { name: /track my application/i }))
@@ -112,7 +112,7 @@ describe('PublicTrackPage', () => {
 
     expect(await screen.findByText(/enter your application reference/i)).toBeInTheDocument()
     expect(
-      screen.getByText(/enter the guardian email or contact number/i)
+      screen.getByText(/enter the email or contact number/i)
     ).toBeInTheDocument()
     expect(global.fetch).not.toHaveBeenCalled()
   })

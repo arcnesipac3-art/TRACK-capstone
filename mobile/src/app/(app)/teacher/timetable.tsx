@@ -10,6 +10,7 @@ import { api, ApiError } from '../../../api/client';
 import type { ClassSchedule } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
+import Screen from '../../../components/ui/Screen';
 
 /** 1 = Monday … 7 = Sunday (Django isoweekday). */
 const DAY_ORDER = [
@@ -58,8 +59,7 @@ export default function TeacherTimetableScreen() {
   })).filter((day) => day.slots.length > 0);
 
   return (
-    <View style={styles.screen}>
-      <AppHeader title="Timetable" subtitle="Your teaching schedule." />
+    <Screen header={<AppHeader title="Timetable" subtitle="Your teaching schedule." />}>
       <ScrollView
         style={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.blue]} />}
@@ -92,12 +92,11 @@ export default function TeacherTimetableScreen() {
           ))
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, gap: spacing.xl, paddingBottom: spacing.xxl },
   errorText: { ...typography.muted, color: colors.redText },

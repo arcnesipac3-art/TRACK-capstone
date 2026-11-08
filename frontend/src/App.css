@@ -1503,7 +1503,10 @@
   margin: 0 0 6px;
 }
 .auth-lede {
-  color: #6b7f9f;
+  /* #6b7f9f is 3.75:1 on the auth panel's #f2f6fb. --text-subtle is the
+     lightest token that still clears 4.5:1 on every surface (5.18:1 here),
+     so the panel keeps its airy tone without failing the floor. */
+  color: var(--text-subtle);
   font-size: 16px;
   line-height: 1.5;
   margin: 0;
@@ -1685,7 +1688,7 @@
 /* Footer note */
 .auth-note {
   font-size: 13.5px;
-  color: #7284a5;
+  color: var(--text-subtle);
   line-height: 1.6;
   margin: 0 0 14px;
 }
@@ -1696,11 +1699,14 @@
   gap: 6px;
   font-size: 14px;
   font-weight: 650;
-  color: #2563eb;
+  /* #2563eb on this panel measured 4.76:1, so it passed — but it passed as a
+     hardcoded hex, and --blue-700 is the token already documented as link text
+     (6.18:1 here). Same family, one step up, nothing left to re-measure later. */
+  color: var(--blue-700);
   text-decoration: none;
   transition: color 0.12s ease;
 }
-.back-home:hover { color: #1d4ed8; text-decoration: none; }
+.back-home:hover { color: var(--blue-900); text-decoration: none; }
 
 /* ── Sign-in intro animations ────────────────────────────────────────
    Mirrors the landing hero: the branding panel settles first, then the form
@@ -2903,7 +2909,10 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--brand-cyan);
+  /* --brand-cyan is 2.6:1 and documented as decorative-only; an eyebrow is
+     read as text, and at 0.7rem it needs 4.5:1. --blue-600 keeps the blue
+     accent and measures 5.17:1 on white, 4.94:1 on the tinted band. */
+  color: var(--blue-600);
   margin: 0 0 8px;
 }
 
@@ -2998,7 +3007,9 @@
 .solution-quote {
   font-size: 0.96rem;
   font-style: italic;
-  color: rgba(255, 255, 255, 0.72);
+  /* 72% white over the #2347E8 card is 4.22:1 — just under the floor. The
+     card is a saturated blue, not a dark navy, so it needs more white. */
+  color: rgba(255, 255, 255, 0.86);
   margin: 0;
   position: relative;
   z-index: 1;
@@ -3906,7 +3917,8 @@
 
 .foot-dept {
   font-size: 0.8rem;
-  color: #6b7280;
+  /* #6b7280 measured 3.9:1 on the #0d1117 footer — under the AA floor. */
+  color: #8b95a5;
   margin: 0;
 }
 
@@ -3922,7 +3934,7 @@
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #6b7280;
+  color: #8b95a5;
   margin: 0 0 4px;
 }
 
@@ -3964,7 +3976,96 @@
   justify-content: space-between;
   gap: 6px 18px;
   font-size: 0.76rem;
-  color: #4b5563;
+  color: #8b95a5;
+}
+
+/* --- Compact variant (sign-in, public enrollment) -------------------------
+   The same identity and the same legal links, in one band. These surfaces put
+   a form in the middle of the screen; a four-column footer under it would
+   read as if the page continued and the form was optional. */
+.public-foot-compact {
+  background: #0d1117;
+  color: #e5e7eb;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 24px 32px 28px;
+  text-align: center;
+}
+.pfc-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 14px 28px;
+  margin-bottom: 14px;
+}
+.public-foot-compact .foot-logo-btn { margin-bottom: 0; }
+.pfc-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 22px;
+}
+.pfc-links a {
+  color: #9ca3af;
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+.pfc-links a:hover { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+.pfc-links a:focus-visible {
+  outline: 2px solid var(--cyan-400);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.pfc-controller {
+  margin: 0 auto 4px;
+  max-width: 76ch;
+  font-size: 0.78rem;
+  color: #8b95a5;
+}
+.pfc-note {
+  margin: 0 auto;
+  max-width: 88ch;
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: #8b95a5;
+}
+@media (max-width: 479px) {
+  .public-foot-compact { padding: 22px 18px 26px; }
+}
+
+/* --- Strip variant (sign-in card) -----------------------------------------
+   Same links, same identity, no band — the sign-in screen is a fixed-height
+   split panel that cannot scroll, so it has no page bottom to host a footer. */
+.public-foot-strip {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line, #e5eaf1);
+  text-align: center;
+}
+.pfs-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px 18px;
+  margin-bottom: 8px;
+}
+.pfs-links a {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--blue-700, #1d4ed8);
+  text-decoration: none;
+}
+.pfs-links a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.pfs-links a:focus-visible {
+  outline: 2px solid var(--brand-navy);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+.pfs-controller {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--text-muted, #64748b);
 }
 
 /* --- Scroll reveal ---
@@ -4415,6 +4516,22 @@
 }
 .btn-ghost:hover:not(:disabled) {
   background: var(--surface-alt);
+}
+
+/* Icon-only controls get `btn-symbol` from Button: with no label to read, a
+   transparent background and a transparent border leave nothing on screen.
+   They take the secondary chrome so an arrow or a trash glyph always sits in a
+   box the eye can find — and deliberately **no `color`**, because a call site's
+   own tone class (`.sched-action-danger`, (0,1,0)) must keep winning; declaring
+   it here would silently recolour every red action.
+   (0,4,0) on the hover so it outranks the ghost hover above it. */
+.btn-ghost.btn-symbol {
+  background: var(--surface);
+  border-color: var(--border-strong);
+}
+.btn-ghost.btn-symbol:hover:not(:disabled) {
+  background: var(--surface-alt);
+  border-color: var(--navy-600);
 }
 
 .btn-outline {
@@ -5471,7 +5588,9 @@
 .rp-team-sub {
   font-size: 0.97rem;
   line-height: 1.65;
-  color: #5c7199;
+  /* #5c7199 is 4.91:1 on white but only 4.40:1 on the tinted band this sits
+     on. --text-subtle is the token documented to clear 4.5:1 on every surface. */
+  color: var(--text-subtle);
   max-width: 54ch;
   margin: 0 auto;
 }
@@ -5504,7 +5623,10 @@
 .rp-card--lead   { border-top: 3px solid #123B70; }
 .rp-card--partner { border-top: 3px solid #2196F3; }
 
-/* ── Portrait ── */
+/* ── Portrait ──
+   student.png / student2.webp, served from public/ — self-hosted, no
+   cross-origin fetch. Decorative (alt=""): the name in the card text is the
+   identity, the image is a standing illustration beside it. */
 .rp-portrait-wrap {
   width: 100%;
   aspect-ratio: 4 / 3;
@@ -5517,8 +5639,6 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  /* student.png is a full-body plate — frame head/shoulders */
-  object-position: center 12%;
   display: block;
   transition: transform 0.35s ease;
 }
@@ -5526,12 +5646,12 @@
   transform: scale(1.03);
 }
 
-/* student2.webp (lead) — anchor to top so face is fully visible */
+/* student2.webp (lead) is a bust — anchor to the top so the face stays whole. */
 .rp-card--lead .rp-portrait-img {
   object-position: center 0%;
 }
 
-/* student.png (partner) — shift down slightly to show uniform/chest */
+/* student.png (partner) is a full-body plate — shift down onto uniform/chest. */
 .rp-card--partner .rp-portrait-img {
   object-position: center 20%;
 }
@@ -5553,7 +5673,10 @@
   margin: 0 0 8px;
 }
 .rp-card--lead   .rp-role { color: #123B70; }
-.rp-card--partner .rp-role { color: #2196F3; }
+/* The accent line above may be #2196F3 — 3.12:1 is enough for a graphic — but
+   this is a 0.67rem label, and the same blue only reaches 3.12:1 on white.
+   #1565C0 is the same partner blue as the accent line, one step darker. */
+.rp-card--partner .rp-role { color: #1565c0; }
 
 /* Name */
 .rp-name {
@@ -5785,7 +5908,7 @@
 .ap-section-sub {
   font-size: 0.96rem;
   line-height: 1.65;
-  color: #5c7199;
+  color: var(--text-subtle);
   max-width: 52ch;
   margin: 0 auto;
 }
@@ -6168,7 +6291,10 @@
 .lp-toc-list a {
   font-size: 0.87rem;
   font-weight: 500;
-  color: #2196f3;
+  /* --brand-blue is 3.12:1 and reserved for graphics and focus rings; these
+     are 0.87rem links on a tinted band, where it measures 2.8:1. --blue-700
+     is the token already documented as link text (6.01:1 here). */
+  color: var(--blue-700);
   text-decoration: none;
   transition: color 0.15s ease;
 }
@@ -6222,24 +6348,6 @@
   line-height: 1.72;
   color: #374a63;
   margin-bottom: 6px;
-}
-
-/* ── Review note ───────────────────────────────────────────────────────────── */
-.lp-review-note {
-  margin-top: 36px;
-  padding: 16px 20px;
-  background: #fff9ec;
-  border: 1px solid #f0d878;
-  border-left: 4px solid #e8b400;
-  border-radius: 8px;
-  font-size: 0.87rem;
-  line-height: 1.65;
-  color: #7a5c00;
-}
-
-.lp-review-note strong {
-  font-weight: 700;
-  color: #5a4200;
 }
 
 /* ── Entrance animations ───────────────────────────────────────────────────── */
@@ -6524,10 +6632,80 @@
   height: 400px;
   border: 0;
 }
+
+/* Click-to-load map facade — same footprint as the iframe it stands in for. */
+.loc-map-facade {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 400px;
+  padding: 32px 24px;
+  text-align: center;
+  background:
+    radial-gradient(120% 90% at 50% 0%, #f3f7fc 0%, #ffffff 62%);
+}
+.loc-map-facade-addr {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+  color: #0d2244;
+}
+.loc-map-facade-geo {
+  margin: 0 0 14px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: #4a627f;
+}
+.loc-map-load {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 11px 20px;
+  border: 0;
+  border-radius: 10px;
+  background: #123B70;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.18s ease, transform 0.18s ease;
+}
+.loc-map-load:hover { background: #16305f; }
+.loc-map-load:active { transform: translateY(1px); }
+.loc-map-load:focus-visible {
+  outline: 2px solid var(--brand-navy);
+  outline-offset: 3px;
+}
+.loc-map-facade-why {
+  max-width: 46ch;
+  margin: 14px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: #4a627f;
+}
+.loc-map-external {
+  margin-top: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.loc-map-external:hover { color: #16305f; }
+.loc-map-external:focus-visible {
+  outline: 2px solid var(--brand-navy);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
 .loc-map-note {
   padding: 12px 24px;
   font-size: 0.8rem;
-  color: #7a96b5;
+  /* 5.9:1 on white — the previous #7a96b5 sat at 2.9:1 under the AA floor. */
+  color: #4a627f;
   font-style: italic;
   border-top: 1px solid #e4eef8;
 }
@@ -6547,6 +6725,7 @@
   .loc-info-row { grid-template-columns: minmax(0,1fr); gap: 16px; }
   .loc-highlights-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
   .loc-map-iframe-wrap iframe { height: 280px; }
+  .loc-map-facade { min-height: 300px; padding: 28px 20px; }
   .loc-card { padding: 20px 20px 24px; }
 }
 @media (max-width: 479px) {

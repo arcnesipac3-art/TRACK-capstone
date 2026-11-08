@@ -3,7 +3,7 @@ import Icon from '../../components/Icon'
 import StatusBadge from '../../components/StatusBadge'
 import Tabs from '../../components/Tabs'
 import { attendanceStatus } from '../../utils/format'
-import { MARK_STATUSES, sessionMeta, sessionState } from '../../utils/attendance'
+import { MARK_STATUSES, dayHeading, sessionMeta, sessionState } from '../../utils/attendance'
 
 /* ------------------------------------------------------------------ */
 /* Small pieces the attendance screens share                           */
@@ -128,6 +128,50 @@ export function DateField({ id, label, value, onChange, disabled, min, max }) {
         min={min}
         max={max}
       />
+    </div>
+  )
+}
+
+/**
+ * One recorded date, with the two arrows that reach its neighbours.
+ *
+ * A history screen that shows a single day states that day as a heading
+ * instead of offering a date input: the arrows move to the previous and next
+ * day that actually has records, so a weekend or a holiday is walked past
+ * rather than opened as an empty card. An arrow goes dead at an end of the
+ * walk, which is the honest way of saying "nothing is older than this".
+ */
+export function DateStepper({ day, onStep, canEarlier, canLater, busy, onLanding }) {
+  return (
+    <div className="att-day-stepper">
+      <Button
+        variant="ghost"
+        size="sm"
+        className="btn-icon"
+        onClick={() => onStep('earlier')}
+        disabled={!canEarlier || busy}
+        aria-label="Previous day with records"
+      >
+        <Icon name="chevronLeft" size={16} />
+      </Button>
+      <span className="att-day-date" role="status" aria-live="polite">
+        {dayHeading(day)}
+      </span>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="btn-icon"
+        onClick={() => onStep('later')}
+        disabled={!canLater || busy}
+        aria-label="Next day with records"
+      >
+        <Icon name="chevronRight" size={16} />
+      </Button>
+      {onLanding ? (
+        <Button variant="ghost" size="sm" onClick={onLanding}>
+          Latest
+        </Button>
+      ) : null}
     </div>
   )
 }

@@ -25,6 +25,7 @@ import { api, ApiError } from '../../../api/client';
 import type { Requirement, Submission, SubmissionStatus } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
+import Screen from '../../../components/ui/Screen';
 import Badge from '../../../components/ui/Badge';
 import { formatDateTime } from '../../../format';
 import { submissionStatusMeta } from '../../../status';
@@ -95,8 +96,7 @@ export default function TeacherReviewScreen() {
   if (error && requirements.length === 0) return <ErrorState message={error} onRetry={() => { setLoading(true); load(); }} />;
 
   return (
-    <View style={styles.screen}>
-      <AppHeader title="Review" subtitle="Check submissions and give feedback." />
+    <Screen header={<AppHeader title="Review" subtitle="Check submissions and give feedback." />}>
       <ScrollView
         style={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.blue]} />}
@@ -164,7 +164,7 @@ export default function TeacherReviewScreen() {
           />
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
@@ -303,7 +303,6 @@ function SubmissionReview({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxl },
   errorText: { ...typography.muted, color: colors.redText },

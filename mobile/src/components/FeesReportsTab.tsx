@@ -2,36 +2,33 @@
  * Admin fees — collection and outstanding reports.
  *
  * Both halves are the web app's own two endpoints, filtered the same way:
- * GET /fee-reports/collection/ answers "how much of this category has the
- * school actually taken in?", and GET /fee-reports/outstanding/ answers "who
- * still owes?". The server only reports *published* assessments, so a draft
- * never shows up as income, and the school-year / category params are honoured
- * server-side rather than filtered after the fact.
+ * GET /fee-reports/collection/ answers "how much of this category has the school
+ * actually taken in?", and GET /fee-reports/outstanding/ answers "who still
+ * owes?". The server only reports *published* assessments, so a draft never shows
+ * up as income, and the school-year / category params are honoured server-side
+ * rather than filtered after the fact.
  *
  * Money arrives as decimal strings; `formatPeso` is the only place they become
  * text, so a rate and a balance can never disagree.
  */
-import { useCallback, useEffect, useState } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  RefreshControl,
-} from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing, typography, type Tone } from '../theme';
+import { colors, spacing, typography, type Tone } from '../theme';
 import { ApiError, api } from '../api/client';
 import type { FeeCategory, FeeCollectionReport, FeeOutstandingReport } from '../api/types';
 import { formatDate, formatPeso, formatPesoExact } from '../format';
-import { EmptyState, ErrorState, LoadingState } from './StateViews';
+import { EmptyState, ErrorBanner, ErrorState, LoadingState } from './StateViews';
 import Badge from './ui/Badge';
 import Button from './ui/Button';
 import Card from './ui/Card';
+import Chip from './ui/Chip';
 import Dropdown from './ui/Dropdown';
+import ListRow from './ui/ListRow';
+import MetricsCard from './ui/MetricsCard';
 import ProgressBar from './ui/ProgressBar';
-import ScreenList from './ScreenList';
+import SearchField from './ui/SearchField';
+import SectionHeader from './ui/SectionHeader';
 import SegmentedControl from './ui/SegmentedControl';
 
 type Kind = 'collection' | 'outstanding';
@@ -54,7 +51,23 @@ const STATUS_TONE: Record<FeeOutstandingReport['payment_status'], Tone> = {
   unpaid: 'red',
 };
 
+/** A collection rate is good, worth chasing, or gone. Three bands, no more. */
+function rateTone(rate: number): 'green' | 'amber' | 'red' {
+  if (rate >= 80) return 'green';
+  if (rate > 0) return 'amber';
+  return 'red';
+}
+
 const ROW_CAP = 40;
+
+/**
+ * The section as a row label: "Grade 7 — Sampaguita (2026-2027)" is the school's full
+ * name for it, and the year is already what the whole report is scoped by.
+ */
+function sectionLabel(name?: string | null) {
+  const trimmed = (name || '').replace(/\s*\(\d{4}-\d{4}\)\s*$/, '').trim();
+  return trimmed || 'No section';
+}
 
 /** `0` is the dropdown's "no filter" value; the API takes the param omitted. */
 const ALL = 0;
@@ -106,50 +119,101 @@ export default function FeesReportsTab() {
   }, [year, category]);
 
   useEffect(() => {
-    // Mount fetch — both helpers set state only after their awaits, which is
-    // what the rule below is really guarding against.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadRefs();
+    (async () => {
+      await loadRefs();
+    })();
   }, [loadRefs]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadReports();
+    (async () => {
+      await loadReports();
+    })();
   }, [loadReports]);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadReports();
-  };
+  const owed = useMemo(() => {
+    const lines = outstanding.filter((row) => row.payment_status !== 'paid');
+    return {
+      total: lines.reduce((sum, row) => sum + Number(row.outstanding), 0),
+      students: new Set(lines.map((row) => row.student_id)).size,
+      lines: lines.length,
+    };
+  }, [outstanding]);
 
-  if (loading) return <LoadingState label="Building the reports…" />;
-  if (error && collection.length === 0 && outstanding.length === 0) {
-    return <ErrorState message={error} onRetry={onRefresh} />;
+  const filteredOutstanding = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const rows: OutstandingRow[] = outstanding.map((row, index) => ({
+      ...row,
+      row_key: `${row.student_id}-${index}`,
+    }));
+    return rows.filter((row) => {
+      if (status !== 'all' && row.payment_status !== status) return false;
+      if (!query) return true;
+      return [row.student_name, row.section, row.lrn, row.category].some((value) =>
+        (value || '').toLowerCase().includes(query)
+      );
+    });
+  }, [outstanding, status, search]);
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<StatusFilter, number> = { all: outstanding.length, paid: 0, partial: 0, unpaid: 0 };
+    outstanding.forEach((row) => {
+      counts[row.payment_status] += 1;
+    });
+    return counts;
+  }, [outstanding]);
+
+  // Unpaid lines plus settled lines is the whole assessment, so the three figures on the
+  // card and the line under them cannot tell two different stories.
+  const assessedLines = owed.lines + statusCounts.paid;
+  const footnote =
+    outstanding.length === 0
+      ? 'Nothing assessed in this selection'
+      : owed.students === 0
+        ? `${assessedLines} assessed line${assessedLines === 1 ? '' : 's'} in this selection — all settled`
+        : `${owed.students} student${owed.students === 1 ? '' : 's'} owe across ${owed.lines} of ${assessedLines} assessed lines`;
+
+  if (loading) {
+    return (
+      <View style={styles.wrap}>
+        <LoadingState label="Building the reports…" rows={4} />
+      </View>
+    );
   }
 
-  const rows: OutstandingRow[] = outstanding.map((r, i) => ({ ...r, row_key: `${r.student_id}-${i}` }));
-  const filteredOutstanding = rows.filter((r) => {
-    if (status !== 'all' && r.payment_status !== status) return false;
-    const query = search.trim().toLowerCase();
-    if (!query) return true;
-    return [r.student_name, r.section, r.lrn, r.category]
-      .some((v) => (v || '').toLowerCase().includes(query));
-  });
-
-  const owed = outstanding.filter((r) => r.payment_status !== 'paid');
-  const owedTotal = owed.reduce((total, r) => total + Number(r.outstanding), 0);
-  const owingStudents = new Set(owed.map((r) => r.student_id)).size;
+  if (error && collection.length === 0 && outstanding.length === 0) {
+    return (
+      <View style={styles.wrap}>
+        <ErrorState
+          message={error}
+          onRetry={() => {
+            setLoading(true);
+            loadReports();
+          }}
+        />
+      </View>
+    );
+  }
 
   return (
     <ScrollView
-      style={styles.scroll}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.blue]} />}
       contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            loadReports();
+          }}
+          colors={[colors.blue]}
+          tintColor={colors.blue}
+        />
+      }
     >
       <SegmentedControl<Kind>
         options={[
-          { label: 'Collection', value: 'collection' },
-          { label: 'Outstanding', value: 'outstanding' },
+          { label: 'Collection', value: 'collection', count: collection.length },
+          { label: 'Outstanding', value: 'outstanding', count: outstanding.length },
         ]}
         value={kind}
         onChange={setKind}
@@ -160,25 +224,25 @@ export default function FeesReportsTab() {
           label="SCHOOL YEAR"
           options={[
             { label: 'Every year', value: ALL },
-            ...schoolYears.map((y) => ({ label: y.label, value: y.id })),
+            ...schoolYears.map((item) => ({ label: item.label, value: item.id })),
           ]}
           value={year}
-          onChange={(v) => setYear(v)}
+          onChange={setYear}
           style={styles.filter}
         />
         <Dropdown<number>
           label="CATEGORY"
           options={[
             { label: 'Every category', value: ALL },
-            ...categories.map((c) => ({ label: `${c.name} (${c.code})`, value: c.id })),
+            ...categories.map((item) => ({ label: `${item.name} (${item.code})`, value: item.id })),
           ]}
           value={category}
-          onChange={(v) => setCategory(v)}
+          onChange={setCategory}
           style={styles.filter}
         />
       </View>
 
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {error ? <ErrorBanner message={error} onRetry={loadReports} /> : null}
 
       {kind === 'collection' ? (
         collection.length === 0 ? (
@@ -186,130 +250,187 @@ export default function FeesReportsTab() {
             inline
             title="Nothing published yet"
             body="A report only counts published assessments. Publish one, or clear the filters."
+            icon="stats-chart-outline"
+            actionLabel={year !== ALL || category !== ALL ? 'Clear filters' : undefined}
+            onAction={
+              year !== ALL || category !== ALL
+                ? () => {
+                    setYear(ALL);
+                    setCategory(ALL);
+                  }
+                : undefined
+            }
           />
         ) : (
-          <View style={styles.list}>
-            <ScreenList
-              data={collection}
-              keyExtractor={(item) => `${item.school_year}-${item.category}`}
-              renderItem={(r) => {
-                const rate = Number(r.collection_rate);
-                return (
-                  <Card style={styles.cardFull}>
-                    <View style={styles.cardHead}>
-                      <View style={styles.cardHeadLeft}>
-                        <Text style={styles.cardTitle}>{r.category}</Text>
-                        <Text style={styles.cardMeta}>{r.school_year}</Text>
-                      </View>
-                      <Badge
-                        label={`${rate}%`}
-                        tone={rate >= 80 ? 'green' : rate > 0 ? 'amber' : 'red'}
-                        glyph={false}
-                      />
-                    </View>
-                    <ProgressBar
-                      value={rate}
-                      tone={rate >= 80 ? 'green' : rate > 0 ? 'amber' : 'red'}
-                      detail={`${formatPeso(r.total_collected)} of ${formatPeso(r.total_assessed)}`}
-                    />
-                    <Text style={styles.cardMeta}>
-                      {formatPeso(r.total_outstanding)} still owed across {r.student_count} students
-                    </Text>
-                    <Text style={styles.cardMeta}>
-                      {r.paid_count} paid · {r.partial_count} partial · {r.unpaid_count} unpaid
-                    </Text>
-                  </Card>
-                );
-              }}
+          <View style={styles.group}>
+            <SectionHeader
+              title="Collection by category"
+              detail="Only published assessments are counted."
+              count={collection.length}
+              countNoun={collection.length === 1 ? 'report' : 'reports'}
+              countTone="blue"
             />
+            {collection.map((report) => {
+              const rate = Number(report.collection_rate);
+              return (
+                <Card key={`${report.school_year}-${report.category}`} style={styles.reportCard}>
+                  <View style={styles.reportHead}>
+                    <View style={styles.reportTitles}>
+                      <Text style={styles.reportTitle}>{report.category}</Text>
+                      <Text style={styles.reportMeta}>{report.school_year}</Text>
+                    </View>
+                    <Badge
+                      label={`${rate}%`}
+                      tone={rateTone(rate)}
+                      glyph={false}
+                      style={styles.rateBadge}
+                    />
+                  </View>
+                  <ProgressBar
+                    value={rate}
+                    tone={rateTone(rate)}
+                    detail={`${formatPeso(report.total_collected)} of ${formatPeso(report.total_assessed)}`}
+                  />
+                  <MetricsCard
+                    columns={3}
+                    style={styles.innerMetrics}
+                    items={[
+                      {
+                        key: 'owed',
+                        label: 'Still owed',
+                        value: formatPeso(report.total_outstanding),
+                        tone: 'red',
+                      },
+                      {
+                        key: 'students',
+                        label: 'Students',
+                        value: `${report.student_count}`,
+                        tone: 'navy',
+                      },
+                      {
+                        key: 'paid',
+                        label: 'Settled',
+                        value: `${report.paid_count}`,
+                        detail: `${report.partial_count} partial · ${report.unpaid_count} unpaid`,
+                        tone: 'green',
+                      },
+                    ]}
+                  />
+                </Card>
+              );
+            })}
           </View>
         )
       ) : (
-        <View style={styles.section}>
-          <Card style={styles.cardFull}>
-            <Text style={styles.cardLabel}>STILL OWED</Text>
-            <Text style={[styles.metric, { color: colors.redText }]}>{formatPeso(owedTotal)}</Text>
-            <Text style={styles.cardMeta}>
-              {owingStudents} student{owingStudents === 1 ? '' : 's'}
-              {outstanding.length > 0
-                ? ` on ${outstanding.length} assessed line${outstanding.length === 1 ? '' : 's'}`
-                : ' — nothing assessed in this selection'}
-            </Text>
-          </Card>
-
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search student, section, LRN or category…"
-            value={search}
-            onChangeText={(v) => {
-              setSearch(v);
-              setVisible(ROW_CAP);
-            }}
-            placeholderTextColor={colors.textMuted}
-            autoCapitalize="none"
-          />
-          <Dropdown<StatusFilter>
-            label="PAYMENT STATUS"
-            options={[
-              { label: 'Every line', value: 'all' },
-              { label: 'Unpaid', value: 'unpaid' },
-              { label: 'Partial', value: 'partial' },
-              { label: 'Paid', value: 'paid' },
+        <View style={styles.group}>
+          <MetricsCard
+            lead
+            footnote={footnote}
+            items={[
+              { key: 'owed', label: 'Still owed', value: formatPeso(owed.total), tone: 'red' },
+              {
+                key: 'lines',
+                label: 'Unpaid lines',
+                value: `${owed.lines}`,
+                tone: 'navy',
+              },
+              { key: 'settled', label: 'Settled lines', value: `${statusCounts.paid}`, tone: 'green' },
             ]}
-            value={status}
-            onChange={(v) => {
-              setStatus(v);
+          />
+
+          <SearchField
+            value={search}
+            onChange={(next) => {
+              setSearch(next);
               setVisible(ROW_CAP);
             }}
+            placeholder="Search student, section, LRN or category"
+            testID="fees-report-search"
+          />
+
+          <View style={styles.filters}>
+            {(
+              [
+                { value: 'all', label: 'Every line' },
+                { value: 'unpaid', label: 'Unpaid' },
+                { value: 'partial', label: 'Partial' },
+                { value: 'paid', label: 'Paid' },
+              ] as { value: StatusFilter; label: string }[]
+            ).map((option) => (
+              <Chip
+                key={option.value}
+                label={option.label}
+                count={statusCounts[option.value]}
+                selected={status === option.value}
+                tone="navy"
+                onPress={() => {
+                  setStatus(option.value);
+                  setVisible(ROW_CAP);
+                }}
+              />
+            ))}
+          </View>
+
+          <SectionHeader
+            title="Student balances"
+            count={filteredOutstanding.length}
+            countNoun={filteredOutstanding.length === 1 ? 'line' : 'lines'}
+            countTone={owed.total > 0 ? 'red' : 'green'}
           />
 
           {filteredOutstanding.length === 0 ? (
             <EmptyState
               inline
-              title="No matching balances"
+              title={search ? `Nothing matches “${search.trim()}”` : 'No matching balances'}
               body={
                 outstanding.length === 0
                   ? 'Nothing is published for this selection.'
-                  : 'Try another name, status or filter.'
+                  : 'Search covers the student, the section, the LRN and the category.'
               }
+              icon={search ? 'search-outline' : 'wallet-outline'}
+              actionLabel={search ? 'Clear search' : undefined}
+              onAction={search ? () => setSearch('') : undefined}
             />
           ) : (
-            <View style={styles.list}>
-              <ScreenList
-                data={filteredOutstanding.slice(0, visible)}
-                keyExtractor={(item) => item.row_key}
-                renderItem={(r) => (
-                  <View style={styles.row}>
-                    <View style={styles.rowLeft}>
-                      <Text style={styles.rowTitle}>{r.student_name}</Text>
-                      <Text style={styles.rowMeta}>{r.section}</Text>
-                      <Text style={styles.rowMeta}>
-                        {r.category} · due {formatDate(r.due_date)}
-                        {r.lrn ? ` · LRN ${r.lrn}` : ''}
-                      </Text>
-                      <Text style={styles.rowMeta}>
-                        {formatPesoExact(r.paid)} paid of {formatPesoExact(r.assessed)}
-                      </Text>
-                    </View>
-                    <View style={styles.rowRight}>
-                      <Text
-                        style={[
-                          styles.rowAmount,
-                          r.payment_status === 'paid' ? styles.rowAmountPaid : styles.rowAmountOwed,
-                        ]}
-                      >
-                        {formatPeso(r.outstanding)}
-                      </Text>
-                      <Badge label={r.payment_status} tone={STATUS_TONE[r.payment_status] ?? 'gray'} />
-                    </View>
-                  </View>
-                )}
-              />
+            <View style={styles.group}>
+              <Card padded={false}>
+                {filteredOutstanding.slice(0, visible).map((row, index) => (
+                  <ListRow
+                    key={row.row_key}
+                    avatar={row.student_name}
+                    title={row.student_name}
+                    subtitle={`${sectionLabel(row.section)} · ${row.category}`}
+                    detail={`Due ${formatDate(row.due_date)} · ${formatPesoExact(row.paid)} paid of ${formatPesoExact(
+                      row.assessed
+                    )}${row.lrn ? ` · LRN ${row.lrn}` : ''}`}
+                    trailing={
+                      <View style={styles.trailing}>
+                        <Text
+                          style={[
+                            styles.balance,
+                            row.payment_status === 'paid' ? styles.balanceSettled : null,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {formatPeso(row.outstanding)}
+                        </Text>
+                        <Badge
+                          label={row.payment_status}
+                          tone={STATUS_TONE[row.payment_status] ?? 'gray'}
+                          glyph={false}
+                        />
+                      </View>
+                    }
+                    chevron={false}
+                    divider={index < Math.min(filteredOutstanding.length, visible) - 1}
+                  />
+                ))}
+              </Card>
               {filteredOutstanding.length > visible ? (
                 <Button
                   variant="secondary"
                   block
-                  onPress={() => setVisible((n) => n + ROW_CAP)}
+                  onPress={() => setVisible((count) => count + ROW_CAP)}
                   accessibilityLabel={`Show more balances. ${filteredOutstanding.length - visible} hidden.`}
                 >
                   Show {Math.min(ROW_CAP, filteredOutstanding.length - visible)} more of{' '}
@@ -325,45 +446,21 @@ export default function FeesReportsTab() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.lg },
-  section: { gap: spacing.md },
+  wrap: { flex: 1, padding: spacing.lg },
+  content: { padding: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.lg },
+  group: { gap: spacing.md },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   filterRow: { flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap' },
   filter: { flexGrow: 1, flexBasis: '46%' },
-  errorText: { ...typography.muted, color: colors.redText },
-  list: { gap: spacing.sm },
-  cardFull: { alignSelf: 'stretch' },
-  cardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: spacing.md },
-  cardHeadLeft: { flex: 1, gap: 2 },
-  cardTitle: { ...typography.body, fontWeight: '700', color: colors.navy },
-  cardLabel: { ...typography.label, color: colors.textSubtle },
-  cardMeta: { ...typography.subtle },
-  metric: { ...typography.metric },
-  searchInput: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.sm,
-    padding: spacing.md,
-    minHeight: 48,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...typography.input,
-  },
-  row: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: spacing.md,
-  },
-  rowLeft: { flex: 1, gap: 2 },
-  rowRight: { alignItems: 'flex-end', gap: spacing.xs },
-  rowTitle: { ...typography.body, fontWeight: '700', color: colors.text },
-  rowMeta: { ...typography.subtle },
-  rowAmount: { ...typography.body, fontWeight: '700' },
-  rowAmountOwed: { color: colors.redText },
-  rowAmountPaid: { color: colors.greenText },
+  reportCard: { gap: spacing.md },
+  reportHead: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  reportTitles: { flex: 1, gap: 2 },
+  reportTitle: { ...typography.subhead, color: colors.navy },
+  reportMeta: { ...typography.subtle },
+  rateBadge: { flexShrink: 0 },
+  /** A metrics grid inside a card already has its own rules; drop the outer frame. */
+  innerMetrics: { borderWidth: 0, paddingVertical: 0, paddingHorizontal: 0 },
+  trailing: { alignItems: 'flex-end', gap: spacing.xs, maxWidth: 116 },
+  balance: { ...typography.subhead, color: colors.redText },
+  balanceSettled: { color: colors.greenText },
 });

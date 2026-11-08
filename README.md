@@ -77,9 +77,10 @@ TRACK-capstone/
 │   │   ├── pages/          Page components (52 pages, 4 dashboards, enrollment portal)
 │   │   ├── components/     Shared UI components
 │   │   ├── context/        AuthContext (session state)
-│   │   ├── services/api.js Centralized API client (CSRF + session)
+│   │   ├── services/api.js Centralized API client (Authorization: Token)
+│   │   ├── services/realtime.js Messaging socket (ticket handshake + reconnect)
 │   │   └── config/         Navigation config per role
-│   ├── vite.config.js      Dev proxy /api → localhost:8000
+│   ├── vite.config.js      Dev proxy /api → localhost:8000, ws upgrades too
 │   ├── package.json
 │   └── .env.example        VITE_API_BASE_URL, VITE_SITE_URL
 ├── mobile/                 Expo React Native app
@@ -88,6 +89,8 @@ TRACK-capstone/
 │   │   │   ├── (auth)/     login screen
 │   │   │   └── (app)/      admin/teacher/student/parent screens
 │   │   ├── api/client.ts   API client (Authorization: Token)
+│   │   ├── api/messaging.ts Messaging endpoints
+│   │   ├── messaging/      Socket client + shared session bus
 │   │   ├── auth-state.ts   Shared auth observable
 │   │   └── theme.ts        Design tokens
 │   ├── app.json            Expo config (bundle IDs, plugins)
@@ -95,7 +98,7 @@ TRACK-capstone/
 │   ├── package.json
 │   └── .env.development    Dev API URL (committed — no secrets)
 └── docs/                   Generated documentation
-    ├── DEPLOYMENT.md
+    ├── DEPLOYMENT.md       The deployment guide (root DEPLOYMENT.md points here)
     ├── ENROLLMENT.md
     ├── BACKUP_RECOVERY.md
     ├── DEPARTMENTS_ROLES.md
@@ -211,6 +214,7 @@ The mobile dev environment reads `mobile/.env.development` which points to `http
 | `DJANGO_SECURE_SSL_REDIRECT` | optional | Default on in production; set `0` to disable |
 | `TRACK_AUTH_THROTTLE_RATE` | optional | Login rate limit (default `10/min`) |
 | `DJANGO_EXTRA_ALLOWED_HOSTS` | dev only | LAN IP for mobile device testing |
+| `TRACK_DEV_CORS_ORIGINS` | dev only | Extra browser origins for the API (comma-separated, with scheme), e.g. `http://localhost:8099` when Expo web lands on a free port instead of 8081 |
 | `REDIS_URL` | for >1 process | Channel layer for WebSocket fan-out; unset means in-memory (single process) |
 | `TRACK_WS_ALLOWED_ORIGINS` | optional | Extra browser origins allowed to open the messaging socket (CORS/CSRF origins are always accepted) |
 | `TRACK_MESSAGING_THROTTLE_RATE` | optional | Message-send and ws-ticket rate limit (default `60/min`) |
@@ -229,19 +233,20 @@ The mobile dev environment reads `mobile/.env.development` which points to `http
 | Variable | How to set | Purpose |
 |---|---|---|
 | `EXPO_PUBLIC_API_URL` | `mobile/.env.development` (dev), `mobile/eas.json` (EAS build) | Django API base URL |
+| `EXPO_PUBLIC_WS_URL` | `mobile/.env.local` (dev only) | Origin the messaging socket dials when it is not the API's own host — e.g. `http://127.0.0.1:8010` with `runserver` on 8000 + daphne on 8010. Unset means the socket shares the API origin (how production runs), and against a plain `runserver` the app is REST-only: nothing arrives until you pull to refresh |
 
 ---
 
 ## Running tests
 
-### Backend (426 tests)
+### Backend (481 tests)
 
 ```bash
 # From project root, with .venv activated
 python backend/manage.py test core
 ```
 
-### Frontend (789 tests)
+### Frontend (953 tests)
 
 ```bash
 cd frontend
@@ -250,7 +255,15 @@ npm test
 
 ### Mobile
 
-No automated test suite. Manual smoke testing via Expo web or Android emulator.
+No automated test suite — Expo ships no runner and adding one is not part of
+this project's scope. The gate is static plus a real bundle, and CI runs it:
+
+```bash
+cd mobile
+npx tsc --noEmit
+npm run lint                 # expo lint
+npx expo export --platform android   # Hermes bytecode; proves the tree actually compiles
+```
 
 ---
 
@@ -270,7 +283,7 @@ All endpoints are prefixed with `/api/`. Key groups:
 - `/api/attendance/records/` — one attendance row per learner per session, with the same server-side `student` / `session` / `status` / date-range / `search` / `ordering` / paging. No delete route: recorded attendance is corrected by writing a new mark, not removed.
 - `/api/notifications/`, `/api/announcements/` — communications
 - `/api/messaging/conversations/` — threads: list, unread totals, and create (direct, class- or section-scoped group). `<id>/messages/` reads and posts a thread (`since_seq`/`before_seq` cursors), `<id>/read/` and `<id>/delivered/` write receipts, `<id>/members/`, `<id>/sync-members/` and `<id>/archive/` manage the roster. `/api/messaging/contacts/`, `/options/`, `/summary/`, `/settings/` and `/ws-ticket/` cover the launch pad, unread badge, preferences, and the single-use ticket that authenticates the socket; `/api/messaging/push/subscriptions/` stores browser push endpoints.
-- `WS /api/ws/messaging/` — the messaging socket (delivery, typing, presence, read receipts, `sync` resume). Authenticated with `?ticket=` from `/api/messaging/ws-ticket/`, or `?token=` for the native app.
+- `WS /api/ws/messaging/` — the messaging socket (delivery, typing, presence, read receipts, `sync` resume). Authenticated with `?ticket=` from `/api/messaging/ws-ticket/` — both clients use that path; `?token=` remains accepted for non-browser clients that cannot call the REST endpoint first.
 - `/api/dashboard/` — role-specific dashboard metrics
 
 See `backend/core/urls.py` for the complete route list, and

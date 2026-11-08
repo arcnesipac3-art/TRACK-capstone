@@ -1,59 +1,101 @@
 /**
- * TRACK — icon-chip list row.
+ * TRACK — the row every list in the app is built from.
  *
- * Khan Academy's Explore screen is a column of rows like this: a 48dp circular
- * tinted chip holding one icon, the name of the thing, one quiet line about it,
- * and a chevron that says it goes somewhere. The chip is the only decoration —
- * the app has no spot art, so colour does the work of making a list scannable
- * without making it loud.
+ * A row is a mark on the left (an initials avatar, an icon chip or a colour bar), a
+ * name, one quiet line about it, and the fact on the right that makes it worth
+ * reading — a count, an amount, a status. The chevron says it goes somewhere; a row
+ * that only displays has no chevron, so nobody hunts for a tap that does nothing.
  *
- * Titles and subtitles are always clamped (`numberOfLines`) so a long learner
- * name or section code pushes a row taller than its neighbours.
+ * Before this pass the primitive existed and nothing below the four dashboards used
+ * it: every module list hand-rolled its own `View` inside a card, which is how two
+ * screens ended up showing the same data in three different type sizes.
+ *
+ * `onLongPress` opens a contextual ActionMenu, which is how a row keeps one visible
+ * action instead of four competing buttons on its face.
  */
 import type { ComponentProps, ReactNode } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { colors, radius, spacing, tones, typography, type Tone } from '../../theme';
+import { colors, radius, spacing, toneHue, tones, typography, type Tone } from '../../theme';
+import { usePress } from '../../anim';
+import { hapticImpact } from '../../haptics';
+import Avatar from './Avatar';
 
-/** Ionicons glyph name, without importing the whole icon-map type. */
+/**
+ * `usePress` hands back an interpolation, and only the animated flavour of a
+ * `Pressable` accepts one in its style — the same reason `Button` wraps it.
+ */
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
 type Glyph = ComponentProps<typeof Ionicons>['name'];
 
 type ListRowProps = {
-  icon: Glyph;
-  /** Tone of the chip. `blue` is the default because most rows are a thing you can open. */
-  tone?: Tone;
   title: string;
+  /** One line under the title — only what the title cannot say. */
   subtitle?: string;
-  /** Right-aligned text — a count, an amount, a time. */
+  /** A second supporting line, for the rare row that carries three facts. */
+  detail?: string;
+  /** Right-aligned figure: a count, an amount, a time. */
   meta?: string;
-  /** Replaces `meta` when the right side needs a status badge instead. */
+  /** Replaces `meta` when the right side needs a badge or a control instead. */
   trailing?: ReactNode;
+  /** A person's name: draws the initials disc instead of an icon chip. */
+  avatar?: string;
+  icon?: Glyph;
+  tone?: Tone;
+  /** Overrides the chip's hue without changing its tint. */
+  hue?: string;
+  /** A 3dp brand bar down the leading edge, for a row whose colour is the meaning. */
+  accent?: Tone;
   onPress?: () => void;
-  /** Off for rows that only display (a read-only list has no chevron to chase). */
+  onLongPress?: () => void;
   chevron?: boolean;
-  /** Hairline below the row. Rows stacked inside a <Card padded={false}> are one list. */
   divider?: boolean;
+  /** Marks the row the screen is currently filtered to. */
+  selected?: boolean;
+  style?: StyleProp<ViewStyle>;
 };
 
 export default function ListRow({
-  icon,
-  tone = 'blue',
   title,
   subtitle,
+  detail,
   meta,
   trailing,
+  avatar,
+  icon,
+  tone = 'blue',
+  hue,
+  accent,
   onPress,
+  onLongPress,
   chevron = true,
   divider = false,
+  selected = false,
+  style,
 }: ListRowProps) {
   const chip = tones[tone] ?? tones.blue;
+  const { onPressIn, onPressOut, pressStyle } = usePress();
+
+  const leading = avatar ? (
+    <Avatar name={avatar} size="md" hue={hue} />
+  ) : icon ? (
+    <View style={[styles.chip, { backgroundColor: selected ? colors.navy : chip.background }]}>
+      <Ionicons
+        name={icon}
+        size={20}
+        color={selected ? colors.onNavy : hue ?? chip.text}
+      />
+    </View>
+  ) : accent ? (
+    <View style={[styles.accentBar, { backgroundColor: toneHue[accent] }]} />
+  ) : null;
 
   const body = (
     <>
-      <View style={[styles.chip, { backgroundColor: chip.background }]}>
-        <Ionicons name={icon} size={22} color={chip.text} />
-      </View>
+      {leading ? <View style={styles.leading}>{leading}</View> : null}
       <View style={styles.texts}>
         <Text style={styles.title} numberOfLines={2}>
           {title}
@@ -63,25 +105,56 @@ export default function ListRow({
             {subtitle}
           </Text>
         ) : null}
+        {detail ? (
+          <Text style={styles.detail} numberOfLines={1}>
+            {detail}
+          </Text>
+        ) : null}
       </View>
       {trailing ?? (meta ? <Text style={styles.meta}>{meta}</Text> : null)}
-      {onPress && chevron ? <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} /> : null}
+      {onPress && chevron ? (
+        <Ionicons name="chevron-forward" size={17} color={colors.textSubtle} />
+      ) : null}
     </>
   );
 
-  if (onPress) {
+  if (onPress || onLongPress) {
     return (
-      <TouchableOpacity
-        style={[styles.row, divider && styles.divider]}
-        onPress={onPress}
-        activeOpacity={0.7}
+      <AnimatedPressable
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        onPress={
+          onPress
+            ? () => {
+                hapticImpact('light');
+                onPress();
+              }
+            : undefined
+        }
+        onLongPress={
+          onLongPress
+            ? () => {
+                hapticImpact('medium');
+                onLongPress();
+              }
+            : undefined
+        }
+        style={[
+          styles.row,
+          divider && styles.divider,
+          selected && styles.selected,
+          pressStyle,
+          style,
+        ]}
         accessibilityRole="button"
+        accessibilityLabel={`${title}${subtitle ? `, ${subtitle}` : ''}`}
       >
         {body}
-      </TouchableOpacity>
+      </AnimatedPressable>
     );
   }
-  return <View style={[styles.row, divider && styles.divider]}>{body}</View>;
+
+  return <View style={[styles.row, divider && styles.divider, style]}>{body}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -89,25 +162,28 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    minHeight: 60,
+    minHeight: 64,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
     backgroundColor: colors.surface,
   },
+  selected: { backgroundColor: colors.blueWash },
   divider: {
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  leading: { flexShrink: 0 },
   chip: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.pill,
+    width: 44,
+    height: 44,
+    borderRadius: radius.lg,
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
   },
+  accentBar: { width: 3, height: 34, borderRadius: 2 },
   texts: { flex: 1, minWidth: 0, gap: 2 },
-  title: { ...typography.body, fontWeight: '700', color: colors.text },
-  subtitle: { ...typography.muted },
-  meta: { ...typography.muted, fontWeight: '700', color: colors.textMuted, flexShrink: 0 },
+  title: { ...typography.subhead },
+  subtitle: { ...typography.caption },
+  detail: { ...typography.subtle },
+  meta: { ...typography.muted, fontWeight: '700', color: colors.navy, flexShrink: 0 },
 });

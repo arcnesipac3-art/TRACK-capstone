@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Icon from '../components/Icon'
 import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
+import YourDataSection from '../components/profile/YourDataSection'
 import { useAuth } from '../context/AuthContext'
 import api from '../services/api'
 import { roleLabel } from '../utils/format'
@@ -163,6 +164,15 @@ export default function ProfilePage() {
         </header>
         <div className="card-body">
           <ChangePasswordForm />
+        </div>
+      </section>
+
+      <section className="card">
+        <header className="card-header">
+          <h2>My data</h2>
+        </header>
+        <div className="card-body">
+          <YourDataSection username={user.username} />
         </div>
       </section>
     </div>

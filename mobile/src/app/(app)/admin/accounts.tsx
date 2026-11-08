@@ -24,6 +24,7 @@ import type { Role } from '../../../api/client';
 import { canKey, useSessionUser } from '../../../session-user';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
+import Screen from '../../../components/ui/Screen';
 import BackLink from '../../../components/ui/BackLink';
 import Badge from '../../../components/ui/Badge';
 import SegmentedControl from '../../../components/ui/SegmentedControl';
@@ -90,8 +91,7 @@ export default function AdminAccountsScreen() {
   }
 
   return (
-    <View style={styles.screen}>
-      <AppHeader title="Accounts" subtitle="Create, edit and reset sign-in accounts." />
+    <Screen header={<AppHeader title="Accounts" subtitle="Create, edit and reset sign-in accounts." />}>
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
@@ -167,12 +167,11 @@ export default function AdminAccountsScreen() {
           keeps its records and only blocks sign-in — accounts are never deleted.
         </Text>
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.md },
   metaRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },

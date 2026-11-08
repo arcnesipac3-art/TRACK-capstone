@@ -3,6 +3,13 @@
  *
  * The app's only selector. Native `Picker` needs a pod/APK module, so it is the
  * one control that has to be a modal to behave the same on iOS, Android and web.
+ *
+ * The option list is a plain map inside a `ScrollView`, not a `FlatList`: a
+ * virtualised list derives its render window from a bounded height, and this one
+ * sits in a sheet that only ever declares `maxHeight`, so on web the rows exist in
+ * the document, get measured, and are never hit-testable — the picker looked open
+ * and refused to pick. An option set here is a handful of classes or departments,
+ * so nothing is lost by rendering all of it.
  */
 import { useState, useRef } from 'react';
 import {
@@ -11,13 +18,13 @@ import {
   StyleSheet,
   TouchableOpacity,
   Modal,
-  FlatList,
+  ScrollView,
   TextInput,
   Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import { colors, spacing, radius, typography, scrim } from '../../theme';
+import { colors, radius, scrim, spacing, touch, typography } from '../../theme';
 
 export type DropdownOption<T> = {
   label: string;
@@ -66,7 +73,6 @@ export default function Dropdown<T>({
         style={[
           styles.trigger,
           isOpen && styles.triggerOpen,
-          !selectedOption && styles.triggerPlaceholder,
         ]}
         onPress={() => {
           setIsOpen(!isOpen);
@@ -127,28 +133,35 @@ export default function Dropdown<T>({
               onChangeText={setSearch}
               autoFocus={true}
             />
-            <FlatList
-              data={filteredOptions}
-              keyExtractor={item => String(item.value)}
-              renderItem={({ item }) => (
+            <ScrollView
+              style={styles.options}
+              contentContainerStyle={styles.optionsContainer}
+              keyboardShouldPersistTaps="handled"
+            >
+              {filteredOptions.map((option) => (
                 <TouchableOpacity
+                  key={String(option.value)}
                   style={[
                     styles.option,
-                    value === item.value && styles.optionSelected,
+                    value === option.value && styles.optionSelected,
                     itemStyle,
                   ]}
-                  onPress={() => handleSelect(item)}
+                  onPress={() => handleSelect(option)}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: value === option.value }}
                 >
-                  <Text style={[styles.optionText, value === item.value && styles.optionTextSelected]}>
-                    {item.label}
+                  <Text style={[styles.optionText, value === option.value && styles.optionTextSelected]}>
+                    {option.label}
                   </Text>
-                  {value === item.value && (
+                  {value === option.value && (
                     <Ionicons name="checkmark-outline" size={20} color={colors.blue} />
                   )}
                 </TouchableOpacity>
-              )}
-              contentContainerStyle={styles.optionsContainer}
-            />
+              ))}
+              {filteredOptions.length === 0 ? (
+                <Text style={styles.none}>Nothing here matches that.</Text>
+              ) : null}
+            </ScrollView>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -158,31 +171,44 @@ export default function Dropdown<T>({
 
 const styles = StyleSheet.create({
   container: { gap: spacing.xs },
-  label: { ...typography.label },
+  label: { ...typography.label, color: colors.textMuted },
+  /**
+   * The same box <Field> draws, because a selector and an input sit next to each other
+   * in every form and two heights of the same control read as two different controls.
+   */
   trigger: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: spacing.sm,
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.md,
+    borderRadius: radius.control,
+    paddingHorizontal: spacing.lg,
+    // The label is short enough that `control` is the height; the padding only keeps it
+    // centred. Padding that grew the box past `control` is what made this trigger a pixel
+    // taller than the input under it.
+    paddingVertical: spacing.sm,
     borderWidth: 1,
     borderColor: colors.border,
-    minHeight: 48,
+    minHeight: touch.control,
   },
-  triggerOpen: {
-    borderColor: colors.blue,
-    borderWidth: 2,
-  },
-  triggerPlaceholder: {
-    // Placeholder styling handled by text color
-  },
+  /** Focus tints the edge only — a thicker border moves the label by a pixel. */
+  triggerOpen: { borderColor: colors.blue },
   triggerText: { ...typography.body, flex: 1, color: colors.text },
-  placeholderText: { color: colors.textMuted },
+  placeholderText: { color: colors.textSubtle },
   chevron: { marginLeft: spacing.sm },
+  /**
+   * Absolute insets rather than `flex: 1`: the modal root is a block box, so a flex
+   * child never gets a height to fill, the sheet flows to the bottom of the document
+   * instead of the bottom of the screen, and its options sit out of the viewport.
+   * This is the same box <Sheet> draws for the same reason.
+   */
   modalOverlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: scrim,
     justifyContent: 'flex-end',
   },
@@ -220,11 +246,14 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     ...typography.body,
   },
+  /** The sheet declares `maxHeight`, not a height, so the list has to be allowed to shrink. */
+  options: { flexGrow: 0, minHeight: 0 },
   optionsContainer: { paddingBottom: spacing.xl },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    minHeight: touch.target,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.sm,
     borderBottomWidth: 1,
@@ -233,4 +262,5 @@ const styles = StyleSheet.create({
   optionSelected: { backgroundColor: colors.blueWash },
   optionText: { ...typography.body, color: colors.text, flex: 1 },
   optionTextSelected: { color: colors.blue, fontWeight: '700' },
+  none: { ...typography.muted, color: colors.textSubtle, paddingVertical: spacing.md },
 });

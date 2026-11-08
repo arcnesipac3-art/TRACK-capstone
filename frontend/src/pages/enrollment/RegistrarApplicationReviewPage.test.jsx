@@ -77,6 +77,8 @@ const BASE_DETAIL = {
   section_approved_by_name: null,
   decision_reason: null,
   submitted_at: '2026-06-01T08:30:00+08:00',
+  consent_given_at: '2026-06-01T08:29:40+08:00',
+  consent_policy_version: '2026.11',
   reviewed_at: null,
   decided_at: null,
   enrollments: [],
@@ -148,6 +150,32 @@ describe('RegistrarApplicationReviewPage', () => {
     expect(screen.getByText(/internal/i)).toBeInTheDocument()
     expect(
       screen.getByRole('button', { name: /accept application/i })
+    ).toBeInTheDocument()
+  })
+
+  it('shows which privacy notice the applicant agreed to', async () => {
+    mockApi()
+    renderPage()
+
+    await screen.findByText('ENR-2026-0009')
+    expect(
+      screen.getByText(/privacy notice agreed/i)
+    ).toBeInTheDocument()
+    expect(screen.getByText(/notice 2026\.11/)).toBeInTheDocument()
+  })
+
+  it('says so plainly when a filing predates the consent record', async () => {
+    mockApi({
+      detail: {
+        ...BASE_DETAIL,
+        consent_given_at: null,
+        consent_policy_version: '',
+      },
+    })
+    renderPage()
+
+    expect(
+      await screen.findByText(/not recorded; this filing predates/i)
     ).toBeInTheDocument()
   })
 
@@ -484,5 +512,126 @@ describe('RegistrarApplicationReviewPage', () => {
     renderPage()
 
     expect(await screen.findByText(/you don't have permission/i)).toBeInTheDocument()
+  })
+
+  // -- the account setup link the family may have lost -------------------
+
+  const ENROLLED = {
+    ...BASE_DETAIL,
+    status: 'enrolled',
+    status_display: 'Enrolled',
+    available_actions: [],
+    applicant_email: '',
+    guardian_email: 'maria@example.com',
+    claim_link_pending: true,
+    account_claimed_at: null,
+  }
+
+  it('resends the setup link through its confirmation modal', async () => {
+    mockApi({ detail: ENROLLED })
+    api.post.mockResolvedValue(ENROLLED)
+    const user = userEvent.setup()
+    renderPage()
+
+    const pending = await screen.findByText(/resending writes a new link/i)
+    expect(pending.textContent).toMatch(/maria@example\.com/)
+    // An enrollment that is already confirmed has nothing left to unlock.
+    expect(
+      screen.queryByText(/confirmation unlocks once/i)
+    ).not.toBeInTheDocument()
+
+    await user.click(
+      screen.getByRole('button', { name: /resend setup link/i })
+    )
+    const dialog = await screen.findByRole('dialog', {
+      name: /resend the account setup link/i,
+    })
+    expect(
+      within(dialog).getByText(/stops answering/i)
+    ).toBeInTheDocument()
+
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Resend setup link' })
+    )
+
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith(
+        '/enrollment/applications/9/resend-claim-link/',
+        {}
+      )
+    )
+    expect(
+      await screen.findByText(/the one sent earlier stopped working/i)
+    ).toBeInTheDocument()
+  })
+
+  it('says the setup link is used once the family has claimed it', async () => {
+    mockApi({
+      detail: {
+        ...ENROLLED,
+        claim_link_pending: false,
+        account_claimed_at: '2026-06-05T09:00:00+08:00',
+      },
+    })
+    renderPage()
+
+    expect(
+      await screen.findByText(/the family signs in with the account/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /resend setup link/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it('offers no setup link for a learner who already had an account', async () => {
+    mockApi({
+      detail: { ...ENROLLED, claim_link_pending: false, account_claimed_at: null },
+    })
+    renderPage()
+
+    expect(
+      await screen.findByText(/already had a track account/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /resend setup link/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it('leaves the resend to a reviewer with enrollment.manage', async () => {
+    mockApi({ detail: ENROLLED })
+    mockAuth.can = (key) => key !== 'enrollment.manage'
+    renderPage()
+
+    expect(
+      await screen.findByText(/resending writes a new link/i)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /resend setup link/i })
+    ).not.toBeInTheDocument()
+  })
+
+  it('keeps the modal open with the server refusal readable', async () => {
+    mockApi({ detail: ENROLLED })
+    api.post.mockRejectedValue(
+      new Error(
+        'That account has already been set up, so its link is spent. ' +
+          'Sign in, or reset the password from the accounts screen.'
+      )
+    )
+    const user = userEvent.setup()
+    renderPage()
+
+    await user.click(await screen.findByRole('button', { name: /resend setup link/i }))
+    const dialog = await screen.findByRole('dialog', {
+      name: /resend the account setup link/i,
+    })
+    await user.click(
+      within(dialog).getByRole('button', { name: 'Resend setup link' })
+    )
+
+    expect(
+      await within(dialog).findByText(/already been set up/i)
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/stopped working the moment/i)).not.toBeInTheDocument()
   })
 })

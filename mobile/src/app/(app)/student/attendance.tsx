@@ -14,6 +14,7 @@ import { api, ApiError } from '../../../api/client';
 import type { AttendanceRecord } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
+import Screen from '../../../components/ui/Screen';
 import Badge from '../../../components/ui/Badge';
 
 const MONTH_NAMES = [
@@ -80,8 +81,7 @@ export default function StudentAttendanceScreen() {
   }
 
   return (
-    <View style={styles.screen}>
-      <AppHeader title="Attendance" subtitle="Your school-day records." />
+    <Screen header={<AppHeader title="Attendance" subtitle="Your school-day records." />}>
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.blue]} />}
         contentContainerStyle={styles.content}
@@ -107,7 +107,7 @@ export default function StudentAttendanceScreen() {
           ))
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
@@ -133,7 +133,6 @@ function RecordRow({ item }: { item: AttendanceRecord }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxl },
   errorText: { ...typography.muted, color: colors.redText },
   monthGroup: { gap: spacing.sm },

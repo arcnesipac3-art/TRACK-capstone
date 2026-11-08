@@ -22,6 +22,7 @@ import type { ParentDashboard, ParentDashboardChild } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import HeaderActions from '../../../components/ui/HeaderActions';
 import AppHeader from '../../../components/ui/AppHeader';
+import Screen from '../../../components/ui/Screen';
 import Card from '../../../components/ui/Card';
 import ListRow from '../../../components/ui/ListRow';
 import ProgressBar from '../../../components/ui/ProgressBar';
@@ -143,13 +144,16 @@ export default function ParentDashboardScreen() {
   const queue = queueRows.filter((row): row is QueueRow => row !== null);
 
   return (
-    <View style={styles.screen}>
-      <AppHeader
-        hero
-        title={data?.parent_name ?? 'Parent'}
-        subtitle="Your children in one place."
-        right={<HeaderActions />}
-      />
+    <Screen
+      header={
+        <AppHeader
+          hero
+          title={data?.parent_name ?? 'Parent'}
+          subtitle="Your children in one place."
+          right={<HeaderActions />}
+        />
+      }
+    >
       <ScrollView
         style={styles.scroll}
         refreshControl={
@@ -257,12 +261,11 @@ export default function ParentDashboardScreen() {
           />
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.xl },
   section: { gap: spacing.md },

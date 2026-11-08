@@ -54,6 +54,9 @@
   --cyan-100: #cffafe;
 
   /* --- Status (semantic) ------------------------------------------------- */
+  --green-800: #166534;            /* 6.27:1 on --green-100 — green text that
+                                      sits on a green chip; --green-700 only
+                                      reaches 4.42:1 there */
   --green-700: #15803d;
   --green-600: #16a34a;
   --green-100: #e3f5e9;

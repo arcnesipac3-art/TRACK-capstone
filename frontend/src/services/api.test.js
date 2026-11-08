@@ -195,6 +195,26 @@ describe('Guest enrollment auth', () => {
     expect(sessionStorage.getItem('track.auth.token')).toBe('claim-token-1')
     expect(user).toEqual({ id: 5, username: 'liza' })
   })
+
+  it('claimLookup reads the token as a query parameter, unauthenticated', async () => {
+    const { api } = await freshApi()
+    global.fetch.mockResolvedValue(
+      jsonResponse({
+        reference: 'APP-1234567890',
+        learner_name: 'Liza Mabini',
+        status: 'enrolled',
+        claim_available: true,
+        detail: null,
+      })
+    )
+    const data = await api.claimLookup('one-time-claim')
+    const [url, init] = global.fetch.mock.calls[0]
+    expect(url).toBe(`${API_BASE}/enrollment/claim-account/?token=one-time-claim`)
+    expect(init.method).toBe('GET')
+    // Nothing stored: reading the link is not signing in.
+    expect(sessionStorage.getItem('track.auth.token')).toBeNull()
+    expect(data.claim_available).toBe(true)
+  })
 })
 
 describe('error handling', () => {

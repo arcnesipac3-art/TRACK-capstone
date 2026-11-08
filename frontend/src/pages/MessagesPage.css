@@ -171,8 +171,10 @@
   flex: 1;
 }
 
+/* The field's colour also inherits into the typed text, so the decorative
+   --brand-blue (3.12:1 on white) read as washed-out copy while typing. */
 .search-field:focus-within {
-  color: var(--brand-blue);
+  color: var(--blue-600);
 }
 
 .search-key {
@@ -288,7 +290,9 @@
   height: 20px;
   padding: 0 var(--space-2);
   border-radius: var(--radius-pill);
-  background: var(--brand-blue);
+  /* --brand-blue is a graphics token (3.12:1 with white) — too light for the
+     two-digit count, which is small bold text and needs 4.5:1. */
+  background: var(--blue-600);
   color: #fff;
   font-size: var(--text-xs);
   font-weight: var(--weight-bold);
@@ -530,8 +534,10 @@
 }
 
 .bubble-row.is-mine .bubble {
-  background: var(--brand-blue);
-  border-color: var(--brand-blue);
+  /* Outgoing message text sits here at --text-sm, so the fill has to clear
+     4.5:1 with white. --brand-blue only reaches 3.12:1; --blue-600 gives 5.17. */
+  background: var(--blue-600);
+  border-color: var(--blue-600);
   color: #fff;
 }
 
@@ -578,10 +584,6 @@
 
 .bubble-meta.tone-failed .receipt {
   color: var(--danger);
-}
-
-.bubble-row.is-mine .bubble-meta.tone-read .receipt {
-  color: #c9f0d5;
 }
 
 .bubble-actions {
@@ -805,7 +807,9 @@
   height: 56px;
   border-radius: var(--radius-pill);
   background: var(--blue-50);
-  color: var(--brand-blue);
+  /* --brand-blue is 2.85:1 on this tint — under the 3:1 floor even treated as
+     a graphic. --blue-600 gives 4.72:1. */
+  color: var(--blue-600);
 }
 
 /* ── right column ────────────────────────────────────────────────── */

@@ -3,6 +3,8 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { useAuth } from '../../context/AuthContext'
 import Button from '../../components/Button'
 import ButtonLink from '../../components/ButtonLink'
+import ClaimAccountForm from '../../components/enrollment/ClaimAccountForm'
+import ConsentCheckbox from '../../components/enrollment/ConsentCheckbox'
 import DocumentUploader from '../../components/enrollment/DocumentUploader'
 import DocumentViewerModal from '../../components/enrollment/DocumentViewerModal'
 import ErrorMessage from '../../components/ErrorMessage'
@@ -33,6 +35,7 @@ const ACTION_CONFIG = {
     confirmLabel: 'Submit now',
     endpoint: 'submit',
     buttonVariant: 'primary',
+    consent: true,
   },
   resubmitted: {
     label: 'Resubmit corrections',
@@ -41,6 +44,7 @@ const ACTION_CONFIG = {
     confirmLabel: 'Resubmit now',
     endpoint: 'resubmit',
     buttonVariant: 'primary',
+    consent: true,
   },
   withdrawn: {
     label: 'Withdraw application',
@@ -66,155 +70,6 @@ const DELETABLE_STATUSES = ['draft', 'cancelled', 'withdrawn', 'rejected']
 
 function humanize(value) {
   return String(value || '').replace(/_/g, ' ')
-}
-
-/**
- * Inline "create your account" panel shown on an enrolled application whose
- * one-time claim credential is still unconsumed. Exchanges it for a real
- * DRF token (stored exactly like a login), refreshes the session and drops
- * the applicant into the student enrollment portal.
- */
-function ClaimAccountPanel({ claimToken }) {
-  const navigate = useNavigate()
-  const { refreshUser } = useAuth()
-  const [username, setUsername] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [fieldErrors, setFieldErrors] = useState({})
-  const [formError, setFormError] = useState(null)
-  const [busy, setBusy] = useState(false)
-
-  async function handleSubmit(event) {
-    event.preventDefault()
-    if (busy) return
-    const errors = {}
-    if (!username.trim()) errors.username = 'Choose a username.'
-    if (!password) errors.password = 'Choose a password.'
-    else if (confirmPassword !== password) {
-      errors.confirmPassword = 'The two passwords do not match.'
-    }
-    setFieldErrors(errors)
-    setFormError(null)
-    if (Object.keys(errors).length > 0) return
-
-    setBusy(true)
-    try {
-      await api.claimAccount({
-        claim_token: claimToken,
-        username: username.trim(),
-        password,
-      })
-      await refreshUser()
-      navigate('/student/enrollment')
-    } catch (err) {
-      // DRF may return per-field errors ({username: [...]} / {password: [...]}).
-      const mapped = {}
-      if (err && err.details && typeof err.details === 'object') {
-        if (err.details.username) {
-          mapped.username = Array.isArray(err.details.username)
-            ? err.details.username.join(' ')
-            : String(err.details.username)
-        }
-        if (err.details.password) {
-          mapped.password = Array.isArray(err.details.password)
-            ? err.details.password.join(' ')
-            : String(err.details.password)
-        }
-      }
-      setFieldErrors(mapped)
-      setFormError(Object.keys(mapped).length > 0 ? null : err.message)
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  function fieldError(name) {
-    return fieldErrors[name] ? (
-      <span className="field-error" id={`claim-${name}-err`}>
-        <Icon name="info" size={13} />
-        {fieldErrors[name]}
-      </span>
-    ) : null
-  }
-
-  return (
-    <section className="card card-pad stack stack-sm" aria-labelledby="claim-heading">
-      <h2 id="claim-heading" className="enr-form-title">
-        Create your account
-      </h2>
-      <p className="subtle" style={{ margin: 0 }}>
-        Your enrollment is confirmed. Set up the TRACK account you will use from
-        now on — it replaces the reference number you used to track this
-        application.
-      </p>
-
-      {formError && (
-        <div className="alert alert-error" role="alert">
-          <Icon name="info" size={16} />
-          <span className="grow">{formError}</span>
-        </div>
-      )}
-
-      <form className="stack stack-sm" onSubmit={handleSubmit} noValidate>
-        <div className="field">
-          <label htmlFor="claim-username">Username</label>
-          <input
-            id="claim-username"
-            className="input"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            disabled={busy}
-            autoComplete="username"
-            aria-invalid={fieldErrors.username ? 'true' : undefined}
-            aria-describedby={fieldErrors.username ? 'claim-username-err' : undefined}
-          />
-          {fieldError('username')}
-        </div>
-
-        <div className="row row-wrap">
-          <div className="field grow">
-            <label htmlFor="claim-password">Password</label>
-            <input
-              id="claim-password"
-              className="input"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={busy}
-              autoComplete="new-password"
-              aria-invalid={fieldErrors.password ? 'true' : undefined}
-              aria-describedby={fieldErrors.password ? 'claim-password-err' : undefined}
-            />
-            {fieldError('password')}
-          </div>
-          <div className="field grow">
-            <label htmlFor="claim-confirm-password">Confirm password</label>
-            <input
-              id="claim-confirm-password"
-              className="input"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              disabled={busy}
-              autoComplete="new-password"
-              aria-invalid={fieldErrors.confirmPassword ? 'true' : undefined}
-              aria-describedby={
-                fieldErrors.confirmPassword ? 'claim-confirm-password-err' : undefined
-              }
-            />
-            {fieldError('confirmPassword')}
-          </div>
-        </div>
-
-        <div className="row row-end row-wrap">
-          <Button type="submit" variant="primary" disabled={busy}>
-            {busy && <ButtonLoader />}
-            {busy ? 'Creating account…' : 'Create account'}
-          </Button>
-        </div>
-      </form>
-    </section>
-  )
 }
 
 /**
@@ -278,6 +133,16 @@ export default function ApplicationDetailPage() {
   const [busyAction, setBusyAction] = useState(null)
   const [actionError, setActionError] = useState(null)
   const busyRef = useRef(false)
+  // The Privacy Notice tick. It belongs to the dialog, not the page, so every
+  // open starts it empty — a box left ticked from a previous action would be
+  // the pre-checked dark pattern the notice itself warns against.
+  const [consent, setConsent] = useState(false)
+
+  function askAction(key) {
+    setConsent(false)
+    setActionError(null)
+    setPendingAction(key)
+  }
 
   const [uploads, setUploads] = useState({})
   const [downloadError, setDownloadError] = useState(null)
@@ -286,6 +151,13 @@ export default function ApplicationDetailPage() {
 
   async function confirmAction() {
     if (busyRef.current || !pendingAction) return
+    const requiresConsent = Boolean(ACTION_CONFIG[pendingAction].consent)
+    if (requiresConsent && !consent) {
+      setActionError(
+        'Tick the box to confirm you have read the Privacy Notice before continuing.'
+      )
+      return
+    }
     busyRef.current = true
     setBusyAction(pendingAction)
     setActionError(null)
@@ -304,9 +176,13 @@ export default function ApplicationDetailPage() {
         }
         return
       }
-      await api.post(
-        `/enrollment/applications/my/${id}/${ACTION_CONFIG[pendingAction].endpoint}/`
-      )
+      const actionUrl = `/enrollment/applications/my/${id}/${ACTION_CONFIG[pendingAction].endpoint}/`
+      if (requiresConsent) {
+        await api.post(actionUrl, { consent: true })
+      } else {
+        // No body at all: these endpoints read nothing but the token.
+        await api.post(actionUrl)
+      }
       setPendingAction(null)
       reload()
     } catch (err) {
@@ -399,7 +275,7 @@ export default function ApplicationDetailPage() {
         </div>
       )}
 
-      {actionError && (
+      {actionError && !pendingAction && (
         <div className="alert alert-error" role="alert">
           <Icon name="info" size={16} />
           <span className="grow">{actionError}</span>
@@ -437,7 +313,7 @@ export default function ApplicationDetailPage() {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => setPendingAction('submitted')}
+                onClick={() => askAction('submitted')}
                 disabled={Boolean(busyAction)}
               >
                 Submit application
@@ -447,7 +323,7 @@ export default function ApplicationDetailPage() {
               <Button
                 variant="primary"
                 size="sm"
-                onClick={() => setPendingAction('resubmitted')}
+                onClick={() => askAction('resubmitted')}
                 disabled={Boolean(busyAction)}
               >
                 Resubmit corrections
@@ -457,7 +333,7 @@ export default function ApplicationDetailPage() {
               <Button
                 variant="danger"
                 size="sm"
-                onClick={() => setPendingAction('withdrawn')}
+                onClick={() => askAction('withdrawn')}
                 disabled={Boolean(busyAction)}
               >
                 Withdraw application
@@ -467,7 +343,7 @@ export default function ApplicationDetailPage() {
               <Button
                 variant="danger"
                 size="sm"
-                onClick={() => setPendingAction('delete')}
+                onClick={() => askAction('delete')}
                 disabled={Boolean(busyAction)}
               >
                 Delete application
@@ -479,7 +355,19 @@ export default function ApplicationDetailPage() {
 
       {/* Account-less applicants: claim the account minted at confirmation,
           or point sign-in seekers at the login page. */}
-      {app.account_claim_available && <ClaimAccountPanel claimToken={app.claim_token} />}
+      {app.account_claim_available && (
+        <ClaimAccountForm
+          claimToken={app.claim_token}
+          learnerName={[app.first_name, app.last_name].filter(Boolean).join(' ')}
+          guardian={{
+            name: app.guardian_name,
+            relationship: app.guardian_relationship,
+            // A signed-in parent filing for a child IS the guardian account,
+            // linked at confirmation — a second one would be a duplicate.
+            accountExists: user?.role === 'parent',
+          }}
+        />
+      )}
       {app.status === 'enrolled' && !app.account_claim_available && !user && (
         <div className="alert alert-info" role="status">
           <Icon name="info" size={16} />
@@ -524,6 +412,10 @@ export default function ApplicationDetailPage() {
               <div>
                 <dt>Contact number</dt>
                 <dd>{app.contact_number || '—'}</dd>
+              </div>
+              <div>
+                <dt>Applicant email</dt>
+                <dd>{app.applicant_email || '—'}</dd>
               </div>
               <div>
                 <dt>Enrollment type</dt>
@@ -675,6 +567,15 @@ export default function ApplicationDetailPage() {
           <dt>Submitted</dt>
           <dd>{app.submitted_at ? formatDateTime(app.submitted_at) : '—'}</dd>
         </div>
+        {app.consent_given_at && (
+          <div>
+            <dt>Privacy notice agreed</dt>
+            <dd>
+              {formatDateTime(app.consent_given_at)}
+              {app.consent_policy_version ? ` · notice ${app.consent_policy_version}` : ''}
+            </dd>
+          </div>
+        )}
         <div>
           <dt>Last reviewed</dt>
           <dd>{app.reviewed_at ? formatDateTime(app.reviewed_at) : '—'}</dd>
@@ -714,7 +615,12 @@ export default function ApplicationDetailPage() {
               }
               size="sm"
               onClick={confirmAction}
-              disabled={Boolean(busyAction)}
+              disabled={
+                Boolean(busyAction) ||
+                (Boolean(pendingAction) &&
+                  ACTION_CONFIG[pendingAction].consent &&
+                  !consent)
+              }
             >
               {busyAction && <ButtonLoader />}
               {busyAction
@@ -726,9 +632,19 @@ export default function ApplicationDetailPage() {
           </>
         }
       >
-        <p style={{ margin: 0 }}>
-          {pendingAction ? ACTION_CONFIG[pendingAction].body : ''}
-        </p>
+        <div className="enr-submit-confirm">
+          <p style={{ margin: 0 }}>
+            {pendingAction ? ACTION_CONFIG[pendingAction].body : ''}
+          </p>
+          {pendingAction && ACTION_CONFIG[pendingAction].consent && (
+            <ConsentCheckbox checked={consent} onChange={setConsent} disabled={busyAction} />
+          )}
+          {actionError && (
+            <p className="enr-consent-error" role="alert">
+              {actionError}
+            </p>
+          )}
+        </div>
       </Modal>
 
       <DocumentViewerModal

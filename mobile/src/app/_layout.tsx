@@ -16,6 +16,7 @@ import { colors } from '../theme';
 import { useAppFonts } from '../fonts';
 import { getToken } from '../api/client';
 import { setAuthSnapshot, subscribeAuth } from '../auth-state';
+import { ToastProvider } from '../components/ui/Toast';
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
@@ -43,9 +44,11 @@ export default function RootLayout() {
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      {authed ? <Stack.Screen name="(app)" /> : <Stack.Screen name="(auth)" />}
-    </Stack>
+    <ToastProvider>
+      <Stack screenOptions={{ headerShown: false }}>
+        {authed ? <Stack.Screen name="(app)" /> : <Stack.Screen name="(auth)" />}
+      </Stack>
+    </ToastProvider>
   );
 }
 

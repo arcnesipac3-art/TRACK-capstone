@@ -17,6 +17,7 @@ import { api, ApiError } from '../../../api/client';
 import type { AttendanceRecord, StudentProfile } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
+import Screen from '../../../components/ui/Screen';
 import Badge from '../../../components/ui/Badge';
 import Dropdown from '../../../components/ui/Dropdown';
 
@@ -138,8 +139,7 @@ export default function ParentAttendanceScreen() {
     : undefined;
 
   return (
-    <View style={styles.screen}>
-      <AppHeader title="Attendance" subtitle={subtitle} />
+    <Screen header={<AppHeader title="Attendance" subtitle={subtitle} />}>
       <ScrollView
         refreshControl={
           <RefreshControl
@@ -176,7 +176,7 @@ export default function ParentAttendanceScreen() {
           />
         )}
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
@@ -202,7 +202,6 @@ function RecordRow({ item }: { item: AttendanceRecord }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, gap: spacing.lg, paddingBottom: spacing.xxl },
   errorText: { ...typography.muted, color: colors.redText },
   card: {

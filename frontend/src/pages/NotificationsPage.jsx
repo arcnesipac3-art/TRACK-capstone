@@ -25,6 +25,7 @@ const TYPE_LABELS = {
   enrollment_decision: 'Application decision',
   enrollment_confirmed: 'Enrollment confirmed',
   message_received: 'Message',
+  data_request_answered: 'Data request',
 }
 
 export default function NotificationsPage() {

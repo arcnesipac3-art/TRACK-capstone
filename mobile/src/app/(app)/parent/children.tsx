@@ -18,6 +18,7 @@ import { api, ApiError } from '../../../api/client';
 import type { StudentProfile } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
+import Screen from '../../../components/ui/Screen';
 
 export default function ParentChildrenScreen() {
   const router = useRouter();
@@ -51,8 +52,7 @@ export default function ParentChildrenScreen() {
   }
 
   return (
-    <View style={styles.screen}>
-      <AppHeader title="My Children" subtitle="Tap a child to see their requirements and attendance." />
+    <Screen header={<AppHeader title="My Children" subtitle="Tap a child to see their requirements and attendance." />}>
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} colors={[colors.blue]} />}
         contentContainerStyle={styles.content}
@@ -89,12 +89,11 @@ export default function ParentChildrenScreen() {
           }
         />
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, gap: spacing.md, paddingBottom: spacing.xxl },
   card: {
     backgroundColor: colors.surface,

@@ -17,6 +17,7 @@ import { countNoun, formatDate, formatPesoExact } from '../../../format';
 import type { StudentFeeSummary, StudentFeeAssessment } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
+import Screen from '../../../components/ui/Screen';
 import Badge from '../../../components/ui/Badge';
 import Button from '../../../components/ui/Button';
 
@@ -82,14 +83,13 @@ export default function StudentFeesScreen() {
 
   if (!summary) {
     return (
-      <View style={styles.screen}>
-        <AppHeader title="My Fees" subtitle="No fee data available" />
+      <Screen header={<AppHeader title="My Fees" subtitle="No fee data available" />}>
         <EmptyState
           inline
           title="No fee data"
           body="Your fee assessments will appear here once published."
         />
-      </View>
+      </Screen>
     );
   }
 
@@ -107,17 +107,20 @@ export default function StudentFeesScreen() {
   const sortedAssessments = sortAssessments(summary.assessments);
 
   return (
-    <View style={styles.screen}>
-      <AppHeader
-        hero
-        title="My Fees"
-        subtitle={`Total Outstanding: ${formatPesoExact(summary.total_outstanding)}`}
-        right={
-          <View style={styles.headerRight}>
-            <Text style={styles.totalBadge}>Outstanding: {formatPesoExact(summary.total_outstanding)}</Text>
-          </View>
-        }
-      />
+    <Screen
+      header={
+        <AppHeader
+          hero
+          title="My Fees"
+          subtitle={`Total Outstanding: ${formatPesoExact(summary.total_outstanding)}`}
+          right={
+            <View style={styles.headerRight}>
+              <Text style={styles.totalBadge}>Outstanding: {formatPesoExact(summary.total_outstanding)}</Text>
+            </View>
+          }
+        />
+      }
+    >
       <ScrollView
         style={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.blue]} />}
@@ -201,12 +204,11 @@ export default function StudentFeesScreen() {
           </View>
         </View>
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.xl },
   headerRight: { alignItems: 'flex-end' },

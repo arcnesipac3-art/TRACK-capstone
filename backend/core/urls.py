@@ -7,6 +7,7 @@ from django.urls import path
 
 from . import enrollment_views
 from . import messaging_views
+from . import privacy_views
 from . import views
 
 urlpatterns = [
@@ -132,6 +133,7 @@ urlpatterns = [
     path("enrollment/applications/<int:pk>/assign-section/", enrollment_views.StaffAssignSectionView.as_view(), name="enrollment_assign_section"),
     path("enrollment/applications/<int:pk>/link-student/", enrollment_views.StaffLinkStudentView.as_view(), name="enrollment_link_student"),
     path("enrollment/applications/<int:pk>/confirm/", enrollment_views.StaffConfirmEnrollmentView.as_view(), name="enrollment_confirm"),
+    path("enrollment/applications/<int:pk>/resend-claim-link/", enrollment_views.StaffResendClaimLinkView.as_view(), name="enrollment_resend_claim_link"),
     path("enrollment/enrollments/", enrollment_views.EnrollmentListView.as_view(), name="enrollment_list"),
     path("enrollment/dashboard/", enrollment_views.EnrollmentDashboardView.as_view(), name="enrollment_dashboard"),
     path("enrollment/reports/school-year/", enrollment_views.EnrollmentReportView.as_view(), name="enrollment_report"),
@@ -148,4 +150,14 @@ urlpatterns = [
 
     # ── Audit log ────────────────────────────────────────────────────────────
     path("audit-logs/", views.AuditLogListView.as_view(), name="audit_log_list"),
+
+    # ── Data privacy (see core/privacy.py) ──────────────────────────────────
+    # Requester side: the machine-readable copy of your own record, and the
+    # correction/objection/erasure asks the enrollment office answers.
+    path("account/export/", privacy_views.MyDataExportView.as_view(), name="my_data_export"),
+    path("account/data-requests/", privacy_views.MyDataRequestView.as_view(), name="my_data_requests"),
+    # Staff side. `queue/` is a literal segment, so it must be listed before
+    # any `<int:pk>` route that could otherwise shadow it.
+    path("account/data-requests/queue/", privacy_views.StaffDataRequestQueueView.as_view(), name="staff_data_request_queue"),
+    path("account/data-requests/<int:pk>/answer/", privacy_views.StaffDataRequestAnswerView.as_view(), name="staff_data_request_answer"),
 ]

@@ -100,6 +100,8 @@ const PATHS = {
   menu: <path d="M3 6h18M3 12h18M3 18h18" />,
   close: <path d="M18 6 6 18M6 6l12 12" />,
   chevronDown: <path d="m6 9 6 6 6-6" />,
+  chevronLeft: <path d="m15 18-6-6 6-6" />,
+  chevronRight: <path d="m9 18 6-6-6-6" />,
   plus: <path d="M12 5v14M5 12h14" />,
   pencil: (
     <>

@@ -36,15 +36,10 @@
     <link rel="icon" type="image/png" sizes="64x64" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-    <!-- Both campus backdrops (landing hero + login panel) are now loaded
-         lazily from JS, after first paint, so nothing here preloads them. We
-         still warm both origins — the generator API and the CDN it redirects
-         to, which caches the bytes for ~30 days — so those deferred requests
-         land on an already-open connection. -->
-    <link rel="preconnect" href="https://coresg-normal.trae.ai" />
-    <link rel="dns-prefetch" href="https://coresg-normal.trae.ai" />
-    <link rel="preconnect" href="https://lf-cdn.trae.ai" crossorigin />
-    <link rel="dns-prefetch" href="https://lf-cdn.trae.ai" />
+    <!-- The campus backdrops are vector files inside the bundle, so the browser
+         makes no request to any other origin to decorate this page: nothing to
+         preconnect to, nothing to warm, and no third party that can set a
+         cookie before the visitor consents to anything. -->
 
     <title>TRACK · Tracking Requirements, Attendance &amp; Communication</title>
 

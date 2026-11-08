@@ -283,11 +283,12 @@ class EnrollmentApplicationDetailSerializer(serializers.ModelSerializer):
             "school_year", "school_year_label", "enrollment_type", "grade_level",
             "grade_level_name", "strand", "previous_school", "previous_school_address",
             "lrn", "first_name", "middle_name", "last_name", "date_of_birth", "sex",
-            "address", "contact_number",
+            "address", "contact_number", "applicant_email",
             "guardian_name", "guardian_relationship", "guardian_contact", "guardian_email",
             "documents", "events", "missing_documents", "available_actions",
             "assigned_section_name", "decision_reason",
             "student_profile_id", "linked_student_name",
+            "consent_given_at", "consent_policy_version",
             "submitted_at", "reviewed_at", "decided_at",
             "requirements_snapshot", "created_at", "updated_at",
             "guest_token", "claim_token", "account_claim_available",
@@ -476,6 +477,13 @@ class EnrollmentApplicationCreateSerializer(serializers.ModelSerializer):
             )
             application.guardian_email = application.guardian_email or guardian.user.email
 
+        # The address a decision about this application should reach. An
+        # account already proved its email when it was created, so the
+        # applicant is not asked to retype it; a public applicant has no
+        # account, so the wizard is where that address comes from.
+        if not is_guest:
+            application.applicant_email = application.applicant_email or user.email
+
         application.save()
 
         # Freeze the effective checklist for this application, then create one
@@ -498,7 +506,7 @@ class EnrollmentApplicationUpdateSerializer(serializers.ModelSerializer):
             "enrollment_type", "grade_level", "strand",
             "previous_school", "previous_school_address",
             "lrn", "first_name", "middle_name", "last_name", "date_of_birth",
-            "sex", "address", "contact_number",
+            "sex", "address", "contact_number", "applicant_email",
             "guardian_name", "guardian_relationship", "guardian_contact",
             "guardian_email",
         ]
@@ -644,6 +652,7 @@ class EnrollmentApplicationStaffDetailSerializer(serializers.ModelSerializer):
     verification_blockers = serializers.SerializerMethodField()
     available_actions = serializers.SerializerMethodField()
     student_matches = serializers.SerializerMethodField()
+    claim_link_pending = serializers.SerializerMethodField()
 
     class Meta:
         model = EnrollmentApplication
@@ -651,17 +660,18 @@ class EnrollmentApplicationStaffDetailSerializer(serializers.ModelSerializer):
             "id", "reference", "full_name", "applicant", "applicant_name",
             "applicant_username", "student", "lrn",
             "first_name", "middle_name", "last_name", "date_of_birth", "sex",
-            "address", "contact_number",
+            "address", "contact_number", "applicant_email",
             "guardian_name", "guardian_relationship", "guardian_contact", "guardian_email",
             "period", "period_label", "school_year", "school_year_label",
             "enrollment_type", "grade_level", "grade_level_name", "strand",
             "previous_school", "previous_school_address",
             "status", "status_display", "documents", "events", "enrollments",
             "missing_documents", "verification_blockers", "available_actions",
-            "student_matches",
+            "student_matches", "claim_link_pending", "account_claimed_at",
             "assigned_section", "assigned_section_name",
             "section_approved_by_name", "section_assigned_at",
             "reviewer_name", "reviewed_at", "decided_at", "decision_reason",
+            "consent_given_at", "consent_policy_version",
             "submitted_at", "requirements_snapshot", "created_at", "updated_at",
             "deleted_at",
         ]
@@ -711,6 +721,26 @@ class EnrollmentApplicationStaffDetailSerializer(serializers.ModelSerializer):
     def get_student_matches(self, obj):
         from .enrollment import find_student_matches
         return StudentMatchSerializer(find_student_matches(obj), many=True).data
+
+    def get_claim_link_pending(self, obj):
+        """
+        Whether a setup link is still waiting to be used — the review screen's
+        only clue, and the precondition of the resend action.
+
+        A learner matched by LRN or linked by hand never gets a link (their
+        account already exists), and a claimed one is spent, so this is exactly
+        the window in which resending means something. The address is part of
+        the test because a link nobody can be emailed is not pending, it is
+        blocked.
+        """
+        from .emails import notification_email_for
+
+        return bool(
+            obj.account_claim_token
+            and obj.account_claimed_at is None
+            and obj.status == ApplicationStatus.ENROLLED
+            and notification_email_for(obj)
+        )
 
 
 # ---------------------------------------------------------------------------

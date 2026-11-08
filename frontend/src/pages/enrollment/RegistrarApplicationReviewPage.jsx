@@ -114,6 +114,8 @@ function modalTitle(type, ctx) {
       return 'Confirm enrollment'
     case 'link':
       return 'Link this student record?'
+    case 'resend':
+      return 'Resend the account setup link?'
     default:
       return 'Confirm'
   }
@@ -301,6 +303,22 @@ export default function RegistrarApplicationReviewPage() {
             result?.created === false
               ? `Already confirmed — ${who} is enrolled in ${where}${year ? ` (${year})` : ''}.`
               : `Enrollment confirmed for ${who} in ${where}${year ? ` — ${year}` : ''}.`,
+        })
+        await loadDetail()
+        return
+      }
+
+      if (type === 'resend') {
+        await api.post(
+          `/enrollment/applications/${id}/resend-claim-link/`,
+          {}
+        )
+        setModal(null)
+        setAlert({
+          kind: 'success',
+          text:
+            'A new account setup link was emailed to the family. The one ' +
+            'sent earlier stopped working the moment this was issued.',
         })
         await loadDetail()
         return
@@ -578,6 +596,10 @@ export default function RegistrarApplicationReviewPage() {
                   <span className="kv-label">Contact</span>
                   <span className="kv-value">{detail.contact_number || '—'}</span>
                 </div>
+                <div className="kv-item">
+                  <span className="kv-label">Email</span>
+                  <span className="kv-value">{detail.applicant_email || '—'}</span>
+                </div>
                 <div className="kv-item kv-full">
                   <span className="kv-label">Address</span>
                   <span className="kv-value">{detail.address || '—'}</span>
@@ -611,6 +633,14 @@ export default function RegistrarApplicationReviewPage() {
                 <div className="kv-item">
                   <span className="kv-label">Submitted</span>
                   <span className="kv-value">{formatDateTime(detail.submitted_at)}</span>
+                </div>
+                <div className="kv-item kv-full">
+                  <span className="kv-label">Privacy notice agreed</span>
+                  <span className="kv-value">
+                    {detail.consent_given_at
+                      ? `${formatDateTime(detail.consent_given_at)} · notice ${detail.consent_policy_version}`
+                      : '— not recorded; this filing predates the consent record'}
+                  </span>
                 </div>
                 <div className="kv-item">
                   <span className="kv-label">Reviewed</span>
@@ -1098,7 +1128,10 @@ export default function RegistrarApplicationReviewPage() {
                 >
                   Confirm enrollment
                 </Button>
-              ) : (
+              ) : detail.status === 'enrolled' ? null : (
+                /* An already-confirmed enrollment has nothing left to unlock
+                   here — the setup-link block below is what the Registrar
+                   needs to see. */
                 <p className="subtle">
                   {!canConfirm
                     ? 'Only an account with the enrollment.confirm permission can confirm enrollments.'
@@ -1106,6 +1139,47 @@ export default function RegistrarApplicationReviewPage() {
                       ? 'Confirmation unlocks once the application is accepted.'
                       : 'Assign a section before confirming the enrollment.'}
                 </p>
+              )}
+
+              {detail.status === 'enrolled' && (
+                <div className="stack stack-sm">
+                  <span className="kv-label">Account setup link</span>
+                  {detail.claim_link_pending && (
+                    <>
+                      <p className="subtle" style={{ margin: 0 }}>
+                        Still waiting to be used. Resending writes a new link
+                        and emails it to{' '}
+                        {detail.applicant_email || detail.guardian_email}; the
+                        previous link stops working, so a family that forwarded
+                        the old email cannot both claim it.
+                      </p>
+                      {canManage && (
+                        <div>
+                          <Button
+                            variant="ghost"
+                            disabled={Boolean(busy)}
+                            onClick={() => openModal({ type: 'resend' })}
+                          >
+                            {busy === 'modal' && <ButtonLoader />}
+                            Resend setup link
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  {!detail.claim_link_pending && detail.account_claimed_at && (
+                    <p className="subtle" style={{ margin: 0 }}>
+                      Used on {formatDateTime(detail.account_claimed_at)} — the
+                      family signs in with the account they created.
+                    </p>
+                  )}
+                  {!detail.claim_link_pending && !detail.account_claimed_at && (
+                    <p className="subtle" style={{ margin: 0 }}>
+                      This learner already had a TRACK account, so no setup
+                      link was issued for this enrollment.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           </section>
@@ -1147,7 +1221,9 @@ export default function RegistrarApplicationReviewPage() {
                       ? 'Confirm enrollment'
                       : modal?.type === 'link'
                         ? 'Link student'
-                        : 'Confirm'}
+                        : modal?.type === 'resend'
+                          ? 'Resend setup link'
+                          : 'Confirm'}
             </Button>
           </>
         }
@@ -1166,6 +1242,16 @@ export default function RegistrarApplicationReviewPage() {
           )}
 
           {modal?.type === 'confirm' && <p>{confirmBody}</p>}
+
+          {modal?.type === 'resend' && (
+            <p>
+              A new one-time link is written and emailed to{' '}
+              {detail?.applicant_email || detail?.guardian_email}. The link in
+              the previous email — including any that was forwarded — stops
+              answering, and the family is told in the message that this one
+              replaces it.
+            </p>
+          )}
 
           {modal?.type === 'accept' && (
             <p>

@@ -2,32 +2,31 @@
  * Admin fees — payments ledger.
  *
  * The fee screen used to answer a tap on "Payments" with "coming soon" while
- * GET /fee-payments/ had been serving the whole ledger to the web app for
- * months. This is that list, read-only: recording a payment and voiding one
- * both need the receipt workflow the web ships, so they stay there rather than
+ * GET /fee-payments/ had been serving the whole ledger to the web app for months.
+ * This is that list, read-only: recording a payment and voiding one both need the
+ * receipt workflow the web ships, so they stay there rather than being
  * half-implemented on a phone.
+ *
+ * What is on the page is the server's own money: `collected` sums completed
+ * receipts, `awaiting` sums pending ones, and the row cap keeps a long ledger from
+ * building thousands of views inside one scroll.
  */
-import { useCallback, useEffect, useState } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  RefreshControl,
-} from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing, typography, type Tone } from '../theme';
+import { colors, spacing, typography, type Tone } from '../theme';
 import { ApiError, api } from '../api/client';
 import type { FeePayment } from '../api/types';
-import { formatDate, formatPeso, formatPesoExact } from '../format';
-import { EmptyState, ErrorState, LoadingState } from './StateViews';
+import { countNoun, formatDate, formatPeso, formatPesoExact } from '../format';
+import { EmptyState, ErrorBanner, ErrorState, LoadingState } from './StateViews';
 import Badge from './ui/Badge';
 import Button from './ui/Button';
 import Card from './ui/Card';
-import Dropdown from './ui/Dropdown';
-import ProgressBar from './ui/ProgressBar';
-import ScreenList from './ScreenList';
+import Chip from './ui/Chip';
+import ListRow from './ui/ListRow';
+import MetricsCard from './ui/MetricsCard';
+import SearchField from './ui/SearchField';
+import SectionHeader from './ui/SectionHeader';
 
 type StatusFilter = 'all' | FeePayment['status'];
 
@@ -63,128 +62,197 @@ export default function FeesPaymentsTab() {
   }, []);
 
   useEffect(() => {
-    // Mount fetch — `load` sets state only after its await; the rule reads the
-    // call rather than the schedule.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    load();
+    (async () => {
+      await load();
+    })();
   }, [load]);
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    load();
-  };
+  const totals = useMemo(() => {
+    let collected = 0;
+    let pending = 0;
+    let completedCount = 0;
+    let pendingCount = 0;
+    payments.forEach((payment) => {
+      const amount = Number(payment.amount);
+      if (payment.status === 'completed') {
+        collected += amount;
+        completedCount += 1;
+      } else if (payment.status === 'pending') {
+        pending += amount;
+        pendingCount += 1;
+      }
+    });
+    return { collected, pending, completedCount, pendingCount };
+  }, [payments]);
 
-  if (loading) return <LoadingState label="Loading payments…" />;
-  if (error && payments.length === 0) return <ErrorState message={error} onRetry={onRefresh} />;
+  const statusCounts = useMemo(() => {
+    const counts: Record<StatusFilter, number> = {
+      all: payments.length,
+      completed: 0,
+      pending: 0,
+      voided: 0,
+      refunded: 0,
+    };
+    payments.forEach((payment) => {
+      counts[payment.status] += 1;
+    });
+    return counts;
+  }, [payments]);
 
-  const query = search.trim().toLowerCase();
-  const filtered = payments.filter((p) => {
-    if (status !== 'all' && p.status !== status) return false;
-    if (!query) return true;
-    return [p.student_name, p.receipt_number, p.assessment_category, p.reference_number]
-      .some((v) => (v || '').toLowerCase().includes(query));
-  });
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return payments.filter((payment) => {
+      if (status !== 'all' && payment.status !== status) return false;
+      if (!query) return true;
+      return [
+        payment.student_name,
+        payment.receipt_number,
+        payment.assessment_category,
+        payment.reference_number,
+      ].some((value) => (value || '').toLowerCase().includes(query));
+    });
+  }, [payments, status, search]);
 
-  const completed = payments.filter((p) => p.status === 'completed');
-  const collected = completed.reduce((total, p) => total + Number(p.amount), 0);
-  const pending = payments.filter((p) => p.status === 'pending');
-  const pendingTotal = pending.reduce((total, p) => total + Number(p.amount), 0);
+  if (loading) {
+    return (
+      <View style={styles.wrap}>
+        <LoadingState label="Loading payments…" rows={5} />
+      </View>
+    );
+  }
+
+  if (error && payments.length === 0) {
+    return (
+      <View style={styles.wrap}>
+        <ErrorState
+          message={error}
+          onRetry={() => {
+            setLoading(true);
+            load();
+          }}
+        />
+      </View>
+    );
+  }
 
   return (
     <ScrollView
-      style={styles.scroll}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.blue]} />}
       contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={() => {
+            setRefreshing(true);
+            load();
+          }}
+          colors={[colors.blue]}
+          tintColor={colors.blue}
+        />
+      }
     >
-      <View style={styles.grid}>
-        <Card style={styles.cardGrow}>
-          <Text style={styles.cardLabel}>COLLECTED</Text>
-          <Text style={styles.cardValue}>{formatPeso(collected)}</Text>
-          <ProgressBar
-            value={payments.length === 0 ? 0 : (completed.length / payments.length) * 100}
-            tone="green"
-            detail={`${completed.length} of ${payments.length} receipts completed`}
+      <MetricsCard
+        lead
+        footnote={`${countNoun(totals.completedCount, 'completed receipt')} of ${
+          payments.length
+        } on the ledger`}
+        items={[
+          { key: 'collected', label: 'Collected', value: formatPeso(totals.collected), tone: 'green' },
+          { key: 'awaiting', label: 'Awaiting clearing', value: formatPeso(totals.pending), tone: 'amber' },
+          { key: 'receipts', label: 'Receipts', value: `${payments.length}`, tone: 'navy' },
+        ]}
+      />
+
+      <SearchField
+        value={search}
+        onChange={(next) => {
+          setSearch(next);
+          setVisible(ROW_CAP);
+        }}
+        placeholder="Search student, receipt or reference"
+        testID="fees-payment-search"
+      />
+
+      <View style={styles.filters}>
+        {(
+          [
+            { value: 'all', label: 'All' },
+            { value: 'completed', label: 'Completed' },
+            { value: 'pending', label: 'Pending' },
+            { value: 'voided', label: 'Voided' },
+            { value: 'refunded', label: 'Refunded' },
+          ] as { value: StatusFilter; label: string }[]
+        ).map((option) => (
+          <Chip
+            key={option.value}
+            label={option.label}
+            count={statusCounts[option.value]}
+            selected={status === option.value}
+            tone="navy"
+            onPress={() => {
+              setStatus(option.value);
+              setVisible(ROW_CAP);
+            }}
           />
-        </Card>
-        <Card style={styles.cardGrow}>
-          <Text style={styles.cardLabel}>AWAITING CLEARING</Text>
-          <Text style={[styles.cardValue, { color: colors.amberText }]}>{formatPeso(pendingTotal)}</Text>
-          <ProgressBar
-            value={payments.length === 0 ? 0 : (pending.length / payments.length) * 100}
-            tone="amber"
-            detail={`${pending.length} pending`}
-          />
-        </Card>
+        ))}
       </View>
 
-      <View style={styles.section}>
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search student, receipt or reference…"
-          value={search}
-          onChangeText={(v) => {
-            setSearch(v);
-            setVisible(ROW_CAP);
-          }}
-          placeholderTextColor={colors.textMuted}
-          autoCapitalize="none"
-        />
-        <Dropdown<StatusFilter>
-          label="STATUS"
-          options={[
-            { label: 'Every status', value: 'all' },
-            { label: 'Completed', value: 'completed' },
-            { label: 'Pending', value: 'pending' },
-            { label: 'Voided', value: 'voided' },
-            { label: 'Refunded', value: 'refunded' },
-          ]}
-          value={status}
-          onChange={(v) => {
-            setStatus(v);
-            setVisible(ROW_CAP);
-          }}
-        />
-      </View>
+      {error ? <ErrorBanner message={error} onRetry={load} /> : null}
 
-      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      <SectionHeader
+        title="Ledger"
+        count={filtered.length}
+        countNoun={filtered.length === 1 ? 'receipt' : 'receipts'}
+        countTone="blue"
+      />
 
       {filtered.length === 0 ? (
         <EmptyState
           inline
-          title="No payments match"
-          body={payments.length === 0 ? 'No payment has been recorded yet.' : 'Try a different name or status.'}
+          title={search ? `Nothing matches “${search.trim()}”` : 'No payments recorded'}
+          body={
+            payments.length === 0
+              ? 'A receipt appears here the moment the cashier records one.'
+              : 'Search covers the student, the receipt number, the category and the reference.'
+          }
+          icon={search ? 'search-outline' : 'receipt-outline'}
+          actionLabel={search ? 'Clear search' : undefined}
+          onAction={search ? () => setSearch('') : undefined}
         />
       ) : (
-        <View style={styles.list}>
-          <ScreenList
-            data={filtered.slice(0, visible)}
-            keyExtractor={(item) => String(item.id)}
-            renderItem={(p) => (
-              <View style={styles.row}>
-                <View style={styles.rowLeft}>
-                  <Text style={styles.rowTitle}>{p.student_name}</Text>
-                  <Text style={styles.rowMeta}>
-                    {p.assessment_category} · {formatDate(p.payment_date)} · {p.receipt_number}
-                  </Text>
-                  <Text style={styles.rowMeta}>
-                    {p.payment_method.replace(/_/g, ' ')}
-                    {p.recorded_by_name ? ` · recorded by ${p.recorded_by_name}` : ''}
-                  </Text>
-                </View>
-                <View style={styles.rowRight}>
-                  <Text style={[styles.rowAmount, p.status === 'voided' && styles.rowAmountVoided]}>
-                    {formatPesoExact(p.amount)}
-                  </Text>
-                  <Badge label={p.status} tone={STATUS_TONE[p.status] ?? 'gray'} />
-                </View>
-              </View>
-            )}
-          />
+        <View style={styles.group}>
+          <Card padded={false}>
+            {filtered.slice(0, visible).map((payment, index) => (
+              <ListRow
+                key={payment.id}
+                avatar={payment.student_name}
+                title={payment.student_name}
+                subtitle={`${payment.assessment_category} · ${formatDate(payment.payment_date)}`}
+                detail={`${payment.payment_method.replace(/_/g, ' ')} · ${payment.receipt_number}`}
+                trailing={
+                  <View style={styles.trailing}>
+                    <Text
+                      style={[
+                        styles.amount,
+                        payment.status === 'voided' ? styles.amountVoided : null,
+                      ]}
+                      numberOfLines={1}
+                    >
+                      {formatPesoExact(payment.amount)}
+                    </Text>
+                    <Badge label={payment.status} tone={STATUS_TONE[payment.status] ?? 'gray'} glyph={false} />
+                  </View>
+                }
+                chevron={false}
+                divider={index < Math.min(filtered.length, visible) - 1}
+              />
+            ))}
+          </Card>
           {filtered.length > visible ? (
             <Button
               variant="secondary"
               block
-              onPress={() => setVisible((n) => n + ROW_CAP)}
+              onPress={() => setVisible((count) => count + ROW_CAP)}
               accessibilityLabel={`Show more payments. ${filtered.length - visible} hidden.`}
             >
               Show {Math.min(ROW_CAP, filtered.length - visible)} more of {filtered.length}
@@ -197,39 +265,11 @@ export default function FeesPaymentsTab() {
 }
 
 const styles = StyleSheet.create({
-  scroll: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.lg },
-  section: { gap: spacing.md },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  cardGrow: { flexGrow: 1, flexBasis: '46%', gap: spacing.xs },
-  cardLabel: { ...typography.label, color: colors.textSubtle },
-  cardValue: { ...typography.metric, color: colors.navy },
-  searchInput: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.sm,
-    padding: spacing.md,
-    minHeight: 48,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...typography.input,
-  },
-  errorText: { ...typography.muted, color: colors.redText },
-  list: { gap: spacing.sm },
-  row: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: spacing.md,
-  },
-  rowLeft: { flex: 1, gap: 2 },
-  rowRight: { alignItems: 'flex-end', gap: spacing.xs },
-  rowTitle: { ...typography.body, fontWeight: '700', color: colors.text },
-  rowMeta: { ...typography.subtle },
-  rowAmount: { ...typography.body, fontWeight: '700', color: colors.greenText },
-  rowAmountVoided: { color: colors.textMuted, textDecorationLine: 'line-through' },
+  wrap: { flex: 1, padding: spacing.lg },
+  content: { padding: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.lg },
+  filters: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  group: { gap: spacing.md },
+  trailing: { alignItems: 'flex-end', gap: spacing.xs, maxWidth: 116 },
+  amount: { ...typography.subhead, color: colors.greenText },
+  amountVoided: { color: colors.textMuted, textDecorationLine: 'line-through' },
 });

@@ -37,7 +37,9 @@
 .doc-drop-hint {
   flex-basis: 100%;
   font-size: var(--text-2xs);
-  color: var(--ink-muted);
+  /* --ink-muted only reaches 4.35:1 on the --blue-50 this zone takes while
+     focused or being dragged over; --text-muted stays above 5.5:1 on both. */
+  color: var(--text-muted);
 }
 
 .doc-drop-error {

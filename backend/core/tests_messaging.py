@@ -28,12 +28,15 @@ from unittest import mock
 from asgiref.sync import async_to_sync
 from channels.db import database_sync_to_async
 from channels.exceptions import DenyConnection
+from channels.layers import InMemoryChannelLayer, get_channel_layer
 from channels.testing import WebsocketCommunicator
-from django.test import override_settings
+from django.test import SimpleTestCase, override_settings
 from django.utils import timezone
+from django.utils.module_loading import import_string
 from rest_framework.authtoken.models import Token
 
 from config.asgi import application
+from config.settings import channel_layers_for
 
 from . import messaging
 from . import push as push_delivery
@@ -1248,17 +1251,21 @@ class WebSocketAuthTests(MessagingFixture):
         self.assertEqual(detail, 4401)
 
     def test_foreign_origin_is_refused(self):
-        outcome = async_to_sync(self._handshake)(
+        connected, detail = async_to_sync(self._handshake)(
             headers=[(b"origin", b"https://evil.example")]
         )
-        self.assertIn(outcome, (False, "denied"))
+        # A close, not an exception escaping the middleware: on a real ASGI
+        # server an unhandled error there becomes HTTP 500 plus a traceback for
+        # every probe, which is the opposite of a quiet refusal.
+        self.assertFalse(connected)
+        self.assertEqual(detail, 4403)
 
     async def _handshake(self, headers=None):
         communicator = WebsocketCommunicator(application, WS_PATH, headers=headers or [])
         try:
             connected, detail = await communicator.connect(timeout=2)
         except DenyConnection:
-            return "denied"
+            self.fail("handshake denial must be a close message, not a raised DenyConnection")
         if connected:
             await communicator.disconnect()
         return (connected, detail)
@@ -1886,4 +1893,58 @@ class MessagingSocketTests(MessagingFixture):
             await self._expect(first, "pong")
 
         self.run_scenario(scenario)
+
+
+class ChannelLayerConfigTests(SimpleTestCase):
+    """
+    The `REDIS_URL` switch in settings.py, asserted without a Redis server.
+
+    What this proves is the half that is testable from one process: the value of
+    the variable decides which layer Django builds, the host is passed through
+    untouched, and the Redis backend actually resolves — so a host that sets
+    `REDIS_URL` boots instead of dying on a missing package, and a host that
+    forgets it gets the single-process layer rather than a half-configured
+    Redis one. What it cannot prove is delivery *across* processes; that needs
+    two ASGI workers and a real Redis, and `docs/DEPLOYMENT.md` §8 says so.
+    """
+
+    def test_without_redis_url_the_layer_is_in_memory(self):
+        layers = channel_layers_for("")
+        self.assertEqual(layers["default"]["BACKEND"], "channels.layers.InMemoryChannelLayer")
+        self.assertNotIn("CONFIG", layers["default"])
+
+    def test_blank_redis_url_is_not_a_redis_config(self):
+        # A platform that renders `REDIS_URL=" "` would otherwise be told it has
+        # a shared layer while pointing at an empty host.
+        self.assertEqual(
+            channel_layers_for("   ")["default"]["BACKEND"],
+            "channels.layers.InMemoryChannelLayer",
+        )
+
+    def test_redis_url_selects_the_redis_layer_with_that_host(self):
+        layers = channel_layers_for("redis://cache.internal:6379/2")
+        self.assertEqual(layers["default"]["BACKEND"], "channels_redis.core.RedisChannelLayer")
+        self.assertEqual(layers["default"]["CONFIG"]["hosts"], ["redis://cache.internal:6379/2"])
+
+    def test_the_value_is_trimmed_before_it_reaches_the_layer(self):
+        layers = channel_layers_for("  rediss://user:pass@host:6379/0  ")
+        self.assertEqual(layers["default"]["CONFIG"]["hosts"], ["rediss://user:pass@host:6379/0"])
+
+    def test_both_backends_resolve(self):
+        # Importing here is the deployment check: `channels_redis` ships in
+        # requirements.txt, and a typo in the dotted path would only surface as
+        # a boot failure on the production host.
+        for backend in (
+            channel_layers_for("")["default"]["BACKEND"],
+            channel_layers_for("redis://localhost:6379/0")["default"]["BACKEND"],
+        ):
+            self.assertTrue(callable(import_string(backend)), backend)
+
+    def test_the_suite_runs_on_the_in_memory_layer(self):
+        # No server, no fixtures: whatever the branch logic says, the layer this
+        # process actually uses has to be the in-memory one, or every socket
+        # test above would depend on infrastructure nobody installed.
+        from channels.layers import get_channel_layer
+
+        self.assertIsInstance(get_channel_layer(), InMemoryChannelLayer)
 

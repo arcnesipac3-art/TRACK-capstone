@@ -277,8 +277,9 @@ export const api = {
   me: () => request('/auth/me/'),
 
   /* Public enrollment (account-less) helpers */
-  /** Look up an application by reference + guardian email / contact number.
-   *  Success saves the returned guest token for follow-up requests. */
+  /** Look up an application by reference + an applicant/guardian email or
+   *  contact number. Success saves the returned guest token for follow-up
+   *  requests. */
   trackApplication: async ({ reference, contact }) => {
     const data = await request('/enrollment/public/track/', {
       method: 'POST',
@@ -288,12 +289,37 @@ export const api = {
     return data
   },
 
+  /** Read whose enrollment an emailed claim link points at, before there is
+   *  any account. Answers with the learner, the guardian and the reference
+   *  only — never a document, a contact list or an address. */
+  claimLookup: (token) =>
+    request('/enrollment/claim-account/', { params: { token } }),
+
   /** Exchange the one-time claim token from an enrolled application for a
-   *  real account. Stores the returned auth token exactly like login(). */
-  claimAccount: async ({ claim_token, username, password }) => {
+   *  real account. Stores the returned auth token exactly like login().
+   *  The optional guardian pair sets up the adult's own account with the
+   *  same link, which is the only credential the family is issued.
+   *  `consent` is the applicant's acknowledgement of the Privacy Notice —
+   *  the server refuses the claim without it, because creating a minor's
+   *  account is the point where the school starts holding their records. */
+  claimAccount: async ({
+    claim_token,
+    username,
+    password,
+    consent,
+    guardian_username,
+    guardian_password,
+  }) => {
     const data = await request('/enrollment/claim-account/', {
       method: 'POST',
-      body: { claim_token, username, password },
+      body: {
+        claim_token,
+        username,
+        password,
+        consent,
+        guardian_username,
+        guardian_password,
+      },
     })
     if (data && data.token) {
       // The backend consumes the guest credential together with the claim —

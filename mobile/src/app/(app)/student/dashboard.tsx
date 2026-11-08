@@ -23,6 +23,7 @@ import type { StudentDashboard } from '../../../api/types';
 import { ErrorState, LoadingState } from '../../../components/StateViews';
 import HeaderActions from '../../../components/ui/HeaderActions';
 import AppHeader from '../../../components/ui/AppHeader';
+import Screen from '../../../components/ui/Screen';
 import Card from '../../../components/ui/Card';
 import ListRow from '../../../components/ui/ListRow';
 import ProgressBar from '../../../components/ui/ProgressBar';
@@ -168,13 +169,16 @@ export default function StudentDashboardScreen() {
   const queue = queueRows.filter((row): row is QueueRow => row !== null);
 
   return (
-    <View style={styles.screen}>
-      <AppHeader
-        hero
-        title={data?.student_name ?? 'Student'}
-        subtitle={data?.section ?? undefined}
-        right={<HeaderActions />}
-      />
+    <Screen
+      header={
+        <AppHeader
+          hero
+          title={data?.student_name ?? 'Student'}
+          subtitle={data?.section ?? undefined}
+          right={<HeaderActions />}
+        />
+      }
+    >
       <ScrollView
         style={styles.scroll}
         refreshControl={
@@ -254,12 +258,11 @@ export default function StudentDashboardScreen() {
           )}
         </View>
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.xl },
   section: { gap: spacing.md },

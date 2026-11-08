@@ -60,6 +60,7 @@ function draftDetail(overrides = {}) {
     sex: 'female',
     address: 'Iligan City',
     contact_number: '09170000000',
+    applicant_email: '',
     guardian_name: '',
     guardian_relationship: '',
     guardian_contact: '',
@@ -176,6 +177,31 @@ describe('ApplicationWizardPage', () => {
     expect(screen.getByLabelText(/^first name/i)).toHaveValue('Liza')
     expect(screen.getByLabelText(/date of birth/i)).toHaveValue('2012-05-01')
     expect(screen.getByText(/draft app-0011/i)).toBeInTheDocument()
+  })
+
+  it('sends the applicant email with the student information step', async () => {
+    // The address on this step is where the confirmation email — and the
+    // account-setup link inside it — is delivered.
+    mockUseFetch()
+    mockApi({ detail: draftDetail() })
+    const user = userEvent.setup()
+    renderWizard()
+
+    await user.selectOptions(await screen.findByLabelText(/enrollment period/i), '3')
+    await user.selectOptions(screen.getByLabelText(/grade level/i), '1')
+    await user.click(screen.getByRole('button', { name: /create draft/i }))
+
+    await screen.findByLabelText(/learner reference number/i)
+    await user.type(screen.getByLabelText('Email'), 'juan@example.com')
+    await user.click(screen.getByRole('button', { name: /save & continue/i }))
+
+    await waitFor(() => expect(api.patch).toHaveBeenCalledTimes(1))
+    expect(api.patch.mock.calls[0][1]).toMatchObject({
+      applicant_email: 'juan@example.com',
+    })
+    expect(
+      await screen.findByRole('heading', { name: /parent \/ guardian/i })
+    ).toBeInTheDocument()
   })
 
   it('stores the guest token returned by an account-less draft create', async () => {
@@ -313,10 +339,19 @@ describe('ApplicationWizardPage', () => {
       within(dialog).getByText(/no longer edit the application/i)
     ).toBeInTheDocument()
 
+    // The server refuses a filing that arrives without the acknowledgement,
+    // so the dialog holds the confirm button dark until the box is ticked.
+    expect(
+      within(dialog).getByRole('button', { name: /submit now/i })
+    ).toBeDisabled()
+    await user.click(within(dialog).getByRole('checkbox'))
     await user.click(within(dialog).getByRole('button', { name: /submit now/i }))
 
     await waitFor(() =>
-      expect(api.post).toHaveBeenCalledWith('/enrollment/applications/my/11/submit/')
+      expect(api.post).toHaveBeenCalledWith(
+        '/enrollment/applications/my/11/submit/',
+        { consent: true }
+      )
     )
     expect(await screen.findByText('Application detail page')).toBeInTheDocument()
   })

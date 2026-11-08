@@ -71,7 +71,7 @@ describe('LandingPage', () => {
     renderLanding()
 
     expect(
-      screen.getByRole('heading', { level: 1, name: /all school records/i }),
+      screen.getByRole('heading', { level: 1, name: /one school year/i }),
     ).toBeInTheDocument()
     expect(document.querySelectorAll('.feature-card')).toHaveLength(8)
     expect(document.querySelectorAll('.role-card')).toHaveLength(4)

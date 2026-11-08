@@ -7,13 +7,12 @@ import ButtonLoader from '../components/loading/ButtonLoader'
 import { useAuth } from '../context/AuthContext'
 import { dashboardPath } from '../utils/format'
 import Button from '../components/Button'
+import PublicFooter from '../components/PublicFooter'
 
-/* Campus backdrop for the branding panel. Kept here (not in the stylesheet) so
-   the URL can be handed to the browser *after* first paint — a CSS background
-   would be requested as soon as the stylesheet is parsed, competing with the
-   app bundle and delaying the sign-in route's first paint. */
-const ASIDE_BG_URL =
-  'https://coresg-normal.trae.ai/api/ide/v1/text_to_image?prompt=Tall%20portrait%20photograph%20of%20a%20Philippine%20public%20high%20school%20campus%2C%20Kiwalan%20National%20High%20School%2C%20two-storey%20concrete%20classroom%20building%20painted%20white%20and%20green%2C%20open%20walkway%20with%20no%20roof%20or%20canopy%2C%20flagpole%2C%20tropical%20palm%20trees%2C%20blue%20sky%2C%20bright%20daylight&image_size=portrait_16_9'
+/* Campus backdrop for the branding panel — the same self-hosted photograph the
+   public heroes use, so signing in makes no request to anyone else's server.
+   Handed over after first paint so the panel paints navy first. */
+const ASIDE_BG_URL = '/campus-hero.jpg';
 
 /** Role cards shown in the aside panel. */
 const ROLES = [
@@ -285,6 +284,11 @@ export default function LoginPage() {
               Back to home
             </Link>
           </div>
+
+          {/* Sign-in is a fixed-height split panel — there is no page bottom to
+              put a footer in — so the controller identity and the legal links
+              close the card instead. */}
+          <PublicFooter variant="strip" />
         </div>
       </main>
 

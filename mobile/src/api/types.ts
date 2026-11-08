@@ -128,6 +128,45 @@ export type AdminDashboard = {
   attendance: AttendanceSummary;
   recent_activity: AdminDashboardActivity[];
   unread_notifications: number;
+  /**
+   * The same figures, grouped by module — the web portal reads these and the
+   * flat keys above are the older shape. Declared optional because a role that
+   * shares this endpoint (teacher, student) sends its own blocks.
+   */
+  blocks?: AdminDashboardBlocks;
+};
+
+export type AdminDashboardBlocks = {
+  accounts?: { total_users: number; total_students: number; total_teachers: number; total_parents: number };
+  structure?: {
+    total_sections: number;
+    total_grade_levels: number;
+    total_subjects: number;
+    active_school_year: string | null;
+  };
+  requirements?: {
+    total_requirements: number;
+    active_requirements: number;
+    total_submissions: number;
+    awaiting_verification: number;
+    submission_status: SubmissionStatusCounts;
+  };
+  attendance?: AttendanceSummary;
+  /** Marks recorded on the server's current date — `present_rate: null` when it is empty. */
+  attendance_today?: AttendanceSummary;
+  fees?: {
+    total_assessed: number;
+    total_collected: number;
+    total_outstanding: number;
+    active_school_year: string | null;
+  };
+  announcements?: {
+    total: number;
+    pinned: number;
+    latest: { id: number; title: string; audience: string; published_at: string }[];
+  };
+  audit?: { recent_activity: AdminDashboardActivity[] };
+  departments?: { total: number; active: number; super_admins: number };
 };
 
 export type Dashboard =

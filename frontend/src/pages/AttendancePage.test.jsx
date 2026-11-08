@@ -1,9 +1,9 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import AttendancePage from './AttendancePage'
 import api, { ApiError, pageFrom } from '../services/api'
-import { isoDay, shiftDay } from '../utils/attendance'
+import { dayHeading, isoDay, shiftDay } from '../utils/attendance'
 
 /**
  * The attendance module, driven by a fake server that behaves like the real
@@ -450,11 +450,52 @@ async function openSession(statusLabel) {
 
 async function openHistory() {
   fireEvent.click(screen.getByRole('tab', { name: 'Attendance history' }))
-  return screen.findByRole('heading', { name: 'Saved sessions' })
+  const heading = await screen.findByRole('heading', { name: 'Attendance history' })
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+  return heading
+}
+
+const prevDay = () => screen.getByRole('button', { name: 'Previous day with records' })
+const nextDay = () => screen.getByRole('button', { name: 'Next day with records' })
+
+/** The params of the last read that asked for a single row — a walk probe. */
+function probeParams(path) {
+  const calls = api.paged.mock.calls.filter(
+    ([called, options]) => called === path && Number(options?.params?.page_size) === 1,
+  )
+  return calls.map(([, options]) => options.params)
 }
 
 async function typeInto(id, value) {
   fireEvent.change(document.getElementById(id), { target: { value } })
+}
+
+/** Press an arrow only once the walk has settled on the day it can reach. */
+async function pressStep(getButton) {
+  await waitFor(() => expect(getButton()).toBeEnabled())
+  fireEvent.click(getButton())
+  // A step fires three reads (the day's rows and both probes). Crossing a
+  // macrotask inside act lets all of them land where React may flush.
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+}
+
+/** `count` sessions on one date — the school-wide day that overflows a page. */
+function dayRows(count, { id = 400, date = '2025-09-05', status = 'completed' } = {}) {
+  return Array.from({ length: count }, (_, index) => ({
+    id: id + index,
+    teacher_assignment: 7,
+    date,
+    status,
+    notes: '',
+    start_time: '08:00',
+    end_time: '09:00',
+    room: 'Room 3',
+    records: [],
+  }))
 }
 
 /* ------------------------------------------------------------------ */
@@ -897,96 +938,151 @@ describe('Teacher attendance — recording sheet', () => {
 /* ------------------------------------------------------------------ */
 
 describe('Teacher attendance — history', () => {
-  it('reads one server page and reports the server’s total', async () => {
+  it('opens on the newest day that has records and asks the server for that day only', async () => {
     mountTeacher()
     await openHistory()
 
+    await waitFor(() => expect(listParams('/attendance/sessions/', 20)?.date).toBe(TOMORROW))
     expect(listParams('/attendance/sessions/', 20)).toMatchObject({
       brief: 1,
       page: 1,
       page_size: 20,
       ordering: '-date',
     })
-    expect(await screen.findByText('Showing 5 of 5 sessions')).toBeInTheDocument()
+    expect(screen.getByText(dayHeading(TOMORROW))).toBeInTheDocument()
+    // One date per view: the day is the heading, so it is not also a column,
+    // and the from/to range the old screen needed is gone.
+    expect(screen.queryByRole('columnheader', { name: 'Date' })).not.toBeInTheDocument()
+    expect(document.getElementById('hist-from')).toBeNull()
+    expect(document.getElementById('hist-to')).toBeNull()
     expect(api.list).not.toHaveBeenCalledWith('/attendance/sessions/', expect.anything())
   })
 
-  it('sends sorting, date range, class, subject and status to the server', async () => {
-    mountTeacher()
+  it('steps between recorded days, walking past the ones with nothing', async () => {
+    // A Friday and the Wednesday before it. Thursday exists on the calendar
+    // and holds no register, which is exactly the stop the walk must skip.
+    const friday = dayRows(1, { id: 600, date: '2025-09-05' })[0]
+    const wednesday = dayRows(1, { id: 601, date: '2025-09-03' })[0]
+    mountTeacher({ overrides: { sessions: [friday, wednesday] } })
     await openHistory()
-    await screen.findByText('Showing 5 of 5 sessions')
+    await waitFor(() => expect(listParams('/attendance/sessions/', 20)?.date).toBe('2025-09-05'))
 
-    fireEvent.change(document.getElementById('hist-sort'), { target: { value: 'date' } })
-    await waitFor(() => expect(listParams('/attendance/sessions/', 20).ordering).toBe('date'))
+    // Nothing is newer than the Friday, so that arrow is dead once the walk
+    // has settled — before it settles both arrows are parked as busy.
+    await waitFor(() => expect(prevDay()).toBeEnabled())
+    expect(nextDay()).toBeDisabled()
 
-    fireEvent.change(document.getElementById('hist-from'), { target: { value: YESTERDAY } })
-    await waitFor(() => expect(listParams('/attendance/sessions/', 20).date_after).toBe(YESTERDAY))
+    await pressStep(prevDay)
+    await waitFor(() => expect(listParams('/attendance/sessions/', 20)?.date).toBe('2025-09-03'))
+    expect(screen.getByText(dayHeading('2025-09-03'))).toBeInTheDocument()
+    // One press crossed Thursday: the probe asked from Wednesday's own day,
+    // not from Thursday, because the server's range filters are inclusive.
+    expect(probeParams('/attendance/sessions/')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ date_before: '2025-09-04' })]),
+    )
+    await waitFor(() => expect(nextDay()).toBeEnabled())
+    expect(prevDay()).toBeDisabled()
 
-    fireEvent.change(document.getElementById('hist-to'), { target: { value: TODAY } })
-    await waitFor(() => expect(listParams('/attendance/sessions/', 20).date_before).toBe(TODAY))
-
-    fireEvent.change(document.getElementById('hist-class'), { target: { value: '8' } })
-    fireEvent.change(document.getElementById('hist-subject'), { target: { value: '12' } })
-    await waitFor(() => expect(listParams('/attendance/sessions/', 20).subject).toBe('12'))
-    expect(listParams('/attendance/sessions/', 20).teacher_assignment).toBe('8')
-
-    fireEvent.change(document.getElementById('hist-status'), { target: { value: 'completed' } })
-    await waitFor(() => expect(listParams('/attendance/sessions/', 20).status).toBe('completed'))
-    expect(await screen.findByText('1 of your sessions match')).toBeInTheDocument()
+    await pressStep(nextDay)
+    // End on an idle arrow: the day's rows and both reachability probes are
+    // separate reads, and a test that stops at the first of them would let the
+    // others land after the test is over.
+    await waitFor(() => expect(prevDay()).toBeEnabled())
+    expect(nextDay()).toBeDisabled()
+    expect(screen.getByText(dayHeading('2025-09-05'))).toBeInTheDocument()
   })
 
-  it('pages history without ever holding more than one page', async () => {
-    const years = Array.from({ length: 30 }, (_, index) => ({
-      id: 400 + index,
-      teacher_assignment: 7,
-      date: `2025-${String((index % 12) + 1).padStart(2, '0')}-05`,
-      status: 'completed',
-      notes: '',
-      start_time: '08:00',
-      end_time: '09:00',
-      room: 'Room 3',
-      records: [],
-    }))
-    mountTeacher({ overrides: { sessions: years } })
+  it('walks the filters, not the whole term', async () => {
+    mountTeacher()
     await openHistory()
-    await screen.findByText('Showing 20 of 30 sessions')
+    await waitFor(() => expect(listParams('/attendance/sessions/', 20)?.date).toBe(TOMORROW))
+    const probesBefore = probeParams('/attendance/sessions/').length
+
+    // Only one session is completed and it is not the newest day, so the walk
+    // has to re-land — and every probe must carry the filter as well.
+    fireEvent.change(document.getElementById('hist-status'), { target: { value: 'completed' } })
+    await waitFor(() => expect(listParams('/attendance/sessions/', 20)?.date).toBe(TODAY))
+    expect(listParams('/attendance/sessions/', 20).status).toBe('completed')
+    expect(screen.getByText('1 session match on this day')).toBeInTheDocument()
+
+    const walked = probeParams('/attendance/sessions/').slice(probesBefore)
+    expect(walked.length).toBeGreaterThan(0)
+    expect(walked.every((params) => params.status === 'completed')).toBe(true)
+
+    // The sort still matters: it picks which end of the term the walk starts at.
+    fireEvent.change(document.getElementById('hist-sort'), { target: { value: 'date' } })
+    await waitFor(() => expect(listParams('/attendance/sessions/', 20).ordering).toBe('date'))
+  })
+
+  it('says so when a filter leaves no day at all', async () => {
+    mountTeacher()
+    await openHistory()
+    await waitFor(() => expect(listParams('/attendance/sessions/', 20)?.date).toBe(TOMORROW))
+
+    await typeInto('hist-search', 'nobody here')
+    expect(await screen.findByText('No day matches your filters')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Next day with records' })).not.toBeInTheDocument()
+  })
+
+  it('drops a walk that a filter leaves with nothing to walk between', async () => {
+    // The live race this defends: the two reachability probes for the day being
+    // replaced are still in flight when the new landing probe answers "no day".
+    // The aborted chain never clears the walking flag, and a screen that still
+    // believes it is walking shows a skeleton instead of the empty state.
+    mountTeacher()
+    await openHistory()
+    await waitFor(() => expect(listParams('/attendance/sessions/', 20)?.date).toBe(TOMORROW))
+
+    const server = api.paged.getMockImplementation()
+    api.paged.mockImplementation((path, options) => {
+      const params = options?.params || {}
+      const read = server(path, options)
+      const stepping = params.page_size === 1 && (params.date_before || params.date_after)
+      return stepping ? new Promise((resolve) => setTimeout(() => resolve(read), 40)) : read
+    })
+
+    await typeInto('hist-search', 'nobody here')
+    expect(await screen.findByText('No day matches your filters')).toBeInTheDocument()
+  })
+
+  it('pages a day that genuinely holds more sessions than one page', async () => {
+    // The arrows move between days; this is the other axis — a school-wide day
+    // with more classes on it than fit a page.
+    mountTeacher({ overrides: { sessions: dayRows(30) } })
+    await openHistory()
+    await screen.findByText(`Showing 20 of 30 sessions on ${dayHeading('2025-09-05')}`)
 
     fireEvent.click(screen.getByRole('button', { name: 'Page 2' }))
     await waitFor(() => expect(listParams('/attendance/sessions/', 20).page).toBe(2))
-    expect(screen.getByText('Showing 10 of 30 sessions')).toBeInTheDocument()
+    expect(screen.getByText(`Showing 10 of 30 sessions on ${dayHeading('2025-09-05')}`)).toBeInTheDocument()
   })
 
-  it('respects the rows-per-page picker', async () => {
-    mountTeacher({
-      overrides: {
-        sessions: Array.from({ length: 30 }, (_, index) => ({
-          id: 450 + index,
-          teacher_assignment: 7,
-          date: '2025-09-05',
-          status: 'not_started',
-          notes: '',
-          start_time: '08:00',
-          end_time: '09:00',
-          room: 'Room 3',
-          records: [],
-        })),
-      },
-    })
+  it('respects the rows-per-page picker within the day', async () => {
+    mountTeacher({ overrides: { sessions: dayRows(30, { id: 450, status: 'not_started' }) } })
     await openHistory()
-    await screen.findByText('Showing 20 of 30 sessions')
+    await screen.findByText(`Showing 20 of 30 sessions on ${dayHeading('2025-09-05')}`)
 
+    fireEvent.change(document.getElementById('att-hist-page-size'), { target: { value: '10' } })
+    await waitFor(() => expect(listParams('/attendance/sessions/', 10)).toMatchObject({ page: 1, page_size: 10 }))
+    expect(await screen.findByText(`Showing 10 of 30 sessions on ${dayHeading('2025-09-05')}`)).toBeInTheDocument()
+
+    // A page that swallows the whole day retires the pager instead of offering
+    // a second page of nothing.
     fireEvent.change(document.getElementById('att-hist-page-size'), { target: { value: '50' } })
     await waitFor(() => expect(listParams('/attendance/sessions/', 50)).toMatchObject({ page: 1, page_size: 50 }))
-    expect(await screen.findByText('Showing 30 of 30 sessions')).toBeInTheDocument()
+    await waitFor(() => expect(document.getElementById('att-hist-page-size')).toBeNull())
+    expect(screen.getAllByText(dayHeading('2025-09-05')).length).toBeGreaterThan(0)
   })
 
   it('inspects a session, then corrects its marks on one deliberate click', async () => {
     mountTeacher()
     await openHistory()
-    await screen.findByText('Showing 5 of 5 sessions')
+    await waitFor(() => expect(listParams('/attendance/sessions/', 20)?.date).toBe(TOMORROW))
 
-    // Newest-first puts tomorrow’s untaken session on top, so reach for the
-    // finished one by its status cell rather than by row position.
+    // The walk opens on tomorrow’s untaken session; the finished one is a step
+    // back. Reach for it by its status cell rather than by row position.
+    await pressStep(prevDay)
+    await waitFor(() => expect(nextDay()).toBeEnabled())
     const finished = screen
       .getAllByRole('row')
       .find((row) => within(row).queryByText('Completed'))
@@ -1003,7 +1099,8 @@ describe('Teacher attendance — history', () => {
   it('lets a teacher fix a session’s date and note, and nothing else', async () => {
     mountTeacher()
     await openHistory()
-    await screen.findByText('Showing 5 of 5 sessions')
+    await waitFor(() => expect(listParams('/attendance/sessions/', 20)?.date).toBe(TOMORROW))
+    await screen.findByRole('button', { name: /View session details for/ })
 
     fireEvent.click(screen.getAllByRole('button', { name: /View session details for/ })[0])
     const dialog = await screen.findByRole('dialog')
@@ -1021,10 +1118,10 @@ describe('Teacher attendance — history', () => {
     expect(api.delete).not.toHaveBeenCalled()
   })
 
-  it('finds a learner through the server and reads their marks one page at a time', async () => {
+  it('finds a learner through the server and reads their marks one day at a time', async () => {
     mountTeacher()
     await openHistory()
-    await screen.findByText('Showing 5 of 5 sessions')
+    await waitFor(() => expect(listParams('/attendance/sessions/', 20)?.date).toBe(TOMORROW))
 
     fireEvent.click(screen.getByRole('tab', { name: 'By student' }))
     await screen.findByRole('heading', { name: 'Student history' })
@@ -1034,8 +1131,10 @@ describe('Teacher attendance — history', () => {
     expect(listParams('/students/', 8)).toMatchObject({ search: 'Elena', page_size: 8 })
 
     fireEvent.click(hit)
-    await screen.findByText('Showing 1 of 1 records')
-    expect(listParams('/attendance/records/', 20)).toMatchObject({ student: 105, ordering: '-date' })
+    // A mark is not dated itself, so the walk reads the day off its session.
+    expect(await screen.findByText('1 mark on this day')).toBeInTheDocument()
+    expect(listParams('/attendance/records/', 20)).toMatchObject({ student: 105, date: TODAY, ordering: '-date' })
+    expect(screen.queryByText('Showing 1 of 1 records')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /^View session of/ }))
     const dialog = await screen.findByRole('dialog')
@@ -1068,7 +1167,8 @@ describe('Teacher attendance — inside a class workspace', () => {
 
     await openHistory()
     expect(document.getElementById('hist-class')).toBeNull()
-    expect(await screen.findByText('Showing 3 of 3 sessions')).toBeInTheDocument()
+    expect(await screen.findByText('2 sessions recorded on this day')).toBeInTheDocument()
+    expect(listParams('/attendance/sessions/', 20)).toMatchObject({ teacher_assignment: '7', date: TODAY })
   })
 
   it('follows the workspace when it moves to another class', async () => {

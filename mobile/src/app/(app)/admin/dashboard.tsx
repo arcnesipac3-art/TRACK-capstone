@@ -1,32 +1,37 @@
 /**
  * Admin dashboard — GET /dashboard/ for role=admin.
  *
- * Composed the way Khan Academy composes a home screen: what needs attention
- * first, then one section per subject, each with a single blue action that opens
- * the full screen, and the numbers underneath. School-wide statistics,
- * submission status counts, the attendance summary and the latest audit-log
- * activity are all read-only, straight from the endpoint the web AdminDashboard
- * uses — nothing here is derived that the API did not send.
+ * The order an administrator actually works in: what is waiting (attention
+ * queue), what can be done about it (shortcuts), the scale of the school
+ * (people), the paper (requirements), the register (attendance), and finally
+ * what happened last (activity).
+ *
+ * Everything on the page is read from the one endpoint the web AdminDashboard
+ * uses — no figure is derived that the API did not send, and a row the server
+ * reports as empty is not shown at all.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, RefreshControl, ScrollView } from 'react-native';
+import { ScrollView, StyleSheet, RefreshControl, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
-import { colors, spacing, typography } from '../../../theme';
+import { colors, radius, spacing, tones, typography } from '../../../theme';
 import { api, ApiError } from '../../../api/client';
-import { formatDateTime } from '../../../format';
+import { countNoun, formatDateWithWeekday, formatPeso, formatRelativeTime } from '../../../format';
 import type { AdminDashboard } from '../../../api/types';
+import { useSessionUser } from '../../../session-user';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
 import Card from '../../../components/ui/Card';
 import HeaderActions from '../../../components/ui/HeaderActions';
 import ListRow from '../../../components/ui/ListRow';
+import MetricsCard from '../../../components/ui/MetricsCard';
+import QuickActions from '../../../components/ui/QuickActions';
+import type { QuickAction } from '../../../components/ui/QuickActions';
 import ProgressBar from '../../../components/ui/ProgressBar';
+import Screen from '../../../components/ui/Screen';
 import SectionHeader from '../../../components/ui/SectionHeader';
-import StatTile from '../../../components/ui/StatTile';
 import type { Tone } from '../../../theme';
-
-type Tile = { label: string; value: number; tone: 'navy' | 'green' | 'amber' | 'red' };
 
 /** Screens the attention queue can open. */
 type AdminQueueRoute = '/admin/requirements' | '/admin/notices' | '/admin/attendance';
@@ -40,7 +45,14 @@ type QueueRow = {
   route: AdminQueueRoute;
 };
 
+function greeting(hour: number) {
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export default function AdminDashboardScreen() {
+  const user = useSessionUser();
   const [data, setData] = useState<AdminDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -65,65 +77,61 @@ export default function AdminDashboardScreen() {
     })();
   }, [load]);
 
-  if (loading) return <LoadingState label="Loading dashboard…" />;
-  if (error && !data) {
+  const firstName = user?.first_name?.trim();
+  const schoolYear = data?.blocks?.structure?.active_school_year;
+  const header = (
+    <AppHeader
+      hero
+      eyebrow={`${greeting(new Date().getHours())}${firstName ? `, ${firstName}` : ''}`}
+      title="Administration"
+      subtitle={
+        schoolYear
+          ? `${formatDateWithWeekday(new Date())} · SY ${schoolYear}`
+          : formatDateWithWeekday(new Date())
+      }
+      right={<HeaderActions />}
+    />
+  );
+
+  if (loading) {
     return (
-      <ErrorState
-        message={error}
-        onRetry={() => {
-          setLoading(true);
-          load();
-        }}
-      />
+      <Screen header={header}>
+        <LoadingState label="Loading dashboard…" rows={4} />
+      </Screen>
     );
   }
 
-  const peopleTiles: Tile[] = data
-    ? [
-        { label: 'Students', value: data.total_students, tone: 'navy' },
-        { label: 'Teachers', value: data.total_teachers, tone: 'navy' },
-        { label: 'Parents', value: data.total_parents, tone: 'navy' },
-        { label: 'Sections', value: data.total_sections, tone: 'navy' },
-      ]
-    : [];
-
-  const requirementTiles: Tile[] = data
-    ? [
-        { label: 'Total', value: data.total_requirements, tone: 'navy' },
-        { label: 'Active', value: data.active_requirements, tone: 'green' },
-        { label: 'Submissions', value: data.total_submissions, tone: 'navy' },
-        { label: 'Awaiting', value: data.submission_status.submitted, tone: 'amber' },
-        { label: 'Verified', value: data.submission_status.verified, tone: 'green' },
-        { label: 'Not submitted', value: data.submission_status.none, tone: 'navy' },
-      ]
-    : [];
-
-  const attendanceTiles: Tile[] = data
-    ? [
-        { label: 'Present', value: data.attendance.by_status.present, tone: 'green' },
-        { label: 'Absent', value: data.attendance.by_status.absent, tone: 'red' },
-        { label: 'Late', value: data.attendance.by_status.late, tone: 'amber' },
-        { label: 'Excused', value: data.attendance.by_status.excused, tone: 'navy' },
-      ]
-    : [];
+  if (error && !data) {
+    return (
+      <Screen header={header}>
+        <ErrorState
+          message={error}
+          onRetry={() => {
+            setLoading(true);
+            load();
+          }}
+        />
+      </Screen>
+    );
+  }
 
   /**
-   * The queue, in the order an administrator works it.
-   *
-   * Only the rows the server says are non-empty appear, so a clean school opens
-   * on a quiet card instead of three zeros dressed up as tasks.
+   * The queue, in the order it is worked. A clean school gets one quiet line
+   * that says so, because an empty panel that still looks urgent is worse than
+   * no panel.
    */
-  const queueRows: (QueueRow | null)[] = data
+  const queue: QueueRow[] = data
     ? [
         data.submission_status.submitted > 0
           ? {
               key: 'review',
               icon: 'hourglass-outline',
               tone: 'amber',
-              title: `${data.submission_status.submitted} submission${
-                data.submission_status.submitted === 1 ? '' : 's'
-              } waiting to be verified`,
-              subtitle: 'Requirements & submissions queue',
+              title: `${countNoun(
+                data.submission_status.submitted,
+                'submission'
+              )} waiting to be verified`,
+              subtitle: 'Requirements queue',
               route: '/admin/requirements',
             }
           : null,
@@ -132,9 +140,7 @@ export default function AdminDashboardScreen() {
               key: 'notices',
               icon: 'notifications-outline',
               tone: 'blue',
-              title: `${data.unread_notifications} unread notification${
-                data.unread_notifications === 1 ? '' : 's'
-              }`,
+              title: countNoun(data.unread_notifications, 'unread notification'),
               subtitle: 'Announcements sent to your account',
               route: '/admin/notices',
             }
@@ -144,28 +150,86 @@ export default function AdminDashboardScreen() {
               key: 'absent',
               icon: 'alert-circle-outline',
               tone: 'red',
-              title: `${data.attendance.by_status.absent} absent mark${
-                data.attendance.by_status.absent === 1 ? '' : 's'
-              } on record`,
+              title: `${countNoun(data.attendance.by_status.absent, 'absent mark')} on record`,
               subtitle: 'Attendance register',
               route: '/admin/attendance',
             }
           : null,
+      ].filter((row): row is QueueRow => row !== null)
+    : [];
+
+  const shortcuts: QuickAction[] = [
+    {
+      key: 'attendance',
+      label: 'Attendance register',
+      icon: 'clipboard-outline',
+      tone: 'navy',
+      onSelect: () => router.push('/admin/attendance'),
+    },
+    {
+      key: 'review',
+      label: 'Review submissions',
+      icon: 'hourglass-outline',
+      tone: queue.some((r) => r.key === 'review') ? 'amber' : 'gray',
+      detail:
+        data && data.submission_status.submitted > 0
+          ? `${data.submission_status.submitted} waiting`
+          : undefined,
+      onSelect: () => router.push('/admin/requirements'),
+    },
+    {
+      key: 'assessment',
+      label: 'New fee assessment',
+      icon: 'cash-outline',
+      tone: 'green',
+      onSelect: () => router.push('/admin/fees/assessment/new'),
+    },
+    {
+      key: 'directory',
+      label: 'Student directory',
+      icon: 'people-outline',
+      tone: 'blue',
+      onSelect: () => router.push('/admin/directory'),
+    },
+    {
+      key: 'account',
+      label: 'Add an account',
+      icon: 'person-add-outline',
+      tone: 'violet',
+      onSelect: () => router.push('/admin/accounts'),
+    },
+    {
+      key: 'notices',
+      label: 'Announcements',
+      icon: 'megaphone-outline',
+      tone: 'teal',
+      detail:
+        data && data.unread_notifications > 0 ? `${data.unread_notifications} unread` : undefined,
+      onSelect: () => router.push('/admin/notices'),
+    },
+  ];
+
+  const attendance = data?.attendance;
+  const today = data?.blocks?.attendance_today;
+  const fees = data?.blocks?.fees;
+  const todayLine = today
+    ? today.total_records > 0
+      ? `${today.by_status.present} present of ${today.total_records} marks recorded today`
+      : 'Nothing marked present yet today.'
+    : null;
+  const mix = attendance
+    ? [
+        { key: 'present', label: 'Present', value: attendance.by_status.present, tone: 'green' as Tone },
+        { key: 'absent', label: 'Absent', value: attendance.by_status.absent, tone: 'red' as Tone },
+        { key: 'late', label: 'Late', value: attendance.by_status.late, tone: 'amber' as Tone },
+        { key: 'excused', label: 'Excused', value: attendance.by_status.excused, tone: 'blue' as Tone },
       ]
     : [];
 
-  const queue = queueRows.filter((row): row is QueueRow => row !== null);
-
   return (
-    <View style={styles.screen}>
-      <AppHeader
-        hero
-        title="Administration"
-        subtitle={data ? `${data.total_users} user accounts on record` : undefined}
-        right={<HeaderActions />}
-      />
+    <Screen header={header}>
       <ScrollView
-        style={styles.scroll}
+        contentContainerStyle={styles.content}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -174,14 +238,21 @@ export default function AdminDashboardScreen() {
               load();
             }}
             colors={[colors.blue]}
+            tintColor={colors.blue}
           />
         }
-        contentContainerStyle={styles.content}
       >
-        {queue.length > 0 ? (
-          <View style={styles.section}>
-            <SectionHeader title="Needs attention" detail="Open the queue to work through it" />
-            <Card padded={false} style={styles.stack}>
+        <QuickActions actions={shortcuts} />
+
+        <View style={styles.section}>
+          <SectionHeader
+            title="Needs attention"
+            count={queue.length}
+            countNoun={queue.length === 1 ? 'item' : 'items'}
+            countTone={queue.length ? 'amber' : 'green'}
+          />
+          {queue.length ? (
+            <Card padded={false} variant="well">
               {queue.map((row, index) => (
                 <ListRow
                   key={row.key}
@@ -194,8 +265,22 @@ export default function AdminDashboardScreen() {
                 />
               ))}
             </Card>
-          </View>
-        ) : null}
+          ) : (
+            <Card compact>
+              <View style={styles.clear}>
+                <View style={styles.clearDisc}>
+                  <Ionicons name="checkmark-outline" size={17} color={tones.green.text} />
+                </View>
+                <View style={styles.clearBody}>
+                  <Text style={styles.clearTitle}>Nothing needs your attention</Text>
+                  <Text style={styles.clearLine}>
+                    No submissions awaiting a decision, no unread notices and no absence flagged.
+                  </Text>
+                </View>
+              </View>
+            </Card>
+          )}
+        </View>
 
         <View style={styles.section}>
           <SectionHeader
@@ -203,24 +288,107 @@ export default function AdminDashboardScreen() {
             actionLabel="Directory"
             onAction={() => router.push('/admin/directory')}
           />
-          <View style={styles.grid}>
-            {peopleTiles.map((item) => (
-              <StatTile key={item.label} label={item.label} value={item.value} tone={item.tone} />
-            ))}
-          </View>
+          <MetricsCard
+            lead
+            onPress={() => router.push('/admin/directory')}
+            footnote={data ? `${data.total_users} accounts on record` : undefined}
+            items={[
+              { key: 'students', label: 'Students', value: `${data?.total_students ?? 0}`, tone: 'navy' },
+              { key: 'teachers', label: 'Teachers', value: `${data?.total_teachers ?? 0}`, tone: 'blue' },
+              { key: 'parents', label: 'Parents', value: `${data?.total_parents ?? 0}`, tone: 'teal' },
+              { key: 'sections', label: 'Sections', value: `${data?.total_sections ?? 0}`, tone: 'violet' },
+            ]}
+          />
         </View>
 
         <View style={styles.section}>
           <SectionHeader
-            title="Requirements & submissions"
-            actionLabel="Open"
+            title="Requirements"
+            actionLabel="Open queue"
             onAction={() => router.push('/admin/requirements')}
           />
-          <View style={styles.grid}>
-            {requirementTiles.map((item) => (
-              <StatTile key={item.label} label={item.label} value={item.value} tone={item.tone} />
-            ))}
-          </View>
+          <MetricsCard
+            columns={3}
+            lead
+            onPress={() => router.push('/admin/requirements')}
+            footnote={
+              data
+                ? `${data.active_requirements} of ${countNoun(data.total_requirements, 'requirement')} active`
+                : undefined
+            }
+            items={[
+              {
+                key: 'awaiting',
+                label: 'Awaiting verification',
+                value: `${data?.submission_status.submitted ?? 0}`,
+                tone: 'amber',
+              },
+              { key: 'verified', label: 'Verified', value: `${data?.submission_status.verified ?? 0}`, tone: 'green' },
+              {
+                key: 'none',
+                label: 'Not submitted',
+                value: `${data?.submission_status.none ?? 0}`,
+                tone: 'gray',
+              },
+              { key: 'total', label: 'Total requirements', value: `${data?.total_requirements ?? 0}`, tone: 'navy' },
+              {
+                key: 'submissions',
+                label: 'Submissions',
+                value: `${data?.total_submissions ?? 0}`,
+                tone: 'blue',
+              },
+            ]}
+          />
+        </View>
+
+        <View style={styles.section}>
+          <SectionHeader
+            title="Collections"
+            actionLabel="Fee office"
+            onAction={() => router.push('/admin/fees')}
+          />
+          {fees && fees.total_assessed > 0 ? (
+            <Card style={styles.feesCard}>
+              <View style={styles.feesHead}>
+                <Text style={styles.feesCollected}>{formatPeso(fees.total_collected)}</Text>
+                <Text style={styles.feesOf}>
+                  collected of {formatPeso(fees.total_assessed)} assessed
+                </Text>
+              </View>
+              <ProgressBar
+                value={Math.min(100, (fees.total_collected / fees.total_assessed) * 100)}
+                tone="navy"
+                thickness="thick"
+                detail={`${Math.round((fees.total_collected / fees.total_assessed) * 100)}%`}
+              />
+              <View style={styles.mix}>
+                <View style={styles.mixCell}>
+                  <View style={[styles.mixDot, { backgroundColor: tones.green.text }]} />
+                  <Text style={styles.mixValue}>{formatPeso(fees.total_collected)}</Text>
+                  <Text style={styles.mixLabel}>In hand</Text>
+                </View>
+                <View style={styles.mixCell}>
+                  <View style={[styles.mixDot, { backgroundColor: tones.amber.text }]} />
+                  <Text style={styles.mixValue}>{formatPeso(fees.total_outstanding)}</Text>
+                  <Text style={styles.mixLabel}>Still owed</Text>
+                </View>
+                <View style={styles.mixCell}>
+                  <View style={[styles.mixDot, { backgroundColor: tones.navy.text }]} />
+                  <Text style={styles.mixValue}>{formatPeso(fees.total_assessed)}</Text>
+                  <Text style={styles.mixLabel}>Assessed</Text>
+                </View>
+              </View>
+            </Card>
+          ) : (
+            <EmptyState
+              inline
+              title="No fees assessed this year"
+              body="Collection figures appear as soon as an assessment is published."
+              icon="wallet-outline"
+              actionLabel="Open fee office"
+              onAction={() => router.push('/admin/fees')}
+            />
+          )}
         </View>
 
         <View style={styles.section}>
@@ -229,40 +397,56 @@ export default function AdminDashboardScreen() {
             actionLabel="Register"
             onAction={() => router.push('/admin/attendance')}
           />
-          {data && data.attendance.total_records > 0 ? (
-            <Card>
+          {attendance && attendance.total_records > 0 ? (
+            <Card style={styles.attendanceCard}>
               <ProgressBar
-                value={data.attendance.present_rate ?? 0}
+                value={attendance.present_rate ?? 0}
                 label="Present rate"
-                detail={`${data.attendance.total_records} records`}
+                detail={countNoun(attendance.total_records, 'record')}
                 tone="green"
+                thickness="thick"
               />
-              <View style={styles.grid}>
-                {attendanceTiles.map((item) => (
-                  <StatTile key={item.label} label={item.label} value={item.value} tone={item.tone} />
+              <View style={styles.mix}>
+                {mix.map((row) => (
+                  <View key={row.key} style={styles.mixCell}>
+                    <View style={[styles.mixDot, { backgroundColor: tones[row.tone].text }]} />
+                    <Text style={styles.mixValue}>{row.value}</Text>
+                    <Text style={styles.mixLabel}>{row.label}</Text>
+                  </View>
                 ))}
               </View>
+              {todayLine ? <Text style={styles.footnote}>{todayLine}</Text> : null}
             </Card>
           ) : (
-            <Card>
-              <Text style={styles.emptyLine}>No attendance recorded yet.</Text>
-            </Card>
+            <EmptyState
+              inline
+              title="No attendance on record"
+              body="The register fills as teachers take their sessions."
+              icon="clipboard-outline"
+              actionLabel="Open register"
+              onAction={() => router.push('/admin/attendance')}
+            />
           )}
         </View>
 
         <View style={styles.section}>
-          <SectionHeader title="Recent activity" detail="Last actions on record" />
+          <SectionHeader
+            title="Recent activity"
+            count={data?.recent_activity.length}
+            countNoun={data?.recent_activity.length === 1 ? 'action' : 'actions'}
+            countTone="gray"
+          />
           {data?.recent_activity.length ? (
-            <Card padded={false} style={styles.stack}>
-              {data.recent_activity.map((entry, index) => (
+            <Card padded={false}>
+              {data.recent_activity.slice(0, 6).map((entry, index) => (
                 <ListRow
                   key={entry.id}
                   icon="pulse-outline"
                   tone="gray"
                   title={entry.description}
                   subtitle={entry.actor ? `${entry.action} · ${entry.actor}` : entry.action}
-                  meta={formatDateTime(entry.timestamp)}
-                  divider={index < data.recent_activity.length - 1}
+                  meta={formatRelativeTime(entry.timestamp)}
+                  divider={index < Math.min(data.recent_activity.length, 6) - 1}
                   chevron={false}
                 />
               ))}
@@ -272,17 +456,41 @@ export default function AdminDashboardScreen() {
           )}
         </View>
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
-  scroll: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.xl },
+  content: { padding: spacing.lg, paddingBottom: spacing.xxxl, gap: spacing.xl },
   section: { gap: spacing.md },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
-  /** Rows inside a card carry their own separators so they read as one list. */
-  stack: { gap: 0 },
-  emptyLine: { ...typography.muted },
+  attendanceCard: { gap: spacing.lg },
+  feesCard: { gap: spacing.md },
+  feesHead: { gap: spacing.xxs },
+  feesCollected: { ...typography.figure, color: colors.text },
+  feesOf: { ...typography.caption, color: colors.textSubtle },
+  footnote: { ...typography.subtle, color: colors.textSubtle },
+  mix: { flexDirection: 'row', gap: spacing.sm },
+  mixCell: {
+    flex: 1,
+    alignItems: 'center',
+    gap: spacing.xxs,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceAlt,
+  },
+  mixDot: { width: 6, height: 6, borderRadius: radius.pill },
+  mixValue: { ...typography.heading, color: colors.text },
+  mixLabel: { ...typography.subtle, color: colors.textSubtle },
+  clear: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' },
+  clearDisc: {
+    width: 28,
+    height: 28,
+    borderRadius: radius.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: tones.green.background,
+  },
+  clearBody: { flex: 1, gap: spacing.xxs },
+  clearTitle: { ...typography.bodyStrong, color: colors.text },
+  clearLine: { ...typography.caption, color: colors.textSubtle },
 });

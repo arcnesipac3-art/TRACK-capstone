@@ -17,6 +17,8 @@ from datetime import timedelta
 import tempfile
 from unittest import mock
 
+from django.conf import settings
+from django.core import mail
 from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, connection, transaction
@@ -26,6 +28,8 @@ from django.urls import reverse
 from django.utils import timezone
 from rest_framework.test import APITestCase
 
+from .emails import send_enrollment_confirmation_email
+from .enrollment import POLICY_VERSION
 from .models import (
     ApplicationDocument,
     ApplicationReviewEvent,
@@ -39,6 +43,7 @@ from .models import (
     EnrollmentType,
     GradeLevel,
     Notification,
+    ParentProfile,
     SchoolYear,
     Section,
     StudentProfile,
@@ -254,7 +259,9 @@ class EnrollmentPeriodTests(EnrollmentTestCase):
         # The stored application is untouched; only new submissions stop.
         self.login_as(self.applicant1)
         response = self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("no longer accepting", str(response.data))
@@ -383,7 +390,9 @@ class ApplicationDraftTests(EnrollmentTestCase):
         application = self.make_draft()
         self.login_as(self.applicant1)
         response = self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn("Birth Certificate", str(response.data))
@@ -394,7 +403,9 @@ class ApplicationDraftTests(EnrollmentTestCase):
         with self.captureOnCommitCallbacks(execute=True):
             self.login_as(self.applicant1)
             response = self.client.post(
-                f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+                f"/api/enrollment/applications/my/{application.pk}/submit/",
+                {"consent": True},
+                format="json",
             )
         self.assertEqual(response.status_code, 200, response.content)
         application.refresh_from_db()
@@ -408,15 +419,111 @@ class ApplicationDraftTests(EnrollmentTestCase):
             ).exists()
         )
 
+    def test_submit_without_consent_is_refused(self):
+        """
+        The tick is what makes holding a learner's records lawful, so a filing
+        that arrives without it does not enter the Registrar's queue at all.
+        """
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Privacy Notice", str(response.data))
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.DRAFT)
+        self.assertIsNone(application.submitted_at)
+        self.assertIsNone(application.consent_given_at)
+
+    def test_submit_reads_a_form_encoded_false_as_no_consent(self):
+        """
+        A form-encoded retry sends the string "false", which Python would
+        happily treat as agreement.
+        """
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": "false"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.DRAFT)
+
+    def test_submit_stamps_the_notice_version(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f"/api/enrollment/applications/my/{application.pk}/submit/",
+                {"consent": True},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 200, response.content)
+        application.refresh_from_db()
+        self.assertIsNotNone(application.consent_given_at)
+        self.assertEqual(application.consent_policy_version, POLICY_VERSION)
+
+    def test_resubmit_without_consent_is_refused(self):
+        application = self.make_draft()
+        self.fill_required_documents(application)
+        self.login_as(self.applicant1)
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
+        )
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        document = application.documents.get(is_required=True)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/documents/{document.pk}/action/",
+            {"action": "return", "note": "The scan is unreadable."},
+            format="json",
+        )
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f"/api/enrollment/applications/{application.pk}/action/",
+                {"action": "request_corrections", "note": "Please re-upload the certificate."},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 200, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.INCOMPLETE)
+
+        self.login_as(self.applicant1)
+        self.fill_required_documents(application)
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/resubmit/",
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Privacy Notice", str(response.data))
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.INCOMPLETE)
+
     def test_double_submit_is_rejected_not_duplicated(self):
         application = self.make_draft()
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         first = self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         second = self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 400)
@@ -445,7 +552,9 @@ class ApplicationDraftTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         response = self.client.patch(
             f"/api/enrollment/applications/my/{application.pk}/",
@@ -459,7 +568,9 @@ class ApplicationDraftTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         response = self.client.delete(
             f"/api/enrollment/applications/my/{application.pk}/"
@@ -485,7 +596,9 @@ class ApplicationDraftTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         with self.captureOnCommitCallbacks(execute=True):
             self.client.post(
@@ -517,7 +630,9 @@ class ApplicationDraftTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.login_as(self.registrar)
         self.client.post(
@@ -564,7 +679,9 @@ class ApplicationDraftTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         with self.captureOnCommitCallbacks(execute=True):
             response = self.client.post(
@@ -610,7 +727,9 @@ class StatusTransitionTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.login_as(self.registrar)
         response = self.client.post(
@@ -625,7 +744,9 @@ class StatusTransitionTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.login_as(self.registrar)
         response = self.client.post(
@@ -663,7 +784,9 @@ class StatusTransitionTests(EnrollmentTestCase):
         self.login_as(self.applicant1)
         self.fill_required_documents(application)
         response = self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/resubmit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/resubmit/",
+            {"consent": True},
+            format="json",
         )
         self.assertEqual(response.status_code, 200, response.content)
         application.refresh_from_db()
@@ -684,7 +807,9 @@ class StatusTransitionTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.login_as(self.registrar)
         self.client.post(
@@ -703,7 +828,9 @@ class StatusTransitionTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.login_as(self.registrar)
         self.client.post(
@@ -730,7 +857,9 @@ class StatusTransitionTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.login_as(self.registrar)
         self.client.post(
@@ -904,7 +1033,9 @@ class DocumentUploadTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         document = application.documents.get(is_required=True)
         response = self.client.post(
@@ -954,7 +1085,9 @@ class ApplicantAccessTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.login_as(self.registrar)
         self.client.post(
@@ -1004,7 +1137,9 @@ class SectionCapacityTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(applicant)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.login_as(self.registrar)
         self.client.post(
@@ -1139,7 +1274,9 @@ class ConfirmEnrollmentTests(EnrollmentTestCase):
         applicant = application.applicant
         self.login_as(applicant)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.login_as(self.registrar)
         self.client.post(
@@ -1212,7 +1349,9 @@ class ConfirmEnrollmentTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         # A student certainly cannot confirm.
         response = self.client.post(
@@ -1264,7 +1403,9 @@ class ConfirmEnrollmentTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.student1_user)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.login_as(self.registrar)
         self.client.post(
@@ -1300,7 +1441,9 @@ class ConfirmEnrollmentTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.login_as(self.registrar)
         self.client.post(
@@ -1328,7 +1471,9 @@ class ConfirmEnrollmentTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.login_as(self.registrar)
         self.client.post(
@@ -1366,7 +1511,9 @@ class ConfirmEnrollmentTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.login_as(self.registrar)
         self.client.post(
@@ -1402,7 +1549,9 @@ class ConfirmEnrollmentTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.login_as(self.registrar)
         self.client.post(
@@ -1441,7 +1590,9 @@ class StaffQueueAndReportTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(applicant)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         return application
 
@@ -1491,7 +1642,9 @@ class StaffQueueAndReportTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.student1_user)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.login_as(self.registrar)
         self.client.post(
@@ -1524,7 +1677,9 @@ class StaffQueueAndReportTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(self.applicant1)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         self.login_as(self.registrar)
         self.client.post(
@@ -1567,7 +1722,9 @@ class StudentRecordReadsTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.login_as(applicant)
         self.client.post(
-            f"/api/enrollment/applications/my/{application.pk}/submit/", format="json"
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
         )
         return application
 
@@ -1841,6 +1998,7 @@ class GuestEnrollmentTests(EnrollmentTestCase):
 
         response = self.client.post(
             f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
             format="json", **headers,
         )
         self.assertEqual(response.status_code, 200, response.content)
@@ -1975,21 +2133,30 @@ class AccountClaimTests(EnrollmentTestCase):
         cache.clear()
         super().tearDown()
 
-    def build_guest_confirmed(self, lrn="100000000555"):
+    def build_guest_confirmed(
+        self, lrn="100000000555", applicant_email=None, guardian=None
+    ):
         """Drive a public application all the way to a confirmed enrollment."""
         data = self.guest_create()
         headers = self.guest_headers(data["guest_token"])
         application = EnrollmentApplication.objects.get(pk=data["id"])
+        identity = {
+            "first_name": "Juan", "last_name": "Dela Cruz",
+            "date_of_birth": "2012-05-04", "guardian_email": "maria@example.com",
+        }
+        if applicant_email is not None:
+            identity["applicant_email"] = applicant_email
+        identity.update(guardian or {})
         response = self.client.patch(
             f"/api/enrollment/applications/my/{application.pk}/",
-            {"first_name": "Juan", "last_name": "Dela Cruz",
-             "date_of_birth": "2012-05-04", "guardian_email": "maria@example.com"},
+            identity,
             format="json", **headers,
         )
         self.assertEqual(response.status_code, 200, response.content)
         self.guest_upload_required_documents(application, data["guest_token"])
         response = self.client.post(
             f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
             format="json", **headers,
         )
         self.assertEqual(response.status_code, 200, response.content)
@@ -2017,6 +2184,62 @@ class AccountClaimTests(EnrollmentTestCase):
         application.refresh_from_db()
         return application, data
 
+    def build_parent_confirmed(self, lrn="100000000557"):
+        """Drive an application filed by a signed-in parent to confirmation.
+
+        The parent applies for a child who has no record yet, so the Registrar
+        mints the learner's identity at confirmation: the applicant already
+        holds an account while the learner is still waiting for one.
+        """
+        self.parent.email = "pia@example.com"
+        self.parent.save(update_fields=["email"])
+        self.login_as(self.parent)
+        response = self.client.post(
+            "/api/enrollment/applications/my/",
+            {"period": self.period.pk, "enrollment_type": EnrollmentType.NEW,
+             "grade_level": self.grade7.pk},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 201, response.content)
+        application = EnrollmentApplication.objects.get(pk=response.data["id"])
+        response = self.client.patch(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            {"first_name": "Nina", "last_name": "Dela Cruz",
+             "date_of_birth": "2012-07-08", "guardian_contact": "0917 123 4567"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.fill_required_documents(application)
+        response = self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+
+        self.login_as(self.registrar)
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        application = self.accept_application(application)
+        application.lrn = lrn
+        application.save()
+        response = self.client.post(
+            f"/api/enrollment/applications/{application.pk}/assign-section/",
+            {"section": self.section_a.pk}, format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(
+                f"/api/enrollment/applications/{application.pk}/confirm/",
+                format="json",
+            )
+        self.assertEqual(response.status_code, 201, response.content)
+        application.refresh_from_db()
+        return application
+
     def test_confirmation_issues_a_one_time_claim_token(self):
         application, data = self.build_guest_confirmed()
         self.assertEqual(application.status, ApplicationStatus.ENROLLED)
@@ -2042,7 +2265,7 @@ class AccountClaimTests(EnrollmentTestCase):
 
         response = self.client.post(
             "/api/enrollment/claim-account/",
-            {"claim_token": claim_token, "username": "juandelacruz",
+            {"consent": True, "claim_token": claim_token, "username": "juandelacruz",
              "password": "Claim-Passw0rd!"},
             format="json",
         )
@@ -2075,17 +2298,38 @@ class AccountClaimTests(EnrollmentTestCase):
         # ...and the claim token is single-use.
         response = self.client.post(
             "/api/enrollment/claim-account/",
-            {"claim_token": claim_token, "username": "secondaccount",
+            {"consent": True, "claim_token": claim_token, "username": "secondaccount",
              "password": "Claim-Passw0rd!"},
             format="json",
         )
         self.assertEqual(response.status_code, 400)
 
+    def test_claim_refused_until_the_notice_is_acknowledged(self):
+        """
+        The claim creates the account, so the acknowledgement is what the
+        school holds for it — and a refused claim must write nothing.
+        """
+        application, data = self.build_guest_confirmed()
+        claim_token = application.account_claim_token
+        self.client.logout()
+        response = self.client.post(
+            "/api/enrollment/claim-account/",
+            {"claim_token": claim_token, "username": "ninthstudent",
+             "password": "Claim-Passw0rd!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Privacy Notice", str(response.data))
+        application.refresh_from_db()
+        self.assertIsNone(application.account_claimed_at)
+        self.assertEqual(application.account_claim_token, claim_token)
+        self.assertFalse(User.objects.filter(username="ninthstudent").exists())
+
     def test_claim_requires_a_confirmed_enrollment(self):
         self.client.logout()
         response = self.client.post(
             "/api/enrollment/claim-account/",
-            {"claim_token": "f" * 32, "username": "someone",
+            {"consent": True, "claim_token": "f" * 32, "username": "someone",
              "password": "Claim-Passw0rd!"},
             format="json",
         )
@@ -2098,7 +2342,7 @@ class AccountClaimTests(EnrollmentTestCase):
         application.save()
         response = self.client.post(
             "/api/enrollment/claim-account/",
-            {"claim_token": "e" * 32, "username": "someone",
+            {"consent": True, "claim_token": "e" * 32, "username": "someone",
              "password": "Claim-Passw0rd!"},
             format="json",
         )
@@ -2113,7 +2357,7 @@ class AccountClaimTests(EnrollmentTestCase):
         # Taken username.
         response = self.client.post(
             "/api/enrollment/claim-account/",
-            {"claim_token": claim_token, "username": "t_applicant1",
+            {"consent": True, "claim_token": claim_token, "username": "t_applicant1",
              "password": "Claim-Passw0rd!"},
             format="json",
         )
@@ -2123,7 +2367,7 @@ class AccountClaimTests(EnrollmentTestCase):
         # Weak password.
         response = self.client.post(
             "/api/enrollment/claim-account/",
-            {"claim_token": claim_token, "username": "freshstudent",
+            {"consent": True, "claim_token": claim_token, "username": "freshstudent",
              "password": "12345678"},
             format="json",
         )
@@ -2132,7 +2376,7 @@ class AccountClaimTests(EnrollmentTestCase):
 
         # Missing pieces.
         response = self.client.post(
-            "/api/enrollment/claim-account/", {"claim_token": claim_token},
+            "/api/enrollment/claim-account/", {"consent": True, "claim_token": claim_token},
             format="json",
         )
         self.assertEqual(response.status_code, 400)
@@ -2171,6 +2415,649 @@ class AccountClaimTests(EnrollmentTestCase):
         expected = Enrollment.objects.get(application=application)
         self.assertEqual(response.data[0]["id"], expected.pk)
 
+    # -- the email that carries the link -----------------------------------
+
+    def test_an_account_holder_inherits_their_own_login_email(self):
+        # The address was proved when the account was created, so the wizard
+        # must not ask for it again — and a decision reaches that account.
+        self.applicant1.email = "new.kid@example.com"
+        self.applicant1.save(update_fields=["email"])
+
+        application = self.make_draft()
+        self.assertEqual(application.applicant_email, "new.kid@example.com")
+
+    def test_the_applicant_email_must_actually_be_an_address(self):
+        # The confirmation link is delivered here, so a typo would mail the
+        # family's enrollment into a dead inbox.
+        data = self.guest_create()
+        application = EnrollmentApplication.objects.get(pk=data["id"])
+        response = self.client.patch(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            {"applicant_email": "juan-at-example"},
+            format="json", **self.guest_headers(data["guest_token"]),
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("applicant_email", response.data)
+
+        response = self.client.patch(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            {"applicant_email": "juan@example.com"},
+            format="json", **self.guest_headers(data["guest_token"]),
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.applicant_email, "juan@example.com")
+
+    def test_confirmation_emails_the_claim_link(self):
+        mail.outbox = []
+        application, _ = self.build_guest_confirmed()
+
+        self.assertEqual(len(mail.outbox), 1, "one notice per confirmation")
+        message = mail.outbox[0]
+        self.assertEqual(message.to, ["maria@example.com"])
+        self.assertIn(application.reference, message.subject)
+        self.assertIn("Juan Dela Cruz", message.body)
+        self.assertIn(
+            f"{settings.TRACK_APP_BASE_URL}/enroll/claim?token="
+            f"{application.account_claim_token}",
+            message.body,
+        )
+
+    def test_confirmation_email_prefers_the_applicants_own_address(self):
+        mail.outbox = []
+        self.build_guest_confirmed(applicant_email="juan@example.com")
+
+        self.assertEqual(mail.outbox[0].to, ["juan@example.com"])
+
+    def test_confirmation_email_links_sign_in_when_the_account_already_exists(self):
+        # An LRN that already belongs to a student: no credential is minted,
+        # so the email must point at the account the school already has
+        # rather than a setup link that would only ever fail.
+        mail.outbox = []
+        application, _ = self.build_guest_confirmed(lrn="100000000001")
+
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertNotIn("/enroll/claim?token=", message.body)
+        self.assertIn(f"{settings.TRACK_APP_BASE_URL}/login", message.body)
+
+    def test_no_email_when_the_application_holds_no_address(self):
+        application, _ = self.build_guest_confirmed()
+        application.applicant_email = ""
+        application.guardian_email = ""
+        application.save(update_fields=["applicant_email", "guardian_email"])
+        enrollment = Enrollment.objects.get(application=application)
+
+        mail.outbox = []
+        with mock.patch("core.emails.logger.exception") as report:
+            result = send_enrollment_confirmation_email(application, enrollment)
+
+        self.assertIsNone(result)
+        self.assertEqual(mail.outbox, [])
+        report.assert_not_called()
+
+    def test_a_dead_mail_server_does_not_undo_the_confirmation(self):
+        # The enrollment is committed before the message is attempted, and a
+        # failing backend is logged and swallowed — never raised.
+        self.client.logout()
+        data = self.guest_create()
+        headers = self.guest_headers(data["guest_token"])
+        application = EnrollmentApplication.objects.get(pk=data["id"])
+        self.client.patch(
+            f"/api/enrollment/applications/my/{application.pk}/",
+            {"first_name": "Juan", "last_name": "Dela Cruz",
+             "date_of_birth": "2012-05-04", "guardian_email": "maria@example.com"},
+            format="json", **headers,
+        )
+        self.guest_upload_required_documents(application, data["guest_token"])
+        self.client.post(
+            f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
+            format="json", **headers,
+        )
+        self.login_as(self.registrar)
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/action/",
+            {"action": "start_review"}, format="json",
+        )
+        self.accept_application(application)
+        application.lrn = "100000000556"
+        application.save()
+        self.client.post(
+            f"/api/enrollment/applications/{application.pk}/assign-section/",
+            {"section": self.section_a.pk}, format="json",
+        )
+
+        mail.outbox = []
+        with mock.patch(
+            "core.emails.send_mail", side_effect=OSError("smtp unreachable")
+        ):
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(
+                    f"/api/enrollment/applications/{application.pk}/confirm/",
+                    format="json",
+                )
+
+        self.assertEqual(response.status_code, 201, response.content)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.ENROLLED)
+        self.assertTrue(application.account_claim_token)
+
+    # -- what the emailed link resolves to ---------------------------------
+
+    def test_claim_lookup_names_the_enrollment_and_nothing_else(self):
+        application, _ = self.build_guest_confirmed()
+        self.client.logout()
+
+        response = self.client.get(
+            "/api/enrollment/claim-account/",
+            {"token": application.account_claim_token},
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.data["claim_available"])
+        self.assertEqual(response.data["learner_name"], "Juan Dela Cruz")
+        self.assertEqual(response.data["reference"], application.reference)
+        # One credential reads one line of the file, not the file.
+        self.assertEqual(
+            set(response.data),
+            {
+                "reference", "learner_name", "status", "claim_available",
+                "detail", "guardian_name", "guardian_relationship",
+                "guardian_account_exists",
+            },
+        )
+        # The application never named a guardian, so the page gets nothing
+        # to build a panel from.
+        self.assertEqual(response.data["guardian_name"], "")
+        self.assertFalse(response.data["guardian_account_exists"])
+
+    def test_claim_lookup_rejects_an_unknown_or_empty_token(self):
+        self.client.logout()
+        for token in ("", "0" * 32, "f" * 32):
+            response = self.client.get(
+                "/api/enrollment/claim-account/", {"token": token}
+            )
+            self.assertEqual(response.status_code, 404, token)
+            self.assertIn("not valid", str(response.data))
+
+    def test_claim_lookup_says_so_while_the_enrollment_is_unconfirmed(self):
+        data = self.guest_create()
+        application = EnrollmentApplication.objects.get(pk=data["id"])
+        application.account_claim_token = "e" * 32
+        application.save(update_fields=["account_claim_token"])
+        self.client.logout()
+
+        response = self.client.get(
+            "/api/enrollment/claim-account/", {"token": "e" * 32}
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertFalse(response.data["claim_available"])
+        self.assertIn("not confirmed", response.data["detail"])
+
+    def test_a_trashed_application_stops_answering_its_emailed_link(self):
+        application, _ = self.build_guest_confirmed()
+        application.deleted_at = timezone.now()
+        application.save(update_fields=["deleted_at"])
+        claim_token = application.account_claim_token
+        self.client.logout()
+
+        response = self.client.get(
+            "/api/enrollment/claim-account/", {"token": claim_token}
+        )
+        self.assertEqual(response.status_code, 404, response.content)
+        response = self.client.post(
+            "/api/enrollment/claim-account/",
+            {"consent": True, "claim_token": claim_token, "username": "freshstudent",
+             "password": "Claim-Passw0rd!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+
+    def test_a_spent_claim_link_stops_answering(self):
+        application, _ = self.build_guest_confirmed()
+        claim_token = application.account_claim_token
+        self.client.logout()
+
+        response = self.client.post(
+            "/api/enrollment/claim-account/",
+            {"consent": True, "claim_token": claim_token, "username": "usedonce",
+             "password": "Claim-Passw0rd!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+
+        response = self.client.get(
+            "/api/enrollment/claim-account/", {"token": claim_token}
+        )
+        self.assertEqual(response.status_code, 404, response.content)
+
+    # -- the guardian the application names --------------------------------
+
+    GUARDIAN_ON_APPLICATION = {
+        "guardian_name": "Maria Dela Cruz",
+        "guardian_relationship": "Mother",
+        "guardian_contact": "0917 123 4567",
+    }
+
+    def test_claim_lookup_offers_the_guardian_the_application_names(self):
+        application, _ = self.build_guest_confirmed(
+            guardian=self.GUARDIAN_ON_APPLICATION
+        )
+        self.client.logout()
+
+        response = self.client.get(
+            "/api/enrollment/claim-account/",
+            {"token": application.account_claim_token},
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.data["claim_available"])
+        self.assertEqual(response.data["guardian_name"], "Maria Dela Cruz")
+        self.assertEqual(response.data["guardian_relationship"], "Mother")
+        # A public applicant has no account, so the second one is still to be
+        # made — the page can show its panel without asking the server again.
+        self.assertFalse(response.data["guardian_account_exists"])
+
+    def test_claim_lookup_keeps_the_guardian_quiet_while_the_link_is_not_live(self):
+        # A token written on an application that was never confirmed cannot
+        # set up anybody, so it must not hand the page a guardian to collect
+        # credentials for.
+        data = self.guest_create()
+        application = EnrollmentApplication.objects.get(pk=data["id"])
+        application.account_claim_token = "d" * 32
+        application.guardian_name = "Maria Dela Cruz"
+        application.save(update_fields=["account_claim_token", "guardian_name"])
+        self.client.logout()
+
+        response = self.client.get(
+            "/api/enrollment/claim-account/", {"token": "d" * 32}
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertFalse(response.data["claim_available"])
+        self.assertEqual(response.data["guardian_name"], "")
+        self.assertFalse(response.data["guardian_account_exists"])
+
+    def test_the_same_link_opens_the_guardians_account_too(self):
+        application, _ = self.build_guest_confirmed(
+            guardian=self.GUARDIAN_ON_APPLICATION
+        )
+        claim_token = application.account_claim_token
+        self.client.logout()
+
+        response = self.client.post(
+            "/api/enrollment/claim-account/",
+            {"consent": True, "claim_token": claim_token, "username": "learnerone",
+             "password": "Learner-Passw0rd!", "guardian_username": "guardianone",
+             "guardian_password": "Guardian-Passw0rd!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.data["guardian_created"])
+        # The session handed back is the learner's — the guardian signs in
+        # with their own credentials, not through this response.
+        self.assertEqual(response.data["user"]["username"], "learnerone")
+
+        guardian = User.objects.get(username="guardianone")
+        self.assertEqual(guardian.role, User.Role.PARENT)
+        self.assertEqual(guardian.get_full_name(), "Maria Dela Cruz")
+        self.assertEqual(guardian.email, "maria@example.com")
+        self.assertTrue(guardian.check_password("Guardian-Passw0rd!"))
+        self.assertEqual(guardian.parent_profile.contact_number, "0917 123 4567")
+        self.assertIn(application.student, guardian.parent_profile.children.all())
+        self.assertIn(
+            guardian, [profile.user for profile in application.student.parents.all()]
+        )
+        self.assertTrue(
+            application.student.user.check_password("Learner-Passw0rd!")
+        )
+
+        # The learner's claim completed exactly as it would have alone.
+        application.refresh_from_db()
+        self.assertEqual(application.applicant_id, application.student.user_id)
+        self.assertIsNone(application.account_claim_token)
+        self.assertIsNotNone(application.account_claimed_at)
+
+        # Both accounts are on the application's record.
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action="enrollment.guardian_account_created",
+                target_id=str(application.pk),
+            ).exists()
+        )
+        self.assertTrue(
+            ApplicationReviewEvent.objects.filter(
+                application=application, action="guardian_account_created"
+            ).exists()
+        )
+
+        # The guardian now reads the child's enrollment.
+        self.client.logout()
+        self.assertTrue(
+            self.client.login(username="guardianone", password="Guardian-Passw0rd!")
+        )
+        response = self.client.get("/api/enrollment/my-enrollments/")
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(len(response.data), 1)
+
+    def test_confirmation_links_the_parent_who_filed_the_application(self):
+        application = self.build_parent_confirmed()
+        self.assertEqual(application.applicant_id, self.parent.pk)
+        self.assertIn(
+            application.student, self.parent.parent_profile.children.all()
+        )
+        # The fixture's own linked child is untouched, so nothing was replaced.
+        self.assertEqual(self.parent.parent_profile.children.count(), 2)
+
+    def test_the_guardian_panel_is_skipped_when_a_parent_filed_the_application(self):
+        application = self.build_parent_confirmed()
+        self.client.logout()
+
+        response = self.client.get(
+            "/api/enrollment/claim-account/",
+            {"token": application.account_claim_token},
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.data["claim_available"])
+        self.assertEqual(response.data["guardian_name"], "Pia Parent")
+        self.assertTrue(response.data["guardian_account_exists"])
+
+        # The learner still claims — and no second guardian is offered.
+        response = self.client.post(
+            "/api/enrollment/claim-account/",
+            {"consent": True, "claim_token": application.account_claim_token,
+             "username": "childone", "password": "Claim-Passw0rd!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertFalse(response.data["guardian_created"])
+
+    def test_a_second_guardian_account_is_refused_when_the_parent_applied(self):
+        application = self.build_parent_confirmed()
+        claim_token = application.account_claim_token
+        self.client.logout()
+
+        response = self.client.post(
+            "/api/enrollment/claim-account/",
+            {"consent": True, "claim_token": claim_token, "username": "childtwo",
+             "password": "Claim-Passw0rd!", "guardian_username": "secondparent",
+             "guardian_password": "Guardian-Passw0rd!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("already has an account", str(response.data))
+        self.assertFalse(User.objects.filter(username="secondparent").exists())
+
+        # Refused before anything was written: the link is still the one the
+        # family can use.
+        application.refresh_from_db()
+        self.assertEqual(application.account_claim_token, claim_token)
+        self.assertIsNone(application.account_claimed_at)
+
+    def test_guardian_credentials_are_validated_before_the_claim_runs(self):
+        application, _ = self.build_guest_confirmed(
+            guardian=self.GUARDIAN_ON_APPLICATION
+        )
+        claim_token = application.account_claim_token
+        learner_username = application.student.user.username
+        self.client.logout()
+
+        def claim(guardian_username, guardian_password, **learner):
+            payload = {
+                "consent": True,
+                "claim_token": claim_token, "username": "learnerone",
+                "password": "Learner-Passw0rd!",
+            }
+            payload.update(learner)
+            if guardian_username is not None:
+                payload["guardian_username"] = guardian_username
+            if guardian_password is not None:
+                payload["guardian_password"] = guardian_password
+            return self.client.post(
+                "/api/enrollment/claim-account/", payload, format="json"
+            )
+
+        # Only one half of the pair.
+        response = claim("guardianone", None)
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("both a username and a password", str(response.data))
+
+        # The learner's own username reused.
+        response = claim("learnerone", "Guardian-Passw0rd!")
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("guardian_username", response.data)
+
+        # Already taken by somebody else.
+        response = claim("t_applicant1", "Guardian-Passw0rd!")
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("already taken", str(response.data))
+
+        # Too weak for the school's rules.
+        response = claim("guardianone", "12345678")
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("guardian_password", response.data)
+
+        # Every refusal left the enrollment exactly as the family received it.
+        application.refresh_from_db()
+        self.assertEqual(application.account_claim_token, claim_token)
+        self.assertIsNone(application.account_claimed_at)
+        self.assertEqual(
+            User.objects.get(pk=application.student.user_id).username,
+            learner_username,
+        )
+        self.assertFalse(User.objects.filter(username="guardianone").exists())
+        self.assertFalse(ParentProfile.objects.filter(user__username="guardianone").exists())
+
+    def test_a_taken_guardian_username_writes_nothing_at_all(self):
+        application, _ = self.build_guest_confirmed(
+            guardian=self.GUARDIAN_ON_APPLICATION
+        )
+        claim_token = application.account_claim_token
+        learner_id = application.student.user_id
+        learner_username = application.student.user.username
+        password_before = User.objects.get(pk=learner_id).password
+        self.client.logout()
+
+        response = self.client.post(
+            "/api/enrollment/claim-account/",
+            {"consent": True, "claim_token": claim_token, "username": "learnerone",
+             "password": "Learner-Passw0rd!", "guardian_username": "t_applicant1",
+             "guardian_password": "Guardian-Passw0rd!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("guardian_username", response.data)
+
+        # The guardian's username is refused before the learner's credentials
+        # are touched, so the family still holds the working link and the
+        # account they were told about — nothing is half-set-up.
+        application.refresh_from_db()
+        self.assertEqual(application.account_claim_token, claim_token)
+        self.assertIsNone(application.account_claimed_at)
+        self.assertIsNone(application.applicant_id)
+        self.assertEqual(User.objects.get(pk=learner_id).password, password_before)
+        self.assertEqual(User.objects.get(pk=learner_id).username, learner_username)
+
+    # -- the Registrar resending that link ---------------------------------
+
+    def resend_url(self, application):
+        return f"/api/enrollment/applications/{application.pk}/resend-claim-link/"
+
+    def test_resend_writes_a_new_link_and_voids_the_one_in_the_inbox(self):
+        application, _ = self.build_guest_confirmed(
+            guardian=self.GUARDIAN_ON_APPLICATION
+        )
+        old_token = application.account_claim_token
+        mail.outbox = []
+        self.login_as(self.registrar)
+
+        with self.captureOnCommitCallbacks(execute=True):
+            response = self.client.post(self.resend_url(application), format="json")
+        self.assertEqual(response.status_code, 200, response.content)
+
+        application.refresh_from_db()
+        new_token = application.account_claim_token
+        self.assertNotEqual(new_token, old_token)
+        self.assertEqual(len(new_token), 32)
+        self.assertIsNone(application.account_claimed_at)
+        self.assertEqual(application.status, ApplicationStatus.ENROLLED)
+        self.assertTrue(response.data["claim_link_pending"])
+
+        # The link sitting in the family's inbox is now a dead end; the new one
+        # answers, and still only names the enrollment.
+        self.client.logout()
+        self.assertEqual(
+            self.client.get(
+                "/api/enrollment/claim-account/", {"token": old_token}
+            ).status_code,
+            404,
+        )
+        response = self.client.get(
+            "/api/enrollment/claim-account/", {"token": new_token}
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.data["claim_available"])
+        self.assertEqual(response.data["guardian_name"], "Maria Dela Cruz")
+
+        # One message, worded as a reissue, carrying only the live link.
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.to, ["maria@example.com"])
+        self.assertIn("Setup link resent", message.subject)
+        self.assertIn(new_token, message.body)
+        self.assertNotIn(old_token, message.body)
+
+        # And it is on the record who did it.
+        self.assertTrue(
+            AuditLog.objects.filter(
+                action="enrollment.claim_link_resent",
+                target_id=str(application.pk),
+                actor=self.registrar,
+            ).exists()
+        )
+        event = ApplicationReviewEvent.objects.filter(
+            application=application, action="claim_link_resent"
+        ).first()
+        self.assertIsNotNone(event)
+        self.assertIn("maria@example.com", event.internal_note)
+
+    def test_resend_refuses_a_link_the_family_already_used(self):
+        application, _ = self.build_guest_confirmed()
+        claim_token = application.account_claim_token
+        self.client.logout()
+        response = self.client.post(
+            "/api/enrollment/claim-account/",
+            {"consent": True, "claim_token": claim_token, "username": "alreadyclaimed",
+             "password": "Claim-Passw0rd!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+
+        mail.outbox = []
+        self.login_as(self.registrar)
+        response = self.client.post(self.resend_url(application), format="json")
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("already been set up", str(response.data))
+        self.assertEqual(mail.outbox, [])
+
+    def test_resend_refuses_a_learner_who_already_had_an_account(self):
+        # An LRN match links a real identity and mints no credential, so there
+        # is nothing to resend — and a resend must not manufacture one.
+        application, _ = self.build_guest_confirmed(lrn="100000000001")
+        self.assertFalse(application.account_claim_token)
+        mail.outbox = []
+        self.login_as(self.registrar)
+
+        response = self.client.post(self.resend_url(application), format="json")
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("already had a TRACK account", str(response.data))
+        application.refresh_from_db()
+        self.assertIsNone(application.account_claim_token)
+        self.assertEqual(mail.outbox, [])
+
+    def test_resend_refuses_when_there_is_nothing_to_email(self):
+        # Invalidating a live link with no replacement would leave the family
+        # with less than they had, so the address is checked first.
+        application, _ = self.build_guest_confirmed()
+        claim_token = application.account_claim_token
+        application.applicant_email = ""
+        application.guardian_email = ""
+        application.save(update_fields=["applicant_email", "guardian_email"])
+        mail.outbox = []
+        self.login_as(self.registrar)
+
+        response = self.client.post(self.resend_url(application), format="json")
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("no email address", str(response.data))
+        application.refresh_from_db()
+        self.assertEqual(application.account_claim_token, claim_token)
+        self.assertEqual(mail.outbox, [])
+
+    def test_resend_refuses_before_the_enrollment_is_confirmed(self):
+        application = self.make_draft()
+        self.login_as(self.registrar)
+
+        response = self.client.post(self.resend_url(application), format="json")
+        self.assertEqual(response.status_code, 400, response.content)
+        self.assertIn("before that", str(response.data))
+
+    def test_resend_needs_the_enrollment_manage_key(self):
+        application, _ = self.build_guest_confirmed()
+        claim_token = application.account_claim_token
+        mail.outbox = []
+
+        for user in (self.plain_admin, self.teacher1, self.student1_user):
+            self.login_as(user)
+            response = self.client.post(self.resend_url(application), format="json")
+            self.assertEqual(response.status_code, 403, user.username)
+
+        self.client.logout()
+        response = self.client.post(self.resend_url(application), format="json")
+        self.assertEqual(response.status_code, 401)
+
+        application.refresh_from_db()
+        self.assertEqual(application.account_claim_token, claim_token)
+        self.assertEqual(mail.outbox, [])
+
+    def test_resend_of_a_trashed_application_is_not_found(self):
+        application, _ = self.build_guest_confirmed()
+        application.deleted_at = timezone.now()
+        application.save(update_fields=["deleted_at"])
+        self.login_as(self.registrar)
+
+        response = self.client.post(self.resend_url(application), format="json")
+        self.assertEqual(response.status_code, 404, response.content)
+
+    def test_staff_detail_marks_only_a_genuinely_pending_setup_link(self):
+        pending, _ = self.build_guest_confirmed()
+        already_claimed, _ = self.build_guest_confirmed(lrn="100000000558")
+        had_an_account, _ = self.build_guest_confirmed(lrn="100000000001")
+
+        self.login_as(self.registrar)
+        response = self.client.get(
+            f"/api/enrollment/applications/{pending.pk}/"
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertTrue(response.data["claim_link_pending"])
+        self.assertIsNone(response.data["account_claimed_at"])
+
+        # Once the family has set the account up the offer is gone.
+        claim_token = already_claimed.account_claim_token
+        self.client.logout()
+        response = self.client.post(
+            "/api/enrollment/claim-account/",
+            {"consent": True, "claim_token": claim_token, "username": "claimedalready",
+             "password": "Claim-Passw0rd!"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+
+        self.login_as(self.registrar)
+        for application in (already_claimed, had_an_account):
+            response = self.client.get(
+                f"/api/enrollment/applications/{application.pk}/"
+            )
+            self.assertEqual(response.status_code, 200, response.content)
+            self.assertFalse(response.data["claim_link_pending"], application.pk)
+
 
 # ---------------------------------------------------------------------------
 # Registrar trash bin (soft delete / restore / permanent purge)
@@ -2203,6 +3090,7 @@ class ApplicationTrashTests(EnrollmentTestCase):
             self.login_as(self.applicant1)
             self.client.post(
                 f"/api/enrollment/applications/my/{application.pk}/submit/",
+                {"consent": True},
                 format="json",
             )
             self.login_as(self.registrar)
@@ -2220,6 +3108,7 @@ class ApplicationTrashTests(EnrollmentTestCase):
             self.login_as(self.applicant1)
             self.client.post(
                 f"/api/enrollment/applications/my/{application.pk}/submit/",
+                {"consent": True},
                 format="json",
             )
             with self.captureOnCommitCallbacks(execute=True):
@@ -2288,6 +3177,7 @@ class ApplicationTrashTests(EnrollmentTestCase):
         self.fill_required_documents(application)
         self.client.post(
             f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
             format="json",
         )
         self.login_as(self.registrar)
@@ -2428,6 +3318,7 @@ class ApplicationTrashTests(EnrollmentTestCase):
         self.assertEqual(response.status_code, 404)
         response = self.client.post(
             f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
             format="json",
         )
         self.assertEqual(response.status_code, 404)
@@ -2490,6 +3381,7 @@ class ApplicationTrashTests(EnrollmentTestCase):
         self.guest_upload_required_documents(application, token)
         response = self.client.post(
             f"/api/enrollment/applications/my/{application.pk}/submit/",
+            {"consent": True},
             format="json", **self.guest_headers(token),
         )
         self.assertEqual(response.status_code, 200, response.content)

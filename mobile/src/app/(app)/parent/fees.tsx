@@ -16,6 +16,7 @@ import { countNoun, formatDate, formatPesoExact } from '../../../format';
 import type { StudentFeeSummary, StudentFeeAssessment } from '../../../api/types';
 import { EmptyState, ErrorState, LoadingState } from '../../../components/StateViews';
 import AppHeader from '../../../components/ui/AppHeader';
+import Screen from '../../../components/ui/Screen';
 import Badge from '../../../components/ui/Badge';
 
 type PaymentStatus = 'paid' | 'partial' | 'unpaid';
@@ -88,14 +89,17 @@ export default function ParentFeesScreen() {
   };
 
   return (
-    <View style={styles.screen}>
-      <AppHeader
-        hero
-        title="Children's Fees"
-        subtitle={summaries.length > 0
-          ? `${countNoun(summaries.length, 'child', 'children')} · Total Outstanding: ${formatPesoExact(summaries.reduce((a, b) => a + b.total_outstanding, 0))}`
-          : 'No fee data available'}
-      />
+    <Screen
+      header={
+        <AppHeader
+          hero
+          title="Children's Fees"
+          subtitle={summaries.length > 0
+            ? `${countNoun(summaries.length, 'child', 'children')} · Total Outstanding: ${formatPesoExact(summaries.reduce((a, b) => a + b.total_outstanding, 0))}`
+            : 'No fee data available'}
+        />
+      }
+    >
       <ScrollView
         style={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.blue]} />}
@@ -185,12 +189,11 @@ export default function ParentFeesScreen() {
           )))
         }
       </ScrollView>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.bg },
   scroll: { flex: 1, backgroundColor: colors.bg },
   content: { padding: spacing.xl, paddingBottom: spacing.xxl, gap: spacing.xl },
   section: { gap: spacing.md },
