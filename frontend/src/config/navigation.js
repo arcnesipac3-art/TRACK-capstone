@@ -53,6 +53,26 @@ export const NAVIGATION = {
       ],
     },
     { label: 'Fees', to: '/admin/fees', icon: 'creditCard', perm: 'fees.view' },
+    // Digital Clearance — again a container. There is no `/admin/clearance`
+    // page to land on: the periods, the learner records and an officer's queue
+    // are three different jobs, and the sidebar offers the real screens. The
+    // queue is listed for people who hold clearance.verify, which is what the
+    // endpoint behind it asks for.
+    {
+      label: 'Clearance',
+      container: true,
+      icon: 'shield',
+      perm: 'clearance.view',
+      children: [
+        { label: 'Overview', to: '/admin/clearance/overview', icon: 'grid', perm: 'clearance.view' },
+        { label: 'Clearance Periods', to: '/admin/clearance/periods', icon: 'calendar', perm: 'clearance.view' },
+        { label: 'Learners', to: '/admin/clearance/learners', icon: 'gradCap', perm: 'clearance.view' },
+        { label: 'Department Queue', to: '/admin/clearance/queue', icon: 'inbox', perm: 'clearance.verify' },
+        { label: 'Outstanding Items', to: '/admin/clearance/obligations', icon: 'alertTriangle', perm: 'clearance.view' },
+        { label: 'Categories & Kinds', to: '/admin/clearance/configuration', icon: 'layers', perm: 'clearance.view' },
+        { label: 'Clearance Reports', to: '/admin/clearance/reports', icon: 'file', perm: 'clearance.view' },
+      ],
+    },
     { label: 'Requirements', to: '/admin/requirements', icon: 'clipboard', perm: 'requirements.view' },
     { label: 'Attendance', to: '/admin/attendance', icon: 'calendar', perm: 'attendance.view' },
     { label: 'Announcements', to: '/announcements', icon: 'megaphone', perm: 'announcements.view' },
@@ -84,6 +104,9 @@ export const NAVIGATION = {
     { label: 'My Submissions', to: '/student/submissions', icon: 'file' },
     { label: 'My Attendance', to: '/student/attendance', icon: 'calendar' },
     { label: 'My Fees', to: '/student/fees', icon: 'creditCard' },
+    // What each office still wants before it releases you, and the certificate
+    // once the Registrar signs it off.
+    { label: 'My Clearance', to: '/student/clearance', icon: 'shield' },
     // The section's own week, read from the same schedules the Registrar sets.
     { label: 'My Schedule', to: '/student/schedule', icon: 'clock' },
     { label: 'Announcements', to: '/announcements', icon: 'megaphone' },
@@ -98,6 +121,9 @@ export const NAVIGATION = {
     { label: 'Requirements', to: '/parent/requirements', icon: 'clipboard' },
     { label: 'Attendance', to: '/parent/attendance', icon: 'calendar' },
     { label: 'Fees', to: '/parent/fees', icon: 'creditCard' },
+    // A linked child's checklist, read-only except where an office accepts a
+    // document from whichever device is in the house.
+    { label: 'Clearance', to: '/parent/clearance', icon: 'shield' },
     // One linked child's week, picked with the chips at the top of the page.
     { label: 'Schedule', to: '/parent/schedule', icon: 'clock' },
     { label: 'Announcements', to: '/announcements', icon: 'megaphone' },

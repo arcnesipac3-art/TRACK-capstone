@@ -604,3 +604,152 @@ def notify_message_received(conversation, message, recipient_ids):
             )
     except Exception:  # noqa: BLE001 - never break a send over a notification
         logger.exception("TRACK: message notification fan-out failed")
+
+
+# ---------------------------------------------------------------------------
+# Digital clearance
+# ---------------------------------------------------------------------------
+#
+# The learner is the person the clearance is about, so every one of these goes to
+# them and to the guardians linked to their record — a parent who cannot see that
+# the Library asked for a certificate has to ask their child instead. Officers
+# are not notified of their own queue: the verification screen is the queue, and
+# a bell copy of it would only drift.
+
+def _clearance_recipients(record):
+    """The learner's account plus every parent linked to them."""
+    recipients = {record.student.user_id}
+    recipients.update(_parents_of(record.student))
+    return recipients
+
+
+def _clearance_write(recipients, notif_type, title, body, record):
+    Notification.objects.bulk_create([
+        Notification(
+            recipient_id=user_id,
+            notif_type=notif_type,
+            title=title,
+            body=body,
+            clearance=record,
+        )
+        for user_id in recipients
+    ])
+
+
+def notify_clearance_assigned(record):
+    """Tell the learner a clearance period now expects things of them."""
+    def _write():
+        period = record.period
+        pending = record.departments.exclude(
+            status__in=["approved", "not_applicable"]
+        ).count()
+        _clearance_write(
+            _clearance_recipients(record),
+            Notification.NotifType.CLEARANCE_ASSIGNED,
+            f"Clearance open — {period.name}",
+            (
+                f"Your clearance for {period.name} ({period.school_year.label}) "
+                f"has started with {pending} department(s) to complete. Open My "
+                "Clearance to see what each office needs and by when."
+            ),
+            record,
+        )
+
+    return _silently(_write)
+
+
+def notify_clearance_decision(item, previous_status=""):
+    """
+    Tell the learner what a department just decided about them.
+
+    Only outcomes the learner has to act on or would want to know: a correction
+    request, a refusal and a sign-off. 'Under review' is deliberately silent —
+    an officer opening a file is not news twice a day.
+    """
+    from .models import DepartmentStatus
+
+    if item.status not in (
+        DepartmentStatus.APPROVED,
+        DepartmentStatus.REJECTED,
+        DepartmentStatus.NEEDS_CORRECTION,
+    ):
+        return None
+
+    def _write():
+        record = item.student_clearance
+        department = item.department.name
+        if item.status == DepartmentStatus.APPROVED:
+            notif_type = Notification.NotifType.CLEARANCE_UPDATE
+            title = f"{department} cleared you"
+            body = (
+                f"{department} signed off your clearance for {record.period.name}."
+            )
+        elif item.status == DepartmentStatus.REJECTED:
+            notif_type = Notification.NotifType.CLEARANCE_CORRECTION
+            title = f"{department} did not clear you"
+            body = (
+                f"{department} refused your clearance for {record.period.name}."
+            )
+            if item.decision_note:
+                body += f" Reason: {item.decision_note}"
+        else:
+            notif_type = Notification.NotifType.CLEARANCE_CORRECTION
+            title = f"{department} needs a correction"
+            body = (
+                f"{department} asked you to fix something in your clearance for "
+                f"{record.period.name}."
+            )
+            if item.decision_note:
+                body += f" Message: {item.decision_note}"
+        _clearance_write(
+            set(_clearance_recipients(record)), notif_type, title, body, record
+        )
+
+    return _silently(_write)
+
+
+def notify_clearance_obligation(obligation):
+    """
+    Tell the learner an office recorded something they still owe.
+
+    Called when an obligation is raised and when one is reopened — never when it
+    is settled, because resolving a debt is not news the learner must act on and
+    their clearance page already shows it closed.
+    """
+    def _write():
+        item = obligation.department_clearance
+        record = item.student_clearance
+        amount = (
+            f" of ₱{obligation.amount}" if obligation.amount is not None else ""
+        )
+        _clearance_write(
+            _clearance_recipients(record),
+            Notification.NotifType.CLEARANCE_CORRECTION,
+            f"Outstanding item at {item.department.name}",
+            (
+                f"{item.department.name} recorded “{obligation.title}”{amount} "
+                f"against your clearance for {record.period.name}. Open My "
+                "Clearance for the office's instructions."
+            ),
+            record,
+        )
+
+    return _silently(_write)
+
+
+def notify_clearance_cleared(record):
+    """Tell the learner they are cleared and their certificate is ready."""
+    def _write():
+        _clearance_write(
+            _clearance_recipients(record),
+            Notification.NotifType.CLEARANCE_CLEARED,
+            f"Cleared — {record.reference}",
+            (
+                f"{record.student.user.get_full_name()} is cleared for "
+                f"{record.period.name}. Reference {record.reference}. Download "
+                "the certificate from My Clearance."
+            ),
+            record,
+        )
+
+    return _silently(_write)

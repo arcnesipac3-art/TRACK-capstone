@@ -249,7 +249,7 @@ export const api = {
   post: (path, body, opts) => request(path, { ...opts, method: 'POST', body }),
   patch: (path, body, opts) => request(path, { ...opts, method: 'PATCH', body }),
   put: (path, body, opts) => request(path, { ...opts, method: 'PUT', body }),
-  delete: (path, opts) => request(path, { ...opts, method: 'DELETE' }),
+  delete: (path, body, opts) => request(path, { ...opts, method: 'DELETE', body }),
 
   // kept for backward-compat — no-op now (no CSRF needed with token auth)
   ensureCsrf: () => Promise.resolve(),

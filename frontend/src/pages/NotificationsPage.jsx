@@ -8,6 +8,7 @@ import StatusBadge from '../components/StatusBadge'
 import api from '../services/api'
 import useFetch from '../hooks/useFetch'
 import { NotificationsContext } from '../context/NotificationsContext'
+import { useAuth } from '../context/AuthContext'
 import { formatDateTime } from '../utils/format'
 import Button from '../components/Button'
 
@@ -26,6 +27,10 @@ const TYPE_LABELS = {
   enrollment_confirmed: 'Enrollment confirmed',
   message_received: 'Message',
   data_request_answered: 'Data request',
+  clearance_assigned: 'Clearance opened',
+  clearance_update: 'Office signed off',
+  clearance_correction: 'Clearance needs action',
+  clearance_cleared: 'Cleared',
 }
 
 export default function NotificationsPage() {
@@ -48,11 +53,20 @@ function SelfFetchingNotificationsView() {
 }
 
 function NotificationsView({ data, loading, error, reload }) {
+  const { user } = useAuth()
   const [busyId, setBusyId] = useState(null)
   const [allBusy, setAllBusy] = useState(false)
 
   const items = data || []
   const unread = items.filter((item) => !item.is_read).length
+  // Only these two roles have a clearance portal of their own; officers get
+  // their clearance news from the queue, not the bell.
+  const clearanceBase =
+    user?.role === 'student'
+      ? '/student/clearance'
+      : user?.role === 'parent'
+        ? '/parent/clearance'
+        : null
 
   async function markRead(item) {
     if (item.is_read) return
@@ -158,6 +172,16 @@ function NotificationsView({ data, loading, error, reload }) {
                       to={`/messages/?conversation=${item.conversation}`}
                     >
                       Open thread
+                    </Link>
+                  ) : null}
+                  {item.clearance && clearanceBase ? (
+                    // The body of a clearance notice tells the learner which
+                    // office wants what; only the checklist can answer it.
+                    <Link
+                      className="btn btn-secondary btn-sm"
+                      to={`${clearanceBase}/${item.clearance}`}
+                    >
+                      Open clearance
                     </Link>
                   ) : null}
                   {!item.is_read && (

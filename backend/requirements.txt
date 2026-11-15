@@ -35,3 +35,9 @@ dj-database-url==3.1.2
 # Production platforms set real environment variables; python-dotenv never
 # overrides values that are already set.
 python-dotenv==1.2.4
+
+# --- Digital clearance certificates (core/clearance_pdf.py) ---
+# The certificate is a record the school reissues on request, so it is rendered
+# from the stored decision server-side rather than printed from a screen that
+# changes with the period's configuration.
+reportlab==5.1.0

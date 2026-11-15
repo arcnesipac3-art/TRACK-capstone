@@ -5,6 +5,7 @@ All routes are prefixed with /api/ from config/urls.py
 
 from django.urls import path
 
+from . import clearance_views
 from . import enrollment_views
 from . import messaging_views
 from . import privacy_views
@@ -137,6 +138,51 @@ urlpatterns = [
     path("enrollment/enrollments/", enrollment_views.EnrollmentListView.as_view(), name="enrollment_list"),
     path("enrollment/dashboard/", enrollment_views.EnrollmentDashboardView.as_view(), name="enrollment_dashboard"),
     path("enrollment/reports/school-year/", enrollment_views.EnrollmentReportView.as_view(), name="enrollment_report"),
+
+    # ── Digital Clearance (see core/clearance.py) ───────────────────────────
+    # Configuration. `population/` is a literal segment and must be listed
+    # before the generic `<str:action>/` route that would otherwise swallow it.
+    path("clearance/options/", clearance_views.ClearanceOptionsView.as_view(), name="clearance_options"),
+    path("clearance/periods/", clearance_views.ClearancePeriodListCreateView.as_view(), name="clearance_period_list"),
+    path("clearance/periods/<int:pk>/", clearance_views.ClearancePeriodDetailView.as_view(), name="clearance_period_detail"),
+    path("clearance/periods/<int:pk>/population/", clearance_views.ClearancePeriodPopulationView.as_view(), name="clearance_period_population"),
+    path("clearance/periods/<int:period>/departments/", clearance_views.PeriodDepartmentListCreateView.as_view(), name="clearance_period_department_list"),
+    path("clearance/periods/<int:pk>/<str:action>/", clearance_views.ClearancePeriodActionView.as_view(), name="clearance_period_action"),
+    path("clearance/period-departments/<int:pk>/", clearance_views.PeriodDepartmentDetailView.as_view(), name="clearance_period_department_detail"),
+    path("clearance/period-departments/<int:period_department>/requirements/", clearance_views.ClearanceRequirementListCreateView.as_view(), name="clearance_requirement_list"),
+    path("clearance/requirements/<int:pk>/", clearance_views.ClearanceRequirementDetailView.as_view(), name="clearance_requirement_detail"),
+    path("clearance/categories/", clearance_views.ClearanceStudentCategoryListView.as_view(), name="clearance_category_list"),
+    path("clearance/categories/<int:pk>/", clearance_views.ClearanceStudentCategoryDetailView.as_view(), name="clearance_category_detail"),
+    path("clearance/obligation-types/", clearance_views.ObligationTypeListView.as_view(), name="clearance_obligation_type_list"),
+    path("clearance/obligation-types/<int:pk>/", clearance_views.ObligationTypeDetailView.as_view(), name="clearance_obligation_type_detail"),
+    # Monitoring, analytics and export
+    path("clearance/records/", clearance_views.StudentClearanceListView.as_view(), name="clearance_record_list"),
+    path("clearance/records/<int:pk>/", clearance_views.StudentClearanceDetailView.as_view(), name="clearance_record_detail"),
+    path("clearance/records/<int:pk>/finalize/", clearance_views.StudentClearanceFinalizeView.as_view(), name="clearance_record_finalize"),
+    path("clearance/dashboard/", clearance_views.ClearanceDashboardView.as_view(), name="clearance_dashboard"),
+    path("clearance/reports/", clearance_views.ClearanceReportView.as_view(), name="clearance_reports"),
+    path("clearance/obligations/", clearance_views.ClearanceObligationListView.as_view(), name="clearance_obligation_list"),
+    path("clearance/activity/", clearance_views.ClearanceActivityView.as_view(), name="clearance_activity"),
+    # Department verification portal — the queue is always scoped to the
+    # departments the signed-in person belongs to, never to a trusted parameter.
+    path("clearance/queue/", clearance_views.DepartmentQueueListView.as_view(), name="clearance_queue"),
+    path("clearance/queue/summary/", clearance_views.DepartmentQueueSummaryView.as_view(), name="clearance_queue_summary"),
+    path("clearance/queue/<int:pk>/", clearance_views.DepartmentClearanceDetailView.as_view(), name="clearance_queue_detail"),
+    path("clearance/queue/<int:pk>/decision/", clearance_views.DepartmentDecisionView.as_view(), name="clearance_queue_decision"),
+    path("clearance/queue/<int:pk>/reopen/", clearance_views.DepartmentReopenView.as_view(), name="clearance_queue_reopen"),
+    path("clearance/queue/<int:pk>/review-start/", clearance_views.DepartmentReviewStartView.as_view(), name="clearance_queue_review_start"),
+    path("clearance/queue/<int:pk>/documents/<int:submission_pk>/review/", clearance_views.DepartmentSubmissionReviewView.as_view(), name="clearance_queue_document_review"),
+    path("clearance/queue/<int:pk>/documents/<int:submission_pk>/download/", clearance_views.StaffSubmissionDownloadView.as_view(), name="clearance_queue_document_download"),
+    path("clearance/queue/<int:pk>/obligations/", clearance_views.DepartmentObligationView.as_view(), name="clearance_queue_obligations"),
+    path("clearance/obligations/<int:pk>/action/", clearance_views.ClearanceObligationActionView.as_view(), name="clearance_obligation_action"),
+    # Learner and guardian side — every route resolves the record through the
+    # signed-in account, so a learner cannot reach another learner's clearance.
+    path("clearance/my/", clearance_views.MyClearanceListView.as_view(), name="my_clearance"),
+    path("clearance/my/<int:pk>/", clearance_views.MyClearanceDetailView.as_view(), name="my_clearance_detail"),
+    path("clearance/my/<int:pk>/documents/<int:submission_pk>/upload/", clearance_views.MyClearanceUploadView.as_view(), name="my_clearance_document_upload"),
+    path("clearance/my/<int:pk>/documents/<int:submission_pk>/download/", clearance_views.MySubmissionDownloadView.as_view(), name="my_clearance_document_download"),
+    path("clearance/my/<int:pk>/certificate/", clearance_views.MyClearanceCertificateView.as_view(), name="my_clearance_certificate"),
+    path("clearance/certificate/lookup/", clearance_views.ClearanceCertificateLookupView.as_view(), name="clearance_certificate_lookup"),
 
     # ── Dashboard ────────────────────────────────────────────────────────────
     path("dashboard/", views.dashboard_summary, name="dashboard_summary"),

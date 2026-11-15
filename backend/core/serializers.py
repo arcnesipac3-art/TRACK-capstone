@@ -1061,11 +1061,11 @@ class NotificationSerializer(serializers.ModelSerializer):
         fields = [
             "id", "notif_type", "title", "body", "is_read",
             "requirement", "submission", "attendance_record",
-            "message", "conversation", "created_at",
+            "message", "conversation", "clearance", "created_at",
         ]
         read_only_fields = [
             "notif_type", "title", "body", "created_at",
-            "requirement", "submission", "attendance_record",
+            "requirement", "submission", "attendance_record", "clearance",
         ]
 
 

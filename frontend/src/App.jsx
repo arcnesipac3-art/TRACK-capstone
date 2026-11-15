@@ -76,6 +76,25 @@ const PublicEnrollPage = lazy(() => import('./pages/enrollment/PublicEnrollPage'
 const PublicTrackPage = lazy(() => import('./pages/enrollment/PublicTrackPage'))
 const ClaimAccountPage = lazy(() => import('./pages/enrollment/ClaimAccountPage'))
 
+// Digital Clearance — the Registrar's configuration and monitoring screens,
+// each department officer's own queue, and the checklist a learner or linked
+// guardian works through. The offices themselves are school configuration: the
+// screens read every department, requirement and obligation kind from the API,
+// and Django enforces clearance.view / manage / verify / finalize / export on
+// each endpoint behind them.
+const ClearanceOverviewPage = lazy(() => import('./pages/clearance/ClearanceOverviewPage'))
+const ClearancePeriodsPage = lazy(() => import('./pages/clearance/ClearancePeriodsPage'))
+const ClearancePeriodSetupPage = lazy(() => import('./pages/clearance/ClearancePeriodSetupPage'))
+const ClearanceLearnersPage = lazy(() => import('./pages/clearance/ClearanceLearnersPage'))
+const ClearanceLearnerReviewPage = lazy(() => import('./pages/clearance/ClearanceLearnerReviewPage'))
+const ClearanceQueuePage = lazy(() => import('./pages/clearance/ClearanceQueuePage'))
+const ClearanceQueueItemPage = lazy(() => import('./pages/clearance/ClearanceQueueItemPage'))
+const ClearanceObligationsPage = lazy(() => import('./pages/clearance/ClearanceObligationsPage'))
+const ClearanceReportsPage = lazy(() => import('./pages/clearance/ClearanceReportsPage'))
+const ClearanceConfigurationPage = lazy(() => import('./pages/clearance/ClearanceConfigurationPage'))
+const MyClearancePage = lazy(() => import('./pages/clearance/MyClearancePage'))
+const MyClearanceDetailPage = lazy(() => import('./pages/clearance/MyClearanceDetailPage'))
+
 export default function App() {
   const { hash, pathname } = useLocation()
 
@@ -180,6 +199,21 @@ export default function App() {
               <Route path="/admin/enrollment/reports" element={<RegistrarReportsPage />} />
               <Route path="/admin/enrollment/data-requests" element={<RegistrarDataRequestsPage />} />
             </Route>
+            <Route element={<ProtectedRoute permission="clearance.view" />}>
+              <Route path="/admin/clearance/overview" element={<ClearanceOverviewPage />} />
+              <Route path="/admin/clearance/periods" element={<ClearancePeriodsPage />} />
+              <Route path="/admin/clearance/periods/:id" element={<ClearancePeriodSetupPage />} />
+              <Route path="/admin/clearance/learners" element={<ClearanceLearnersPage />} />
+              <Route path="/admin/clearance/learners/:id" element={<ClearanceLearnerReviewPage />} />
+              {/* The officer's queue is the same administrator account with
+                  clearance.verify and a seat on the office; the server answers
+                  404 for any item outside those departments. */}
+              <Route path="/admin/clearance/queue" element={<ClearanceQueuePage />} />
+              <Route path="/admin/clearance/queue/:id" element={<ClearanceQueueItemPage />} />
+              <Route path="/admin/clearance/obligations" element={<ClearanceObligationsPage />} />
+              <Route path="/admin/clearance/configuration" element={<ClearanceConfigurationPage />} />
+              <Route path="/admin/clearance/reports" element={<ClearanceReportsPage />} />
+            </Route>
             <Route path="/admin/requirements" element={<RequirementsPage scope="admin" />} />
             <Route path="/admin/attendance" element={<AttendancePage mode="admin" />} />
             <Route element={<ProtectedRoute permission="fees.view" />}>
@@ -238,6 +272,10 @@ export default function App() {
             <Route path="/student/submissions" element={<SubmissionsPage mode="mine" />} />
             <Route path="/student/attendance" element={<AttendancePage mode="student" />} />
             <Route path="/student/fees" element={<StudentFeesPage />} />
+            {/* Own clearance only: /clearance/my/ is built from the signed-in
+                account, and a hand-typed record id answers 404. */}
+            <Route path="/student/clearance" element={<MyClearancePage scope="student" />} />
+            <Route path="/student/clearance/:id" element={<MyClearanceDetailPage scope="student" />} />
             {/* The section's timetable, read-only: the server answers
                 /schedules/ with this learner's own section and nothing else. */}
             <Route path="/student/schedule" element={<ClassTimetablePage scope="student" />} />
@@ -259,6 +297,10 @@ export default function App() {
             <Route path="/parent/requirements" element={<RequirementsPage scope="parent" />} />
             <Route path="/parent/attendance" element={<AttendancePage mode="parent" />} />
             <Route path="/parent/fees" element={<ParentFeesPage />} />
+            {/* The same portal for a linked child; the server decides which
+                children appear and the page says whose record is open. */}
+            <Route path="/parent/clearance" element={<MyClearancePage scope="parent" />} />
+            <Route path="/parent/clearance/:id" element={<MyClearanceDetailPage scope="parent" />} />
             {/* One child's week at a time; the server checks the linkage. */}
             <Route path="/parent/schedule" element={<ClassTimetablePage scope="parent" />} />
           </Route>

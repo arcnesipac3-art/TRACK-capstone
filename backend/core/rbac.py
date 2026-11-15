@@ -36,6 +36,7 @@ MODULES = OrderedDict([
     ("structure", "School Structure"),
     ("requirements", "Requirements"),
     ("fees", "Fee Management"),
+    ("clearance", "Digital Clearance"),
     ("attendance", "Attendance"),
     ("announcements", "Announcements"),
     ("messaging", "Messaging"),
@@ -110,6 +111,25 @@ PERMISSION_DEFS = (
      "Record full and partial payments against an assessment."),
     ("fees", "reverse", "Reverse transactions",
      "Void or refund recorded payments; every reversal keeps its audit trail."),
+
+    # ── Digital Clearance ──────────────────────────────────────────────────
+    # Clearance departments are ordinary Department rows (see core/models.py,
+    # "Digital Clearance"): a person may act on a department's queue only while
+    # they hold clearance.verify *and* belong to that department. These keys
+    # therefore decide the capability; the period assignment decides the scope.
+    ("clearance", "view", "View clearance",
+     "See clearance periods, learner records and completion figures."),
+    ("clearance", "manage", "Manage clearance",
+     "Create and configure clearance periods, their departments, requirements, "
+     "obligations and learner categories."),
+    ("clearance", "verify", "Verify department clearance",
+     "Approve, reject or request correction of the learners assigned to a "
+     "department, and record, resolve or waive its obligations."),
+    ("clearance", "finalize", "Final clearance approval",
+     "Give the Registrar's final approval that clears a learner and issues the "
+     "clearance certificate."),
+    ("clearance", "export", "Export clearance reports",
+     "Export clearance completion and obligation data out of the system."),
 
     # ── Attendance ─────────────────────────────────────────────────────────
     ("attendance", "view", "View records",
@@ -202,7 +222,8 @@ DEFAULT_DEPARTMENTS = (
         "description": (
             "Student profiles and enrollment records, student lists, grade "
             "levels and section assignments, requirements tracking and "
-            "verification, and authorized student-record reports."
+            "verification, digital clearance and final clearance approval, "
+            "and authorized student-record reports."
         ),
         "permissions": (
             "users.view",
@@ -216,6 +237,10 @@ DEFAULT_DEPARTMENTS = (
             "requirements.view",
             "requirements.manage",
             "requirements.verify",
+            "clearance.view",
+            "clearance.verify",
+            "clearance.finalize",
+            "clearance.export",
             "reports.view",
             "reports.export",
             "announcements.view",
@@ -235,6 +260,10 @@ DEFAULT_DEPARTMENTS = (
             "fees.manage",
             "fees.record_payment",
             "fees.reverse",
+            # Finance is the department that signs off a learner's outstanding
+            # balances during clearance; it only ever sees its own queue.
+            "clearance.view",
+            "clearance.verify",
             "reports.view",
             "reports.export",
             "announcements.view",

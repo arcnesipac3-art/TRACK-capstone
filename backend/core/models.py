@@ -704,6 +704,10 @@ class Notification(models.Model):
         ENROLLMENT_CONFIRMED = "enrollment_confirmed", "Enrollment Confirmed"
         MESSAGE_RECEIVED = "message_received", "New Message"
         DATA_REQUEST_ANSWERED = "data_request_answered", "Data Request Answered"
+        CLEARANCE_ASSIGNED = "clearance_assigned", "Clearance Assigned"
+        CLEARANCE_UPDATE = "clearance_update", "Clearance Department Update"
+        CLEARANCE_CORRECTION = "clearance_correction", "Clearance Correction Needed"
+        CLEARANCE_CLEARED = "clearance_cleared", "Cleared"
 
     recipient = models.ForeignKey(
         User, on_delete=models.CASCADE, related_name="notifications"
@@ -734,6 +738,15 @@ class Notification(models.Model):
     # deep-link straight into the right thread at the right place.
     message = models.ForeignKey(
         "Message",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notifications",
+    )
+    # A learner's clearance record, for the same reason on the clearance bell
+    # items (see the Digital Clearance section below).
+    clearance = models.ForeignKey(
+        "StudentClearance",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -2062,3 +2075,669 @@ class PushSubscription(models.Model):
 
     def __str__(self):
         return f"Push subscription for {self.user} → {self.endpoint[:60]}"
+
+
+# ---------------------------------------------------------------------------
+# Digital Clearance
+# ---------------------------------------------------------------------------
+#
+# A clearance period asks every learner in its population to be signed off by
+# each department the school named for that period. The design follows the
+# enrollment module, whose problems are the same shape:
+#
+#   * Nothing about a school is hardcoded. The departments a period uses are
+#     ordinary Department rows (the same registry the Departments & Roles
+#     screen maintains) attached to the period one by one — a school with no
+#     laboratory simply never adds one. Requirements and obligation kinds are
+#     configured per department, and the learner categories a period can
+#     target are configured too.
+#   * Configuration is snapshot onto the work, never read through it. Each
+#     requirement carries its name/position and each obligation its title and
+#     amount at the moment it was raised, so editing the setup after a term
+#     never rewrites evidence the school already acted on. Deleting a row that
+#     work references is blocked (PROTECT) — deactivate instead.
+#   * Nothing is assumed about a learner. Obligations exist only because an
+#     authorized person recorded them; the system never derives a debt from a
+#     fee balance or an absence count, and an open obligation never blocks a
+#     department's own sign-off — only the final approval, and only when the
+#     person who raised it marked it as blocking.
+#   * Clearance is an end in itself. No enrollment, grade or record anywhere
+#     else reads these statuses, so a learner who is not cleared is not
+#     silently locked out of the rest of the system.
+#
+# Verification authority is two facts, not one: the person holds
+# `clearance.verify` (so their department was granted the capability) *and*
+# they belong to the specific department the queue belongs to. See
+# core/clearance.py `may_verify()`.
+
+CLEARANCE_TYPES = (
+    ("end_of_year", "End of School Year"),
+    ("semester", "Semester"),
+    ("graduation", "Graduation"),
+    ("transfer", "Transfer / Withdrawal"),
+    ("custom", "Custom Period"),
+)
+
+
+class ClearanceStudentCategory(models.Model):
+    """
+    A configurable label a school puts on learners for clearance purposes.
+
+    TRACK holds no learner-category field of its own, so the school defines the
+    ones it actually uses ('Graduating', 'Irregular', 'Working student', …) and
+    marks the learners who carry them. A clearance period can then target or
+    exclude those labels. Nothing here changes any other module.
+    """
+
+    name = models.CharField(max_length=100, unique=True)
+    code = models.SlugField(max_length=40, unique=True)
+    description = models.TextField(blank=True)
+    learners = models.ManyToManyField(
+        StudentProfile, blank=True, related_name="clearance_categories"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Inactive categories stay on historical periods but are no "
+        "longer offered when configuring one.",
+    )
+    position = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["position", "name"]
+        verbose_name = "Learner Category"
+        verbose_name_plural = "Learner Categories"
+
+    def __str__(self):
+        return self.name
+
+
+class ClearancePeriod(models.Model):
+    """
+    One clearance campaign: a population of learners, a set of departments and
+    a window in which the sign-offs must happen.
+
+    `status` is the school's control over the period; the dates never move it on
+    their own, because an unattended date change silently freezing live
+    verification queues is worse than one explicit action from an authorized
+    administrator.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", "Draft"
+        ACTIVE = "active", "Active"
+        CLOSED = "closed", "Closed"
+        ARCHIVED = "archived", "Archived"
+
+    name = models.CharField(max_length=150)
+    school_year = models.ForeignKey(
+        SchoolYear, on_delete=models.PROTECT, related_name="clearance_periods"
+    )
+    semester = models.PositiveSmallIntegerField(
+        choices=[(1, "First Semester"), (2, "Second Semester")],
+        null=True,
+        blank=True,
+        help_text="Leave empty for a period that spans the whole school year.",
+    )
+    clearance_type = models.CharField(
+        max_length=20, choices=CLEARANCE_TYPES, default=CLEARANCE_TYPES[0][0]
+    )
+    custom_type_label = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Label shown instead of the type when clearance_type is 'custom'.",
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.DRAFT
+    )
+    opens_at = models.DateTimeField()
+    closes_at = models.DateTimeField()
+    grade_levels = models.ManyToManyField(
+        GradeLevel,
+        blank=True,
+        related_name="clearance_periods",
+        help_text="Grade levels this period covers. Empty = every grade level.",
+    )
+    categories = models.ManyToManyField(
+        ClearanceStudentCategory,
+        blank=True,
+        related_name="clearance_periods",
+        help_text="Learner categories this period covers. Empty = every learner "
+        "in the grade levels above, whatever categories they carry.",
+    )
+    instructions = models.TextField(
+        blank=True,
+        help_text="Guidance shown to learners and parents on their clearance page.",
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_clearance_periods",
+    )
+    activated_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-school_year__start_date", "opens_at"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(opens_at__lt=models.F("closes_at")),
+                name="clearance_period_open_before_close",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.school_year})"
+
+    def clean(self):
+        if self.opens_at and self.closes_at and self.opens_at >= self.closes_at:
+            raise ValidationError("The opening date must be before the closing date.")
+
+    @property
+    def type_label(self):
+        if self.clearance_type == "custom" and self.custom_type_label:
+            return self.custom_type_label
+        return dict(CLEARANCE_TYPES)[self.clearance_type]
+
+    @property
+    def is_open_now(self):
+        now = timezone.now()
+        return self.status == self.Status.ACTIVE and self.opens_at <= now <= self.closes_at
+
+    @property
+    def accepts_actions(self):
+        """Whether staff may still act on this period's queues."""
+        return self.status == self.Status.ACTIVE
+
+
+# ---------------------------------------------------------------------------
+# Clearance department configuration
+# ---------------------------------------------------------------------------
+
+class PeriodDepartment(models.Model):
+    """
+    One existing Department taking part in one clearance period.
+
+    This is the row that makes a department a *clearance* department for that
+    period: it carries the period-specific instructions, the order learners see,
+    whether the school treats the sign-off as compulsory, and the name of the
+    person answerable for it. The department itself — its personnel and its
+    permission matrix — is never copied here; it is read from the existing
+    `Department` registry so there is one list of departments in TRACK.
+    """
+
+    period = models.ForeignKey(
+        ClearancePeriod, on_delete=models.CASCADE, related_name="departments"
+    )
+    department = models.ForeignKey(
+        Department, on_delete=models.PROTECT, related_name="clearance_assignments"
+    )
+    responsible_person = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        limit_choices_to={"role": User.Role.ADMIN},
+        related_name="responsible_clearance_departments",
+        help_text="The officer answerable for this department's queue in this period.",
+    )
+    instructions = models.TextField(
+        blank=True, help_text="Shown to learners on this department's card."
+    )
+    deadline = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Earlier cut-off for this department than the period's closing date.",
+    )
+    is_required = models.BooleanField(
+        default=True,
+        help_text="Required departments must approve (or be marked not "
+        "applicable) before the Registrar can give final clearance.",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Deactivating removes the department from new work; existing "
+        "decisions are kept as history.",
+    )
+    position = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["position", "department__name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["period", "department"], name="uniq_period_department"
+            )
+        ]
+        verbose_name = "Clearance Department"
+        verbose_name_plural = "Clearance Departments"
+
+    def __str__(self):
+        return f"{self.department.name} — {self.period.name}"
+
+    def may_verify(self, user):
+        """
+        True when `user` may act on this department's queue.
+
+        Two independent facts: the capability key and membership of *this*
+        department. Super administrators hold every key, so they are also
+        allowed here — the registry in core/rbac.py is what makes that true, and
+        the audit log records the action either way.
+        """
+        if user is None or not user.is_authenticated or not user.is_admin:
+            return False
+        if not self.is_active or not self.period.accepts_actions:
+            return False
+        if not user.has_perm_key("clearance.verify"):
+            return False
+        return user.is_super_admin or self.department.administrators.filter(
+            pk=user.pk
+        ).exists()
+
+
+class ClearanceRequirement(models.Model):
+    """
+    A document or item a learner must produce for one department in one period.
+
+    Requirements hang off the period-department row, so the Library can ask for
+    a card while Finance asks for a receipt in the same period, and the next
+    term can ask for something else entirely.
+    """
+
+    period_department = models.ForeignKey(
+        PeriodDepartment, on_delete=models.CASCADE, related_name="requirements"
+    )
+    name = models.CharField(max_length=150)
+    description = models.TextField(blank=True)
+    is_required = models.BooleanField(
+        default=True,
+        help_text="Required items must be accepted (or the obligation waived) "
+        "before the department can approve the learner.",
+    )
+    needs_review = models.BooleanField(
+        default=True,
+        help_text="An officer must open and accept the upload. Turn this off for "
+        "items the department takes on trust once submitted.",
+    )
+    allows_upload = models.BooleanField(
+        default=True,
+        help_text="Turn off for items settled at the counter rather than with a "
+        "file (a returned book, a signed form).",
+    )
+    is_active = models.BooleanField(default=True)
+    position = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["position", "name"]
+
+    def __str__(self):
+        return f"{self.name} — {self.period_department}"
+
+
+class ObligationType(models.Model):
+    """
+    A department's configurable kind of debt ('Unreturned library book', …).
+
+    Staff raise obligations against a learner from these; the wording and the
+    amount are copied onto the obligation so the history stands on its own if
+    the school later rewords the kind.
+    """
+
+    department = models.ForeignKey(
+        Department, on_delete=models.CASCADE, related_name="obligation_types"
+    )
+    name = models.CharField(max_length=150)
+    description = models.TextField(blank=True)
+    is_blocking = models.BooleanField(
+        default=True,
+        help_text="New obligations of this kind default to blocking the final "
+        "approval until they are resolved or waived.",
+    )
+    is_active = models.BooleanField(default=True)
+    position = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["department__name", "position", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["department", "name"], name="uniq_department_obligation_name"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.department.name})"
+
+
+# ---------------------------------------------------------------------------
+# Learner clearance records
+# ---------------------------------------------------------------------------
+
+class ClearanceStatus(models.TextChoices):
+    """The learner's position in the clearance as a whole."""
+
+    IN_PROGRESS = "in_progress", "In Progress"
+    PENDING_DEPARTMENT = "pending_department", "Pending Department Approval"
+    READY_FOR_FINAL = "ready_for_final", "Ready for Final Approval"
+    CLEARED = "cleared", "Cleared"
+    NOT_CLEARED = "not_cleared", "Not Cleared"
+
+
+class DepartmentStatus(models.TextChoices):
+    """One department's sign-off on one learner."""
+
+    NOT_STARTED = "not_started", "Not Started"
+    PENDING_SUBMISSION = "pending_submission", "Pending Submission"
+    SUBMITTED = "submitted", "Submitted"
+    UNDER_REVIEW = "under_review", "Under Review"
+    NEEDS_CORRECTION = "needs_correction", "Needs Correction"
+    APPROVED = "approved", "Approved"
+    REJECTED = "rejected", "Rejected"
+    NOT_APPLICABLE = "not_applicable", "Not Applicable"
+
+
+class StudentClearance(models.Model):
+    """
+    One learner's clearance for one period — created by the school, never by
+    the learner.
+
+    Provisioning happens when a period is activated (and when a learner is added
+    to a period that is already running), so a queue exists for officers before
+    anyone submits. `overall_status` is derived from the department rows, with
+    'cleared' the one exception: only the Registrar's final approval writes it.
+
+    The learner's grade level and section are snapshotted at provisioning
+    because the report has to describe the year the clearance belongs to, not
+    whatever the learner was moved to afterwards.
+    """
+
+    period = models.ForeignKey(
+        ClearancePeriod, on_delete=models.CASCADE, related_name="clearances"
+    )
+    student = models.ForeignKey(
+        StudentProfile, on_delete=models.CASCADE, related_name="clearances"
+    )
+    grade_level = models.ForeignKey(
+        GradeLevel, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="clearances",
+    )
+    section_name = models.CharField(max_length=60, blank=True)
+    overall_status = models.CharField(
+        max_length=30, choices=ClearanceStatus.choices,
+        default=ClearanceStatus.IN_PROGRESS, db_index=True,
+    )
+    reference = models.CharField(
+        max_length=32, unique=True, null=True, blank=True, db_index=True,
+        help_text="Clearance reference number, issued on final approval. Null "
+        "until then — a blank string would collide with every other learner "
+        "waiting for one.",
+    )
+    cleared_at = models.DateTimeField(null=True, blank=True)
+    cleared_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="final_clearance_approvals",
+    )
+    final_note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["student__user__last_name", "student__user__first_name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["period", "student"], name="uniq_clearance_per_student_period"
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.student} — {self.period.name} [{self.overall_status}]"
+
+    @property
+    def learner(self):
+        """The User behind the profile — every access check is about this."""
+        return self.student.user
+
+    @property
+    def can_download_certificate(self):
+        return self.overall_status == ClearanceStatus.CLEARED
+
+
+class DepartmentClearance(models.Model):
+    """
+    One department's sign-off on one learner.
+
+    `requirement_snapshot` freezes the department's checklist when the row is
+    created, so later configuration edits never move the goalposts under a
+    learner who is already part-way through.
+    """
+
+    student_clearance = models.ForeignKey(
+        StudentClearance, on_delete=models.CASCADE, related_name="departments"
+    )
+    period_department = models.ForeignKey(
+        PeriodDepartment, on_delete=models.PROTECT, related_name="items"
+    )
+    department = models.ForeignKey(
+        Department, on_delete=models.PROTECT, related_name="clearance_items"
+    )
+    status = models.CharField(
+        max_length=30, choices=DepartmentStatus.choices,
+        default=DepartmentStatus.NOT_STARTED, db_index=True,
+    )
+    requirement_snapshot = models.JSONField(
+        default=list, blank=True,
+        help_text="The checklist this learner was given, with its ids and names.",
+    )
+    decision_note = models.TextField(
+        blank=True, help_text="Learner-facing reason for the current decision."
+    )
+    decided_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    decided_by_name = models.CharField(max_length=200, blank=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+    reviewed_count = models.PositiveIntegerField(
+        default=0, help_text="How many times an officer opened this learner's file."
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["period_department__position", "department__name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["student_clearance", "period_department"],
+                name="uniq_department_clearance",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.student_clearance.student} — {self.department.name} [{self.status}]"
+
+    @property
+    def is_settled(self):
+        """Whether this department no longer holds the learner's clearance back."""
+        return self.status in (
+            DepartmentStatus.APPROVED,
+            DepartmentStatus.NOT_APPLICABLE,
+        )
+
+    @property
+    def is_final(self):
+        """Settled or refused — an officer has had their say and can now only
+        act again deliberately."""
+        return self.is_settled or self.status == DepartmentStatus.REJECTED
+
+
+class ClearanceSubmission(models.Model):
+    """
+    One requirement's document for one learner at one department.
+
+    Like `ApplicationDocument`, the requirement's identity is copied across when
+    the row is created, and a resubmission replaces the file but bumps
+    `revision` and leaves an event, so the officer can see that a learner has
+    been asked twice for the same thing.
+    """
+
+    class Status(models.TextChoices):
+        NOT_SUBMITTED = "not_submitted", "Not Submitted"
+        SUBMITTED = "submitted", "Submitted — Awaiting Review"
+        ACCEPTED = "accepted", "Accepted"
+        RETURNED = "returned", "Returned for Correction"
+
+    department_clearance = models.ForeignKey(
+        DepartmentClearance, on_delete=models.CASCADE, related_name="submissions"
+    )
+    requirement = models.ForeignKey(
+        ClearanceRequirement, on_delete=models.PROTECT, related_name="submissions"
+    )
+    name = models.CharField(max_length=150)
+    is_required = models.BooleanField(default=True)
+    position = models.PositiveIntegerField(default=0)
+    file = models.FileField(upload_to="clearance/%Y/", blank=True, null=True)
+    original_filename = models.CharField(max_length=255, blank=True)
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.NOT_SUBMITTED
+    )
+    revision = models.PositiveIntegerField(default=0)
+    submitted_at = models.DateTimeField(null=True, blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    review_note = models.TextField(blank=True, help_text="Learner-facing note.")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["position", "name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["department_clearance", "requirement"],
+                name="uniq_submission_per_requirement",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.name} — {self.department_clearance} [{self.status}]"
+
+
+class ClearanceObligation(models.Model):
+    """
+    Something a department says the learner still owes, in this period.
+
+    Created only by an officer acting for their own department — never derived
+    automatically from a fee balance or a book register, because the school, not
+    the software, decides what stands between a learner and their clearance.
+    Resolving and waiving are both audited; a waiver keeps its reason and the
+    person who granted it, and an obligation can be reopened.
+    """
+
+    class Status(models.TextChoices):
+        OPEN = "open", "Outstanding"
+        RESOLVED = "resolved", "Resolved"
+        WAIVED = "waived", "Waived"
+
+    department_clearance = models.ForeignKey(
+        DepartmentClearance, on_delete=models.CASCADE, related_name="obligations"
+    )
+    obligation_type = models.ForeignKey(
+        ObligationType,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="obligations",
+        help_text="The configured kind this was raised from, when there was one.",
+    )
+    title = models.CharField(max_length=150)
+    detail = models.TextField(blank=True)
+    amount = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True,
+        help_text="Optional peso figure. Only ever what the officer recorded.",
+    )
+    is_blocking = models.BooleanField(
+        default=True,
+        help_text="An outstanding blocking obligation stops the Registrar's "
+        "final approval. Clearing a department sign-off is never stopped by it.",
+    )
+    status = models.CharField(
+        max_length=20, choices=Status.choices, default=Status.OPEN, db_index=True
+    )
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, related_name="+"
+    )
+    created_by_name = models.CharField(max_length=200, blank=True)
+    resolved_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    resolution_note = models.TextField(blank=True)
+    waiver_reason = models.TextField(blank=True)
+    waived_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    waived_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.title} — {self.department_clearance} [{self.status}]"
+
+    def clean(self):
+        if self.amount is not None and self.amount < 0:
+            raise ValidationError({"amount": "An obligation cannot be negative."})
+
+    @property
+    def is_outstanding(self):
+        return self.status == self.Status.OPEN
+
+
+class ClearanceEvent(models.Model):
+    """
+    Immutable history of everything that happened in one learner's clearance.
+
+    `department_clearance` is null for period-wide acts (provisioning, the
+    Registrar's final approval). Learners and parents read `note`; `internal_note`
+    is staff-only, mirroring `ApplicationReviewEvent`.
+    """
+
+    student_clearance = models.ForeignKey(
+        StudentClearance, on_delete=models.CASCADE, related_name="events"
+    )
+    department_clearance = models.ForeignKey(
+        DepartmentClearance,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="events",
+    )
+    actor = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    actor_name = models.CharField(max_length=200, blank=True)
+    action = models.CharField(max_length=60)
+    from_status = models.CharField(max_length=30, blank=True)
+    to_status = models.CharField(max_length=30, blank=True)
+    note = models.TextField(blank=True)
+    internal_note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    def __str__(self):
+        return f"{self.student_clearance}: {self.action} ({self.to_status or '-'})"
+
+    def save(self, *args, **kwargs):
+        if self.actor and not self.actor_name:
+            self.actor_name = self.actor.get_full_name() or self.actor.username
+        super().save(*args, **kwargs)

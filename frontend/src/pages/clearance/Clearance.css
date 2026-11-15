@@ -1,0 +1,244 @@
+/**
+ * TRACK — clearance screens.
+ *
+ * Only the shapes these pages need are here; every colour, space and radius
+ * comes from the design tokens in styles/tokens.css, and the shared primitives
+ * (card, table, badge, stack, field) come from index.css unchanged.
+ */
+
+/* --- period setup: the offices of one period and one office's checklist --- */
+.clr-setup {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  gap: var(--space-4, 16px);
+  align-items: start;
+}
+
+.clr-office-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.clr-office {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.clr-office:hover { border-color: var(--border-strong); background: var(--surface-alt); }
+
+.clr-office[aria-current='true'] {
+  border-color: var(--brand-blue);
+  background: var(--blue-50);
+}
+
+.clr-office .clr-office-name {
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.clr-office .clr-office-meta {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* --- deadline + blocker callouts ------------------------------------------ */
+.clr-blockers {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.clr-blockers li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--amber-100);
+  color: var(--amber-800);
+  font-size: 0.86rem;
+}
+
+.clr-blockers.is-clear li {
+  background: var(--green-100);
+  color: var(--green-800);
+}
+
+/* --- learner checklist ---------------------------------------------------- */
+.clr-checklist {
+  display: grid;
+  gap: 12px;
+}
+
+.clr-office-card { border: 1px solid var(--border); border-radius: 10px; }
+
+.clr-office-card > header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-alt);
+  border-radius: 10px 10px 0 0;
+}
+
+.clr-office-card h3 { margin: 0; font-size: 0.98rem; }
+
+/* An office card stacks its own body: buttons, the requirements table and the
+   add-requirement action need air between them, and `.card-body` only pads. */
+.clr-office-card > .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.clr-office-card .clr-note {
+  margin: 0;
+  padding: 10px 14px 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.clr-office-card .clr-rejection {
+  margin: 10px 14px 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--red-600);
+  background: var(--red-100);
+  border-radius: 0 8px 8px 0;
+  font-size: 0.86rem;
+  color: var(--red-700);
+}
+
+/* --- the officer's decision panel ----------------------------------------- */
+.clr-decision {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.clr-decision .field { flex: 1 1 260px; }
+
+.clr-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.clr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* --- the pager strip under a table that fills its card --------------------- */
+.clr-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  border-top: 1px solid var(--border);
+}
+
+/* --- a sentence in the school's own configured words ---------------------- */
+/* The period, an office's instructions and a decision note are all text the
+   school typed. They render as prose with the page's muted reading colour, not
+   as another table. */
+.clr-note {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.clr-note strong { color: var(--text); }
+
+/* --- one requirement of an office, with its document ---------------------- */
+.clr-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.clr-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --- a chip that is a control: an office group, a decision choice --------- */
+.clr-chip-button {
+  display: grid;
+  gap: 2px;
+  padding: 6px 12px;
+  text-align: left;
+  font-size: 0.82rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.clr-chip-button:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-alt);
+}
+
+.clr-chip-button.is-on {
+  border-color: var(--brand-blue);
+  background: var(--blue-50);
+  font-weight: 600;
+}
+
+/* --- the officer's own history for one learner ---------------------------- */
+.clr-events {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.clr-events li {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--border);
+  border-radius: 0 8px 8px 0;
+  background: var(--surface-alt);
+  font-size: 0.86rem;
+}
+
+@media (max-width: 1023px) {
+  .clr-setup { grid-template-columns: minmax(0, 1fr); }
+}
